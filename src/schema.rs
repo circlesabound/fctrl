@@ -31,18 +31,38 @@ pub struct RconConfig {
 
 #[derive(Deserialize)]
 pub enum IncomingMessage {
+    // Version management
+    InitWithVersion(String),
+    UpgradeVersion(String),
+
+    // Server control
+    ServerStart,
+    ServerStop,
+    ServerStatus,
+
+    // etc
     ChatPrint(String),
     RconCommand(String),
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub enum OutgoingMessage {
-    ConsoleOut(ConsoleOutMessage)
+    ConsoleOut(ConsoleOutMessage),
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub enum ConsoleOutMessage {
-    Chat { timestamp: String, user: String, msg: String },
-    Join { timestamp: String, user: String },
-    Leave { timestamp: String, user: String },
+    Chat {
+        timestamp: String,
+        user: String,
+        msg: String,
+    },
+    Join {
+        timestamp: String,
+        user: String,
+    },
+    Leave {
+        timestamp: String,
+        user: String,
+    },
 }
