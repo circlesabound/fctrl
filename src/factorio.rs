@@ -31,6 +31,9 @@ impl VersionManager {
     pub async fn new<P: AsRef<Path>>(install_dir: P) -> crate::error::Result<VersionManager> {
         let mut versions = HashMap::new();
 
+        // create install dir if not exists
+        fs::create_dir_all(&install_dir).await?;
+
         // Scan install dir for versions on disk
         let mut entries = fs::read_dir(&install_dir).await?;
         while let Some(entry) = entries.next_entry().await? {

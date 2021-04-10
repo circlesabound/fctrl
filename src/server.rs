@@ -8,6 +8,8 @@ use nix::{
 use tokio::process::*;
 use tokio::{io::AsyncBufReadExt, task::JoinHandle};
 
+use crate::schema::ServerStartSaveFile;
+
 pub mod builder {
     use std::{net::SocketAddr, path::Path};
 
@@ -19,6 +21,7 @@ pub mod builder {
 
     pub struct ServerBuilder {
         cmd_builder: Command,
+        savefile: Option<ServerStartSaveFile>,
     }
 
     impl ServerBuilder {
@@ -31,19 +34,26 @@ pub mod builder {
                 .join("factorio");
             ServerBuilder {
                 cmd_builder: Command::new(path_to_executable),
+                savefile: None,
             }
         }
 
-        pub fn creating_savefile<P: AsRef<Path>>(self, new_savefile_path: P) -> Self {
-            self.with_cli_args(&["--create", new_savefile_path.as_ref().to_str().unwrap()])
+        pub fn creating_savefile(self, new_savefile_name: &str) -> Self {
+            self.with_cli_args(&[
+                "--create",
+                util::saves::get_savefile_path(new_savefile_name)
+                    .to_str()
+                    .unwrap(),
+            ])
         }
 
-        pub fn with_savefile(self, savefile: ServerStartSaveFile) -> Self {
+        pub fn with_savefile(mut self, savefile: ServerStartSaveFile) -> Self {
+            self.savefile.replace(savefile.clone());
             match savefile {
-                ServerStartSaveFile::Latest => self.with_cli_args(&["--start-server-load-latest"]),
+                ServerStartSaveFile::Latest => self.with_cli_args(&["--start-server-load-latest"]), // TODO this doesn't work with a custom save dir
                 ServerStartSaveFile::Specific(savefile_name) => self.with_cli_args(&[
                     "--start-server",
-                    util::saves::get_savefile_path(savefile_name)
+                    util::saves::get_savefile_path(&savefile_name)
                         .to_str()
                         .unwrap(),
                 ]),
@@ -84,8 +94,12 @@ pub mod builder {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
 
+            // set this for a better night's sleep
+            self.cmd_builder.kill_on_drop(true);
+
             StartableInstance {
                 cmd: self.cmd_builder,
+                savefile: self.savefile,
             }
         }
 
@@ -105,8 +119,88 @@ pub mod builder {
     }
 }
 
-pub struct StartableInstance {
+pub mod proc {
+    use std::sync::Arc;
+
+    use tokio::sync::Mutex;
+
+    use super::{builder::ServerBuilder, *};
+
+    pub struct ProcessManager {
+        running_instance: Arc<Mutex<Option<RunningInstance>>>,
+    }
+
+    impl ProcessManager {
+        pub fn new() -> Self {
+            ProcessManager {
+                running_instance: Arc::new(Mutex::new(None)),
+            }
+        }
+
+        pub async fn run_instance(&self, builder: ServerBuilder) -> crate::error::Result<()> {
+            let mut mg = self.running_instance.lock().await;
+
+            if mg.is_some() {
+                return Err(crate::error::Error::ProcessAlreadyRunning);
+            }
+
+            let startable = builder.build();
+            let running = startable.start().await?;
+            mg.replace(running);
+
+            Ok(())
+        }
+
+        pub async fn stop_instance(&self) -> Option<StoppedInstance> {
+            let mut mg = self.running_instance.lock().await;
+
+            match mg.take() {
+                None => None,
+                Some(running) => {
+                    match running.stop().await {
+                        Ok(s) => Some(s),
+                        Err(e) => {
+                            // Could not stop the instance for whatever reason (should never happen).
+                            // Tricky to deal with. For now we just drop the instance and hope the
+                            // underlying process exits and cleans up eventually
+                            error!("Failed to stop instance, ignoring failure and dropping process handles. Error: {:?}", e);
+                            None
+                        }
+                    }
+                }
+            }
+        }
+
+        pub async fn wait_for_instance(&self) -> Option<StoppedInstance> {
+            let mut mg = self.running_instance.lock().await;
+
+            match mg.take() {
+                None => None,
+                Some(running) => {
+                    match running.wait().await {
+                        Ok(s) => Some(s),
+                        Err(e) => {
+                            // Could not wait for whatever reason (should never happen).
+                            // Tricky to deal with. For now we just drop the instance and hope the
+                            // underlying process exits and cleans up eventually
+                            error!("Failed to wait for instance, ignoring failure and dropping process handles. Error: {:?}", e);
+                            None
+                        }
+                    }
+                }
+            }
+        }
+
+        pub async fn instance_is_running(&self) -> bool {
+            let mg = self.running_instance.lock().await;
+            mg.is_some()
+        }
+    }
+}
+
+struct StartableInstance {
     cmd: Command,
+    savefile: Option<ServerStartSaveFile>,
 }
 
 impl StartableInstance {
@@ -135,19 +229,29 @@ impl StartableInstance {
 
         Ok(RunningInstance {
             process: instance,
+            savefile: self.savefile,
             handle_out,
             handle_err,
         })
     }
 }
 
-pub struct RunningInstance {
+struct RunningInstance {
     process: Child,
+    savefile: Option<ServerStartSaveFile>,
     handle_out: JoinHandle<()>,
     handle_err: JoinHandle<()>,
 }
 
 impl RunningInstance {
+    /// Attempts to stop the instance by sending SIGTERM and waiting for the process to exit.
+    ///
+    /// # Errors
+    ///
+    /// This will only error in critical situations:
+    /// - failed to find pid
+    /// - sending SIGTERM failed
+    /// - wait() on the process failed
     pub async fn stop(mut self) -> crate::error::Result<StoppedInstance> {
         if let Some(exit_status) = self.process.try_wait()? {
             // process already exited
@@ -155,7 +259,9 @@ impl RunningInstance {
                 "Stop command received but child process already exited with status {}",
                 exit_status
             );
-            return Err(crate::error::Error::ProcessAlreadyExited);
+            return Ok(StoppedInstance {
+                savefile: self.savefile,
+            });
         }
 
         // Grab pid, this will fail in the unlikely case if process exits between the previous try_wait and now
@@ -174,17 +280,9 @@ impl RunningInstance {
             return Err(crate::error::Error::ProcessSignalError(e));
         }
 
-        let exit_status = self.process.wait().await?;
-        info!("Child process exited with status {}", exit_status);
-
-        // clean up piped output handlers
-        self.handle_out.abort();
-        self.handle_err.abort();
-
-        Ok(StoppedInstance {})
+        self.wait().await
     }
 
-    /// Use for short-running instances e.g. create savefile
     pub async fn wait(mut self) -> crate::error::Result<StoppedInstance> {
         let exit_status = self.process.wait().await?;
         info!("Child process exited with status {}", exit_status);
@@ -193,12 +291,14 @@ impl RunningInstance {
         self.handle_out.abort();
         self.handle_err.abort();
 
-        Ok(StoppedInstance {})
+        Ok(StoppedInstance {
+            savefile: self.savefile,
+        })
     }
 }
 
 pub struct StoppedInstance {
-    //
+    pub savefile: Option<ServerStartSaveFile>,
 }
 
 /*

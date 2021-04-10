@@ -15,6 +15,7 @@ use log::{debug, error, info, warn};
 use logwatcher::LogWatcher;
 use rcon::Connection;
 use regex::Regex;
+use server::proc::ProcessManager;
 use tokio::{
     fs,
     net::{TcpListener, TcpStream},
@@ -45,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let version_manager = factorio::VersionManager::new(FACTORIO_INSTALL_DIR).await?;
 
     info!("Init Factorio server process management");
-    let server = Arc::new(Mutex::new(None));
+    let proc_manager = ProcessManager::new();
 
     info!("Init RCON");
     let rcon;
@@ -89,8 +90,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ws_listener
         .run(
             Arc::new(global_bus_tx),
+            Arc::new(proc_manager),
             Arc::new(Mutex::new(rcon)),
-            server,
             Arc::new(Mutex::new(version_manager)),
         )
         .await;
@@ -111,15 +112,15 @@ impl WebSocketListener {
     async fn run(
         self,
         global_bus_tx: Arc<broadcast::Sender<OutgoingMessage>>,
+        proc_manager: Arc<ProcessManager>,
         rcon: Arc<Mutex<Option<Connection>>>,
-        server: Arc<Mutex<Option<server::RunningInstance>>>,
         version_manager: Arc<Mutex<factorio::VersionManager>>,
     ) {
         while let Ok((stream, _)) = self.tcp.accept().await {
             match AgentController::handle_connection(
                 stream,
                 Arc::clone(&global_bus_tx),
-                Arc::clone(&server),
+                Arc::clone(&proc_manager),
                 Arc::clone(&rcon),
                 Arc::clone(&version_manager),
             )
@@ -150,8 +151,8 @@ impl WebSocketListener {
 
 struct AgentController {
     peer_addr: SocketAddr,
+    proc_manager: Arc<ProcessManager>,
     rcon: Arc<Mutex<Option<Connection>>>,
-    server: Arc<Mutex<Option<server::RunningInstance>>>,
     version_manager: Arc<Mutex<factorio::VersionManager>>,
     ws_rx: SplitStream<WebSocketStream<TcpStream>>,
     ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
@@ -162,7 +163,7 @@ impl AgentController {
     async fn handle_connection(
         tcp: TcpStream,
         global_bus_tx: Arc<broadcast::Sender<OutgoingMessage>>,
-        server: Arc<Mutex<Option<server::RunningInstance>>>,
+        proc_manager: Arc<ProcessManager>,
         rcon: Arc<Mutex<Option<Connection>>>,
         version_manager: Arc<Mutex<factorio::VersionManager>>,
     ) -> tungstenite::Result<AgentController> {
@@ -192,8 +193,8 @@ impl AgentController {
 
         Ok(AgentController {
             peer_addr,
+            proc_manager,
             rcon,
-            server,
             version_manager,
             ws_rx,
             ws_tx,
@@ -229,9 +230,9 @@ impl AgentController {
                                 self.server_stop().await
                             }
 
-                            IncomingMessage::SaveCreate => {
-                                debug!("handling: CreateSave");
-                                self.save_create("default".to_owned()).await;
+                            IncomingMessage::SaveCreate(save_name) => {
+                                debug!("handling: CreateSave({})", save_name);
+                                self.save_create(save_name).await;
                             }
 
                             IncomingMessage::ServerStatus => todo!(),
@@ -295,34 +296,54 @@ impl AgentController {
 
     async fn upgrade_version(&self, version: String) {
         let mut vm = self.version_manager.lock().await;
-        if self.server.lock().await.is_some() {
-            // server is running, cannot upgrade
-            self.send_message(Message::Text(
-                "Error: cannot upgrade while server is running".to_owned(),
-            ))
-            .await;
-            return;
-        }
 
         if vm.versions.is_empty() {
             self.send_message(Message::Text("Error: must run init first".to_owned()))
                 .await;
         } else {
-            let current_version = vm.versions.keys().next().unwrap().to_string();
+            // Assume there is at most one version installed
+            let current_version_string = vm.versions.keys().next().unwrap().to_string();
 
             // Install specified version
+            info!("Installing version {} for upgrade", version);
             if let Err(e) = vm.install(version.clone()).await {
                 self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
                     .await;
                 return;
             }
 
-            // TODO save migrations
-            // TODO mark new current version (not required with single-version installation invariant?)
+            // Stop server if running
+            info!("Stopping server for upgrade");
+            let opt_stopped_instance = self.proc_manager.stop_instance().await;
+            let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile).flatten();
+
+            // TODO stage save migrations?
 
             // Remove previous version
-            if let Err(e) = vm.delete(&current_version).await {
-                self.send_message(Message::Text(format!("Error: failed to remove previous version {} after upgrading to version {}: {:?}", current_version, version, e))).await;
+            info!(
+                "Removing previous version {} after upgrade",
+                current_version_string
+            );
+            if let Err(e) = vm.delete(&current_version_string).await {
+                self.send_message(Message::Text(format!("Error: failed to remove previous version {} after upgrading to version {}: {:?}", current_version_string, version, e))).await;
+            }
+
+            // Start server on new version if it was previously running
+            if let Some(previous_savefile) = opt_previous_savefile {
+                info!("Restarting server after upgrade");
+                let new_version = vm.versions.get(&version).expect("just added several lines back and we still hold the lock, this should never fail");
+                let builder = ServerBuilder::using_installation(new_version)
+                    .with_savefile(previous_savefile)
+                    .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080));
+
+                if let Err(e) = self.proc_manager.run_instance(builder).await {
+                    self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
+                        .await;
+                } else {
+                    self.send_message(Message::Text("Ok".to_owned())).await;
+                }
+            } else {
+                self.send_message(Message::Text("Ok".to_owned())).await;
             }
         }
     }
@@ -344,52 +365,18 @@ impl AgentController {
             }
         }
 
-        let mut mg = self.server.lock().await;
-        if let Some(_) = *mg {
-            self.send_message(Message::Text("Error: server is already started".to_owned()))
-                .await;
-            return;
-        }
-
-        let startable = ServerBuilder::using_installation(version)
+        let builder = ServerBuilder::using_installation(version)
             .with_savefile(savefile)
-            .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080))
-            .build();
+            .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080));
 
-        match startable.start().await {
-            Ok(running) => {
-                mg.replace(running);
-            }
-            Err(e) => {
-                self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
-                    .await;
-            }
+        if let Err(e) = self.proc_manager.run_instance(builder).await {
+            self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
+                .await;
         }
     }
 
     async fn server_stop(&self) {
-        let mut mg = self.server.lock().await;
-        match mg.take() {
-            None => {
-                self.send_message(Message::Text("Error: server is not started".to_owned()))
-                    .await;
-                return;
-            }
-            Some(running) => {
-                if let Err(e) = running.stop().await {
-                    error!("Failed to stop server: {:?}", e);
-                    // TODO force stop with SIGKILL?
-                    self.send_message(Message::Text(format!(
-                        "Error: failed to stop server: {:?}",
-                        e
-                    )))
-                    .await;
-                } else {
-                    self.send_message(Message::Text("Successfully stopped server".to_owned()))
-                        .await;
-                }
-            }
-        }
+        self.proc_manager.stop_instance().await;
     }
 
     async fn server_status(&self) {
@@ -413,13 +400,6 @@ impl AgentController {
             }
         }
 
-        let mg = self.server.lock().await;
-        if let Some(_) = *mg {
-            self.send_message(Message::Text("Error: server is already started".to_owned()))
-                .await;
-            return;
-        }
-
         // Create save dir if not exists
         let save_dir = util::saves::get_save_dir_path();
         if let Err(e) = fs::create_dir_all(&save_dir).await {
@@ -436,40 +416,19 @@ impl AgentController {
             return;
         }
 
-        let new_savefile_path = util::saves::get_savefile_path(save_name);
-        info!(
-            "Attempting to create new savefile at {}",
-            new_savefile_path.display()
-        );
-        let startable = ServerBuilder::using_installation(version)
-            .creating_savefile(new_savefile_path)
-            .build();
-
-        match startable.start().await {
-            Ok(running) => {
-                // don't bother setting server value, since we expect the process to exit soon
-                // we still hold the mutex guard for safety against installation changes
-                match running.wait().await {
-                    Ok(_) => {
-                        self.send_message(Message::Text(
-                            "Successfully created savefile".to_owned(),
-                        ))
-                        .await;
-                    }
-                    Err(e) => {
-                        self.send_message(Message::Text(format!(
-                            "Error: failed to create save: {:?}",
-                            e
-                        )))
-                        .await;
-                    }
-                }
-            }
-            Err(e) => {
-                self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
-                    .await;
-            }
+        let builder = ServerBuilder::using_installation(version).creating_savefile(&save_name);
+        if let Err(e) = self.proc_manager.run_instance(builder).await {
+            self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
+                .await;
         }
+
+        self.proc_manager.wait_for_instance().await;
+
+        self.send_message(Message::Text(format!(
+            "Successfully created savefile with name {}",
+            save_name
+        )))
+        .await;
     }
 
     async fn chat_print(&self, msg: String) {

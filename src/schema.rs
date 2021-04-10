@@ -49,7 +49,7 @@ pub enum IncomingMessage {
     ServerStatus,
 
     // Save management
-    SaveCreate,
+    SaveCreate(String),
 
     // etc
     ChatPrint(String),

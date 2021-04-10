@@ -3,7 +3,8 @@ pub type Result<T> = std::result::Result<T, crate::error::Error>;
 #[derive(Debug)]
 pub enum Error {
     // Process management
-    ProcessAlreadyExited,
+    ProcessAlreadyRunning,
+    ProcessAlreadyStopped,
     ProcessPidError,
     ProcessSignalError(nix::Error),
 
