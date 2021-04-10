@@ -2,6 +2,12 @@ pub type Result<T> = std::result::Result<T, crate::error::Error>;
 
 #[derive(Debug)]
 pub enum Error {
+    // Process management
+    ProcessAlreadyExited,
+    ProcessPidError,
+    ProcessSignalError(nix::Error),
+
+    // Generic wrappers around external error types
     Io(std::io::Error),
     Reqwest(reqwest::Error),
 }

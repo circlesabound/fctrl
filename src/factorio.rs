@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytes::Buf;
-use log::{info, warn};
+use log::{debug, error, info, warn};
 use tar::Archive;
 use tokio::fs;
 use xz2::read::XzDecoder;
