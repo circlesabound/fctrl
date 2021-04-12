@@ -1,6 +1,6 @@
 use bytes::Bytes;
-use std::time::Duration;
 use log::{debug, error, info, warn};
+use std::time::Duration;
 use std::{path::PathBuf, time::SystemTime};
 use tokio::fs;
 
@@ -50,7 +50,12 @@ async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
     let cached_item_path = get_cache_path().await?.join(id);
     match fs::metadata(&cached_item_path).await {
         Ok(m) => {
-            if m.created().unwrap_or(SystemTime::UNIX_EPOCH).elapsed().unwrap_or(Duration::new(u64::MAX, 0)) > Duration::from_secs(60 * 60 * 24) {
+            if m.created()
+                .unwrap_or(SystemTime::UNIX_EPOCH)
+                .elapsed()
+                .unwrap_or(Duration::new(u64::MAX, 0))
+                > Duration::from_secs(60 * 60 * 24)
+            {
                 // if cached item older than a day, purge and refresh
                 purge(id).await?;
                 Ok(None)
@@ -73,5 +78,4 @@ async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
             Ok(None)
         }
     }
-    
 }

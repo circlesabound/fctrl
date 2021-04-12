@@ -230,12 +230,12 @@ impl AgentController {
                                 self.server_stop().await
                             }
 
+                            IncomingMessage::ServerStatus => todo!(),
+
                             IncomingMessage::SaveCreate(save_name) => {
                                 debug!("handling: CreateSave({})", save_name);
                                 self.save_create(save_name).await;
                             }
-
-                            IncomingMessage::ServerStatus => todo!(),
 
                             IncomingMessage::ChatPrint(chat_msg) => self.chat_print(chat_msg).await,
 

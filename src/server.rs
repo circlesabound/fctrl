@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 
 use log::{debug, error, info, warn};
 use nix::{
@@ -206,8 +206,8 @@ struct StartableInstance {
 impl StartableInstance {
     pub async fn start(mut self) -> crate::error::Result<RunningInstance> {
         let mut instance = self.cmd.spawn()?;
+        info!("Child process started with PID {}!", instance.id().map_or("None".to_owned(), |pid| pid.to_string()));
 
-        // TODO connect ostream and errstream
         let out_stream = instance.stdout.take().unwrap();
         let err_stream = instance.stderr.take().unwrap();
 
@@ -260,6 +260,7 @@ impl RunningInstance {
                 exit_status
             );
             return Ok(StoppedInstance {
+                exit_status,
                 savefile: self.savefile,
             });
         }
@@ -292,12 +293,14 @@ impl RunningInstance {
         self.handle_err.abort();
 
         Ok(StoppedInstance {
+            exit_status,
             savefile: self.savefile,
         })
     }
 }
 
 pub struct StoppedInstance {
+    pub exit_status: ExitStatus,
     pub savefile: Option<ServerStartSaveFile>,
 }
 
