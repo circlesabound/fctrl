@@ -1,5 +1,6 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::Path,
     sync::Arc,
 };
 
@@ -367,6 +368,16 @@ impl AgentController {
 
         let builder = ServerBuilder::using_installation(version)
             .with_savefile(savefile)
+            .with_server_settings(
+                Path::new(DATA_DIR)
+                    .join(CONFIG_SUBDIR)
+                    .join("server-settings.json"),
+            )
+            .with_admin_list_file(
+                Path::new(DATA_DIR)
+                    .join(CONFIG_SUBDIR)
+                    .join("server-adminlist.json"),
+            )
             .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080));
 
         if let Err(e) = self.proc_manager.run_instance(builder).await {

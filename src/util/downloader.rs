@@ -28,8 +28,15 @@ pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> crate::error::Re
 
 pub async fn purge(id: &str) -> crate::error::Result<()> {
     let path = get_cache_path().await?.join(id);
-    fs::remove_dir_all(path).await?;
-    Ok(())
+    if let Err(e) = fs::remove_file(path).await {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            Ok(())
+        } else {
+            Err(e.into())
+        }
+    } else {
+        Ok(())
+    }
 }
 
 pub async fn purge_all() -> crate::error::Result<()> {
@@ -48,6 +55,10 @@ async fn get_cache_path() -> crate::error::Result<PathBuf> {
 
 async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
     let cached_item_path = get_cache_path().await?.join(id);
+    info!(
+        "Attempting to read metadata for {}",
+        cached_item_path.display()
+    );
     match fs::metadata(&cached_item_path).await {
         Ok(m) => {
             if m.created()
@@ -73,9 +84,36 @@ async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
             }
         }
         Err(e) => {
-            error!("Error reading cached item metadata: {:?}", e);
+            if e.kind() != std::io::ErrorKind::NotFound {
+                error!("Error reading cached item metadata: {:?}", e);
+            }
             // ignore
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn logger_init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    #[tokio::test]
+    async fn second_download_can_fetch_from_cache(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        logger_init();
+
+        let uri = "https://factorio.com/get-download/latest/headless/linux64";
+
+        let id = "can_fetch_from_cache_test";
+        purge(id).await?;
+        download(id, uri).await?;
+
+        assert!(read_from_cache(id).await?.is_some());
+
+        Ok(())
     }
 }

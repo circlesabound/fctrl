@@ -103,7 +103,7 @@ pub mod builder {
             }
         }
 
-        fn with_cli_args<I, S>(mut self, args: I) -> Self
+        pub fn with_cli_args<I, S>(mut self, args: I) -> Self
         where
             I: IntoIterator<Item = S>,
             S: AsRef<std::ffi::OsStr>,
@@ -198,7 +198,7 @@ pub mod proc {
     }
 }
 
-struct StartableInstance {
+pub struct StartableInstance {
     cmd: Command,
     savefile: Option<ServerStartSaveFile>,
 }
@@ -206,7 +206,12 @@ struct StartableInstance {
 impl StartableInstance {
     pub async fn start(mut self) -> crate::error::Result<RunningInstance> {
         let mut instance = self.cmd.spawn()?;
-        info!("Child process started with PID {}!", instance.id().map_or("None".to_owned(), |pid| pid.to_string()));
+        info!(
+            "Child process started with PID {}!",
+            instance
+                .id()
+                .map_or("None".to_owned(), |pid| pid.to_string())
+        );
 
         let out_stream = instance.stdout.take().unwrap();
         let err_stream = instance.stderr.take().unwrap();
@@ -236,7 +241,7 @@ impl StartableInstance {
     }
 }
 
-struct RunningInstance {
+pub struct RunningInstance {
     process: Child,
     savefile: Option<ServerStartSaveFile>,
     handle_out: JoinHandle<()>,
