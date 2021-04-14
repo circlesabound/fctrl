@@ -40,8 +40,7 @@ pub struct RconConfig {
 #[derive(Clone, Debug, Deserialize)]
 pub enum IncomingMessage {
     // Installation management
-    InitWithVersion(String),
-    UpgradeVersion(String),
+    VersionInstall(String),
 
     // Server control
     ServerStart(ServerStartSaveFile),
@@ -51,7 +50,7 @@ pub enum IncomingMessage {
     // Save management
     SaveCreate(String),
 
-    // etc
+    // In-game
     ChatPrint(String),
     RconCommand(String),
 }

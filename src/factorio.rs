@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytes::Buf;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use tar::Archive;
 use tokio::fs;
 use xz2::read::XzDecoder;
@@ -39,7 +39,7 @@ impl VersionManager {
         while let Some(entry) = entries.next_entry().await? {
             if entry.path().is_dir() {
                 if let Some(dir_name) = entry.file_name().to_str() {
-                    if let Some(version) = dir_name.strip_prefix("factorio_") {
+                    if let Some(version) = dir_name.strip_prefix("factorio_headless_x64_") {
                         let factorio_installation = Factorio {
                             path: entry.path(),
                             version: version.to_string(),
@@ -125,13 +125,9 @@ mod tests {
 
     use super::*;
 
-    fn logger_init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
-
     #[tokio::test]
     async fn can_install_version_1_1_30() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        logger_init();
+        crate::util::testing::logger_init();
 
         let tmp_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
         fs::create_dir(&tmp_dir).await?;

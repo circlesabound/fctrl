@@ -1,13 +1,14 @@
-use std::{net::SocketAddr, path::Path};
+use std::{path::Path, process::Stdio};
 
 use tokio::process::Command;
 
 use crate::{factorio::Factorio, schema::ServerStartSaveFile, util};
 
-use super::*;
+use super::{StartableInstance, settings::{LaunchSettings, ServerSettings}};
 
 pub struct ServerBuilder {
     cmd_builder: Command,
+    launch_settings: Option<LaunchSettings>,
     savefile: Option<ServerStartSaveFile>,
 }
 
@@ -21,6 +22,7 @@ impl ServerBuilder {
             .join("factorio");
         ServerBuilder {
             cmd_builder: Command::new(path_to_executable),
+            launch_settings: None,
             savefile: None,
         }
     }
@@ -47,23 +49,22 @@ impl ServerBuilder {
         }
     }
 
-    pub fn bind_on(self, server_bind_address: SocketAddr) -> Self {
-        self.with_cli_args(&["--bind", &server_bind_address.to_string()])
-    }
-
-    pub fn with_rcon(self, rcon_settings: RconSettings) -> Self {
+    pub fn with_launch_settings(mut self, launch_settings: LaunchSettings) -> Self {
+        self.launch_settings.replace(launch_settings.clone());
         self.with_cli_args(&[
+            "--bind",
+            &launch_settings.server_bind.to_string(),
             "--rcon-bind",
-            &rcon_settings.bind.to_string(),
+            &launch_settings.rcon_bind.to_string(),
             "--rcon-password",
-            &rcon_settings.password,
+            &launch_settings.rcon_password,
         ])
     }
 
-    pub fn with_server_settings<P: AsRef<Path>>(self, server_settings_path: P) -> Self {
+    pub fn with_server_settings(self, server_settings: ServerSettings) -> Self {
         self.with_cli_args(&[
             "--server-settings",
-            server_settings_path.as_ref().to_str().unwrap(),
+            server_settings.path.to_str().unwrap(),
         ])
     }
 
@@ -86,6 +87,7 @@ impl ServerBuilder {
 
         StartableInstance {
             cmd: self.cmd_builder,
+            launch_settings: self.launch_settings,
             savefile: self.savefile,
         }
     }
@@ -98,9 +100,4 @@ impl ServerBuilder {
         self.cmd_builder.args(args);
         self
     }
-}
-
-pub struct RconSettings {
-    bind: SocketAddr,
-    password: String,
 }

@@ -1,6 +1,6 @@
-use std::process::{ExitStatus, Stdio};
+use std::process::ExitStatus;
 
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -10,12 +10,15 @@ use tokio::{io::AsyncBufReadExt, task::JoinHandle};
 
 use crate::schema::ServerStartSaveFile;
 
+use settings::LaunchSettings;
+
 pub mod builder;
 pub mod proc;
 pub mod settings;
 
 pub struct StartableInstance {
     cmd: Command,
+    launch_settings: Option<LaunchSettings>,
     savefile: Option<ServerStartSaveFile>,
 }
 
@@ -50,6 +53,7 @@ impl StartableInstance {
 
         Ok(RunningInstance {
             process: instance,
+            launch_settings: self.launch_settings,
             savefile: self.savefile,
             handle_out,
             handle_err,
@@ -59,6 +63,7 @@ impl StartableInstance {
 
 pub struct RunningInstance {
     process: Child,
+    launch_settings: Option<LaunchSettings>,
     savefile: Option<ServerStartSaveFile>,
     handle_out: JoinHandle<()>,
     handle_err: JoinHandle<()>,
@@ -82,6 +87,7 @@ impl RunningInstance {
             );
             return Ok(StoppedInstance {
                 exit_status,
+                launch_settings: self.launch_settings,
                 savefile: self.savefile,
             });
         }
@@ -115,6 +121,7 @@ impl RunningInstance {
 
         Ok(StoppedInstance {
             exit_status,
+            launch_settings: self.launch_settings,
             savefile: self.savefile,
         })
     }
@@ -122,6 +129,7 @@ impl RunningInstance {
 
 pub struct StoppedInstance {
     pub exit_status: ExitStatus,
+    pub launch_settings: Option<LaunchSettings>,
     pub savefile: Option<ServerStartSaveFile>,
 }
 

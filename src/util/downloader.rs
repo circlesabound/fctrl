@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use log::{debug, error, info, warn};
+use log::{debug, error};
 use std::time::Duration;
 use std::{path::PathBuf, time::SystemTime};
 use tokio::fs;
@@ -102,14 +102,10 @@ async fn write_to_cache(id: &str, bytes: &Bytes) -> crate::error::Result<()> {
 mod tests {
     use super::*;
 
-    fn logger_init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
-
     #[tokio::test]
     async fn can_read_from_cache_after_write() -> std::result::Result<(), Box<dyn std::error::Error>>
     {
-        logger_init();
+        crate::util::testing::logger_init();
 
         let id = "can_read_from_cache_after_write";
         let data = Bytes::from_static(b"test bytes");

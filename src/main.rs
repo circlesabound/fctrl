@@ -1,8 +1,4 @@
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::Path,
-    sync::Arc,
-};
+use std::{net::SocketAddr, sync::Arc};
 
 use crate::consts::*;
 use crate::schema::*;
@@ -213,13 +209,9 @@ impl AgentController {
                     if let Ok(msg) = serde_json::from_str::<IncomingMessage>(&json) {
                         info!("Got incoming message from {}: {}", self.peer_addr, json);
                         match msg {
-                            IncomingMessage::InitWithVersion(version) => {
-                                debug!("handling: InitWithVersion({})", version);
-                                self.init_with_version(version).await
-                            }
-                            IncomingMessage::UpgradeVersion(version) => {
-                                debug!("handling: UpgradeVersion({})", version);
-                                self.upgrade_version(version).await
+                            IncomingMessage::VersionInstall(version) => {
+                                debug!("handling: VersionInstall({})", version);
+                                self.version_install(version).await
                             }
                             IncomingMessage::ServerStart(savefile) => {
                                 debug!("handling: ServerStart({:?})", savefile);
@@ -276,76 +268,95 @@ impl AgentController {
         }
     }
 
-    async fn init_with_version(&self, version: String) {
+    async fn version_install(&self, version_to_install: String) {
         let mut vm = self.version_manager.lock().await;
 
-        // Should only be run if no currently installed versions
-        if vm.versions.is_empty() {
-            if let Err(e) = vm.install(version).await {
-                self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
-                    .await;
-                return;
-            } else {
-                self.send_message(Message::Text("Ok".to_owned())).await;
-            }
-        } else {
-            self.send_message(Message::Text(
-                "Error: cannot init as there is already a currently installed version".to_owned(),
-            ))
-            .await;
-        }
-    }
-
-    async fn upgrade_version(&self, version: String) {
-        let mut vm = self.version_manager.lock().await;
-
-        if vm.versions.is_empty() {
-            self.send_message(Message::Text("Error: must run init first".to_owned()))
-                .await;
-        } else {
-            // Assume there is at most one version installed
-            let current_version_string = vm.versions.keys().next().unwrap().to_string();
-
-            // Install specified version
-            info!("Installing version {} for upgrade", version);
-            if let Err(e) = vm.install(version.clone()).await {
-                self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
-                    .await;
-                return;
-            }
-
-            // Stop server if running
-            info!("Stopping server for upgrade");
-            let opt_stopped_instance = self.proc_manager.stop_instance().await;
-            let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile).flatten();
-
-            // TODO stage save migrations?
-
-            // Remove previous version
-            info!(
-                "Removing previous version {} after upgrade",
-                current_version_string
-            );
-            if let Err(e) = vm.delete(&current_version_string).await {
-                self.send_message(Message::Text(format!("Error: failed to remove previous version {} after upgrading to version {}: {:?}", current_version_string, version, e))).await;
-            }
-
-            // Start server on new version if it was previously running
-            if let Some(previous_savefile) = opt_previous_savefile {
-                info!("Restarting server after upgrade");
-                let new_version = vm.versions.get(&version).expect("just added several lines back and we still hold the lock, this should never fail");
-                let builder = ServerBuilder::using_installation(new_version)
-                    .with_savefile(previous_savefile)
-                    .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080));
-
-                if let Err(e) = self.proc_manager.run_instance(builder).await {
-                    self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
+        // Assume there is at most one version installed
+        match vm.versions.keys().next() {
+            None => {
+                if let Err(e) = vm.install(version_to_install).await {
+                    self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
                         .await;
+                    return;
                 } else {
                     self.send_message(Message::Text("Ok".to_owned())).await;
                 }
-            } else {
-                self.send_message(Message::Text("Ok".to_owned())).await;
+            }
+            Some(version_from) => {
+                let version_from = version_from.to_string();
+                let is_reinstall = version_from == version_to_install;
+
+                let opt_stopped_instance;
+                if is_reinstall {
+                    // Stop server first before re-installing
+                    info!("Stopping server for reinstall");
+                    opt_stopped_instance = self.proc_manager.stop_instance().await;
+
+                    info!("Reinstalling version {}", version_to_install);
+                    if let Err(e) = vm.install(version_to_install.clone()).await {
+                        self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
+                            .await;
+                        return;
+                    }
+                } else {
+                    // Install requested version
+                    info!("Installing version {} for upgrade", version_to_install);
+                    if let Err(e) = vm.install(version_to_install.clone()).await {
+                        self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
+                            .await;
+                        return;
+                    }
+
+                    // Stop server if running
+                    info!("Stopping server for upgrade");
+                    opt_stopped_instance = self.proc_manager.stop_instance().await;
+                }
+
+                // TODO stage save migrations?
+
+                // If not a reinstall, remove previous version
+                if !is_reinstall {
+                    info!(
+                        "Removing previous version {} after upgrade",
+                        version_from
+                    );
+                    if let Err(e) = vm.delete(&version_from).await {
+                        self.send_message(Message::Text(format!("Error: failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e))).await;
+                    }
+                }
+
+                // Restart server if it was previously running
+                let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile).flatten();
+                if let Some(previous_savefile) = opt_previous_savefile {
+                    info!("Restarting server");
+                    let new_version = vm.versions.get(&version_to_install).unwrap(); // safe since we maintain the lock
+
+                    // refresh various settings files while we're here
+                    let launch_settings = server::settings::LaunchSettings::read_or_apply_default().await;
+                    let server_settings = server::settings::ServerSettings::read_or_apply_default(new_version).await;
+
+                    if let Ok(launch_settings) = launch_settings {
+                        if let Ok(server_settings) = server_settings {
+                            let builder = ServerBuilder::using_installation(new_version)
+                                .with_launch_settings(launch_settings)
+                                .with_savefile(previous_savefile)
+                                .with_server_settings(server_settings);
+
+                            if let Err(e) = self.proc_manager.run_instance(builder).await {
+                                self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
+                                    .await;
+                            } else {
+                                self.send_message(Message::Text("Ok".to_owned())).await;
+                            }
+                        } else {
+                            self.send_message(Message::Text("Error: failed to start: failed to read server settings".to_owned())).await;
+                        }
+                    } else {
+                        self.send_message(Message::Text("Error: failed to start: failed to read launch settings".to_owned())).await;
+                    }
+                } else {
+                    self.send_message(Message::Text("Ok".to_owned())).await;
+                }
             }
         }
     }
@@ -367,56 +378,49 @@ impl AgentController {
             }
         }
 
-        // Server settings is required to start
-        // Pre-populate with the example file if it doesn't exist yet
-        match server::settings::read_server_settings().await {
-            Ok(Some(_)) => {
-                // Custom server settings already exists
-                // no action required
-            }
-            Ok(None) => {
-                // Read the default settings file, and write to the expected location
-                match server::settings::read_default_server_settings(version).await {
-                    Ok(s) => {
-                        if server::settings::write_server_settings(&s).await.is_err() {
-                            self.send_message(Message::Text(
-                                "Error: failed to pre-populate server settings file with defaults".to_owned(),
-                            )).await;
-                            return;
-                        } else {
-                            info!("Pre-populated server settings file with defaults");
-                        }
-                    }
-                    Err(_e) => {
-                        self.send_message(Message::Text(
-                            "Error: failed to read default server settings file".to_owned(),
-                        )).await;
-                        return;
-                    }
-                }
-            }
+        // Launch settings is required to start
+        // Pre-populate with default if not exist
+        let launch_settings;
+        match server::settings::LaunchSettings::read_or_apply_default().await {
+            Ok(ls) => launch_settings = ls,
             Err(_e) => {
                 self.send_message(Message::Text(
-                    "Error: failed to read server settings file".to_owned(),
+                    "Error: failed to read or initialise launch settings file".to_owned()
+                )).await;
+                return;
+            }
+        }
+
+        // Server settings is required to start
+        // Pre-populate with the example file if not exist
+        let server_settings;
+        match server::settings::ServerSettings::read_or_apply_default(version).await {
+            Ok(ss) => server_settings = ss,
+            Err(_e) => {
+                self.send_message(Message::Text(
+                    "Error: failed to read or initialise server settings file".to_owned()
                 )).await;
                 return;
             }
         }
 
         let builder = ServerBuilder::using_installation(version)
+            .with_launch_settings(launch_settings)
             .with_savefile(savefile)
-            .with_server_settings(CONFIG_DIR.join("server-settings.json"))
-            .with_admin_list_file(CONFIG_DIR.join("server-adminlist.json"))
-            .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080));
+            .with_server_settings(server_settings)
+            .with_admin_list_file(CONFIG_DIR.join("server-adminlist.json"));
 
         if let Err(e) = self.proc_manager.run_instance(builder).await {
             self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
                 .await;
+        } else {
+            self.send_message(Message::Text("Ok".to_owned())).await;
         }
     }
 
     async fn server_stop(&self) {
         self.proc_manager.stop_instance().await;
+        self.send_message(Message::Text("Ok".to_owned())).await;
     }
 
     async fn server_status(&self) {
