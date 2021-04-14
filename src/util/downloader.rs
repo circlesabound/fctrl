@@ -6,7 +6,7 @@ use tokio::fs;
 
 pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> crate::error::Result<Bytes> {
     if let Some(cached_bytes) = read_from_cache(id).await? {
-        info!("Cache hit on {}", id);
+        debug!("Cache hit on {}", id);
         return Ok(cached_bytes);
     }
 
@@ -14,10 +14,8 @@ pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> crate::error::Re
         Ok(response) => match response.error_for_status() {
             Ok(response) => {
                 let bytes = response.bytes().await.unwrap();
-                info!("Download succesful, downloaded {} bytes", bytes.len());
-                let save_path = get_cache_path().await?.join(id);
-                fs::write(&save_path, &bytes).await?;
-                info!("Cached at {}", save_path.display());
+                debug!("Download succesful, downloaded {} bytes", bytes.len());
+                write_to_cache(id, &bytes).await?;
                 Ok(bytes)
             }
             Err(e) => Err(e.into()),
@@ -55,7 +53,7 @@ async fn get_cache_path() -> crate::error::Result<PathBuf> {
 
 async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
     let cached_item_path = get_cache_path().await?.join(id);
-    info!(
+    debug!(
         "Attempting to read metadata for {}",
         cached_item_path.display()
     );
@@ -93,6 +91,13 @@ async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
     }
 }
 
+async fn write_to_cache(id: &str, bytes: &Bytes) -> crate::error::Result<()> {
+    let save_path = get_cache_path().await?.join(id);
+    fs::write(&save_path, bytes).await?;
+    debug!("Cached at {}", save_path.display());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,16 +107,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn second_download_can_fetch_from_cache(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    async fn can_read_from_cache_after_write() -> std::result::Result<(), Box<dyn std::error::Error>>
+    {
         logger_init();
 
-        let uri = "https://factorio.com/get-download/latest/headless/linux64";
+        let id = "can_read_from_cache_after_write";
+        let data = Bytes::from_static(b"test bytes");
 
-        let id = "can_fetch_from_cache_test";
         purge(id).await?;
-        download(id, uri).await?;
+        assert!(read_from_cache(id).await?.is_none());
 
+        write_to_cache(id, &data).await?;
         assert!(read_from_cache(id).await?.is_some());
 
         Ok(())

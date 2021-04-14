@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = toml::from_str(&config_str)?;
 
     info!("Init Factorio installation manager");
-    let version_manager = factorio::VersionManager::new(FACTORIO_INSTALL_DIR).await?;
+    let version_manager = factorio::VersionManager::new(&*FACTORIO_INSTALL_DIR).await?;
 
     info!("Init Factorio server process management");
     let proc_manager = ProcessManager::new();
@@ -284,6 +284,7 @@ impl AgentController {
             if let Err(e) = vm.install(version).await {
                 self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
                     .await;
+                return;
             } else {
                 self.send_message(Message::Text("Ok".to_owned())).await;
             }
@@ -366,18 +367,46 @@ impl AgentController {
             }
         }
 
+        // Server settings is required to start
+        // Pre-populate with the example file if it doesn't exist yet
+        match server::settings::read_server_settings().await {
+            Ok(Some(_)) => {
+                // Custom server settings already exists
+                // no action required
+            }
+            Ok(None) => {
+                // Read the default settings file, and write to the expected location
+                match server::settings::read_default_server_settings(version).await {
+                    Ok(s) => {
+                        if server::settings::write_server_settings(&s).await.is_err() {
+                            self.send_message(Message::Text(
+                                "Error: failed to pre-populate server settings file with defaults".to_owned(),
+                            )).await;
+                            return;
+                        } else {
+                            info!("Pre-populated server settings file with defaults");
+                        }
+                    }
+                    Err(_e) => {
+                        self.send_message(Message::Text(
+                            "Error: failed to read default server settings file".to_owned(),
+                        )).await;
+                        return;
+                    }
+                }
+            }
+            Err(_e) => {
+                self.send_message(Message::Text(
+                    "Error: failed to read server settings file".to_owned(),
+                )).await;
+                return;
+            }
+        }
+
         let builder = ServerBuilder::using_installation(version)
             .with_savefile(savefile)
-            .with_server_settings(
-                Path::new(DATA_DIR)
-                    .join(CONFIG_SUBDIR)
-                    .join("server-settings.json"),
-            )
-            .with_admin_list_file(
-                Path::new(DATA_DIR)
-                    .join(CONFIG_SUBDIR)
-                    .join("server-adminlist.json"),
-            )
+            .with_server_settings(CONFIG_DIR.join("server-settings.json"))
+            .with_admin_list_file(CONFIG_DIR.join("server-adminlist.json"))
             .bind_on(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080));
 
         if let Err(e) = self.proc_manager.run_instance(builder).await {
@@ -412,8 +441,8 @@ impl AgentController {
         }
 
         // Create save dir if not exists
-        let save_dir = util::saves::get_save_dir_path();
-        if let Err(e) = fs::create_dir_all(&save_dir).await {
+        let save_dir = &*SAVEFILE_DIR;
+        if let Err(e) = fs::create_dir_all(save_dir).await {
             error!(
                 "Failed to create save dir at {}: {:?}",
                 save_dir.display(),
