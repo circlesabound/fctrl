@@ -79,13 +79,22 @@ pub enum OperationStatus {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum AgentResponse {
+    // Generic responses
     Message(String),
     Error(String),
     Ok,
+
+    // Structured messages
+    ServerStatus(ServerStatus),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ServerStartSaveFile {
     Latest,
     Specific(String),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ServerStatus {
+    pub running: bool,
 }

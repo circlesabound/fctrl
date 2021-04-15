@@ -93,7 +93,32 @@ impl ProcessManager {
     }
 
     pub async fn instance_is_running(&self) -> bool {
-        let mg = self.running_instance.lock().await;
-        mg.is_some()
+        let mut mg = self.running_instance.lock().await;
+        if let Some(running) = mg.as_mut() {
+            match running.poll_process_exited().await {
+                Err(e) => {
+                    // log and ignore for now, use in-process status
+                    error!("Error polling process status: {:?}", e);
+                    return true;
+                }
+                Ok(false) => {
+                    // process still running
+                    return true;
+                }
+                Ok(true) => {
+                    // polled result shows process exited, update our status
+                    // code path continues after `else`
+                }
+            }
+        } else {
+            // not running to begin with
+            return false;
+        }
+
+        // Continuation from mismatched polled result
+        // Manually wait (should be no-op), and drop StoppedInstance
+        warn!("Detected premature process exited");
+        let _ = mg.take().unwrap().wait().await;
+        false
     }
 }

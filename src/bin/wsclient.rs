@@ -13,7 +13,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .block_on(async {
             print!("Connect to websocket address: ");
-            let addr_str = std::env::args().nth(1).expect("expecting arg for websocket address");
+            let addr_str = std::env::args()
+                .nth(1)
+                .expect("expecting arg for websocket address");
             let addr = url::Url::parse(addr_str.trim())?;
 
             let (ws_stream, ..) = tokio_tungstenite::connect_async(addr).await?;
@@ -48,7 +50,11 @@ where
                 println!("?")
             }
             Some(req) => {
-                if ws_write.send(Message::Text(serde_json::to_string(&req).unwrap())).await.is_err() {
+                if ws_write
+                    .send(Message::Text(serde_json::to_string(&req).unwrap()))
+                    .await
+                    .is_err()
+                {
                     println!("Error sending message");
                     continue;
                 }
@@ -62,10 +68,10 @@ where
                         match reply.status {
                             OperationStatus::Completed | OperationStatus::Failed => {
                                 break;
-                            },
+                            }
                             OperationStatus::Ongoing => {
                                 // more messages on the way
-                            },
+                            }
                         }
                     } else {
                         println!("received unknown reply");
@@ -87,14 +93,13 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
     let operation_id = OperationId::from(uuid::Uuid::new_v4().to_string());
     let args: Vec<_> = input.trim().split_whitespace().collect();
     match args.get(0)? {
-        &"VersionInstall" => {
-            args.get(1).map(|v| AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::VersionInstall(v.to_string())
-            })
-        }
-        &"ServerStart" => {
-            args.get(1).map(|savefile| {
+        &"VersionInstall" => args.get(1).map(|v| AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::VersionInstall(v.to_string()),
+        }),
+        &"ServerStart" => args
+            .get(1)
+            .map(|savefile| {
                 if *savefile == "Latest" {
                     Some(AgentRequestWithId {
                         operation_id,
@@ -103,37 +108,31 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
                 } else if *savefile == "Specific" {
                     args.get(2).map(|name| AgentRequestWithId {
                         operation_id,
-                        message: AgentRequest::ServerStart(ServerStartSaveFile::Specific(name.to_string()))
+                        message: AgentRequest::ServerStart(ServerStartSaveFile::Specific(
+                            name.to_string(),
+                        )),
                     })
                 } else {
                     None
                 }
-            }).flatten()
-        }
-        &"ServerStop" => {
-            Some(AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::ServerStop,
             })
-        }
-        &"ServerStatus" => {
-            Some(AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::ServerStatus,
-            })
-        }
-        &"SaveCreate" => {
-            args.get(1).map(|name| AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::SaveCreate(name.to_string()),
-            })
-        }
-        &"RconCommand" => {
-            args.get(1).map(|cmd| AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::RconCommand(cmd.to_string()),
-            })
-        }
+            .flatten(),
+        &"ServerStop" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ServerStop,
+        }),
+        &"ServerStatus" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ServerStatus,
+        }),
+        &"SaveCreate" => args.get(1).map(|name| AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::SaveCreate(name.to_string()),
+        }),
+        &"RconCommand" => args.get(1).map(|cmd| AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::RconCommand(cmd.to_string()),
+        }),
         _ => None,
     }
 }

@@ -4,7 +4,10 @@ use tokio::process::Command;
 
 use crate::{factorio::Factorio, schema::ServerStartSaveFile, util};
 
-use super::{StartableInstance, StartableShortLivedInstance, StoppedInstance, settings::{AdminList, LaunchSettings, ServerSettings}};
+use super::{
+    settings::{AdminList, LaunchSettings, ServerSettings},
+    StartableInstance, StartableShortLivedInstance, StoppedInstance,
+};
 
 pub trait StartableInstanceBuilder {
     fn replay_optional_args(&mut self, previous_instance: StoppedInstance) -> &Self;
@@ -73,10 +76,7 @@ impl ServerBuilder {
 
         self.with_cli_args(&["--server-settings", server_settings.path.to_str().unwrap()]);
 
-        self.with_cli_args(&[
-            "--server-adminlist",
-            admin_list.path.to_str().unwrap(),
-        ]);
+        self.with_cli_args(&["--server-adminlist", admin_list.path.to_str().unwrap()]);
 
         ServerHostBuilder {
             server_builder: self,

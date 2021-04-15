@@ -1,13 +1,16 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use fctrl_agent::{consts::*, server::{StoppedInstance, builder::StartableInstanceBuilder, settings::AdminList}};
-use fctrl_agent::factorio::Factorio;
-use fctrl_agent::schema::*;
-use fctrl_agent::server::builder::ServerBuilder;
-use fctrl_agent::server::proc::ProcessManager;
 use fctrl_agent::{
-    factorio::VersionManager,
-    server::settings::{LaunchSettings, ServerSettings},
+    consts::*,
+    factorio::{Factorio, VersionManager},
+    schema::*,
+    server::{
+        builder::{ServerBuilder, StartableInstanceBuilder},
+        proc::ProcessManager,
+        settings::{AdminList, LaunchSettings, ServerSettings},
+        StoppedInstance,
+    },
+    util,
 };
 use futures_util::{
     stream::{SplitSink, SplitStream},
@@ -332,7 +335,14 @@ impl AgentController {
         match vm.versions.keys().next() {
             None => {
                 info!("Installing version {}", version_to_install);
-                self.reply(AgentResponse::Message(format!("Starting to install version {}", version_to_install)), &operation_id).await;
+                self.reply(
+                    AgentResponse::Message(format!(
+                        "Starting to install version {}",
+                        version_to_install
+                    )),
+                    &operation_id,
+                )
+                .await;
                 if let Err(e) = vm.install(version_to_install.clone()).await {
                     self.reply_failed(
                         AgentResponse::Message(format!("Failed to install: {:?}", e)),
@@ -356,11 +366,21 @@ impl AgentController {
                     opt_stopped_instance = self.proc_manager.stop_instance().await;
                     if opt_stopped_instance.is_some() {
                         self.reply(
-                            AgentResponse::Message("Stopped server for reinstall".to_owned()), &operation_id).await;
+                            AgentResponse::Message("Stopped server for reinstall".to_owned()),
+                            &operation_id,
+                        )
+                        .await;
                     }
 
                     info!("Reinstalling version {}", version_to_install);
-                    self.reply(AgentResponse::Message(format!("Starting to reinstall version {}", version_to_install)), &operation_id).await;
+                    self.reply(
+                        AgentResponse::Message(format!(
+                            "Starting to reinstall version {}",
+                            version_to_install
+                        )),
+                        &operation_id,
+                    )
+                    .await;
                     if let Err(e) = vm.install(version_to_install.clone()).await {
                         self.reply_failed(
                             AgentResponse::Error(format!("Failed to install: {:?}", e)),
@@ -370,12 +390,26 @@ impl AgentController {
                         return;
                     } else {
                         info!("Reinstalled version {}", version_to_install);
-                        self.reply(AgentResponse::Message(format!("Reinstalled version {}", version_to_install)), &operation_id).await;
+                        self.reply(
+                            AgentResponse::Message(format!(
+                                "Reinstalled version {}",
+                                version_to_install
+                            )),
+                            &operation_id,
+                        )
+                        .await;
                     }
                 } else {
                     // Install requested version
                     info!("Installing version {} for upgrade", version_to_install);
-                    self.reply(AgentResponse::Message(format!("Starting to install version {}", version_to_install)), &operation_id).await;
+                    self.reply(
+                        AgentResponse::Message(format!(
+                            "Starting to install version {}",
+                            version_to_install
+                        )),
+                        &operation_id,
+                    )
+                    .await;
                     if let Err(e) = vm.install(version_to_install.clone()).await {
                         self.reply_failed(
                             AgentResponse::Error(format!("Failed to install: {:?}", e)),
@@ -385,7 +419,14 @@ impl AgentController {
                         return;
                     } else {
                         info!("Installed version {} for upgrade", version_to_install);
-                        self.reply(AgentResponse::Message(format!("Installed version {} for upgrade", version_to_install)), &operation_id).await;
+                        self.reply(
+                            AgentResponse::Message(format!(
+                                "Installed version {} for upgrade",
+                                version_to_install
+                            )),
+                            &operation_id,
+                        )
+                        .await;
                     }
 
                     // Stop server if running
@@ -393,7 +434,10 @@ impl AgentController {
                     opt_stopped_instance = self.proc_manager.stop_instance().await;
                     if opt_stopped_instance.is_some() {
                         self.reply(
-                            AgentResponse::Message("Stopped server for upgrade".to_owned()), &operation_id).await;
+                            AgentResponse::Message("Stopped server for upgrade".to_owned()),
+                            &operation_id,
+                        )
+                        .await;
                     }
                 }
 
@@ -406,14 +450,25 @@ impl AgentController {
                         self.reply_failed(AgentResponse::Error(format!("Failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e)), operation_id).await;
                         return;
                     } else {
-                        self.reply(AgentResponse::Message(format!("Removed previous version {} after upgrading to version {}", version_from, version_to_install)), &operation_id).await;
+                        self.reply(
+                            AgentResponse::Message(format!(
+                                "Removed previous version {} after upgrading to version {}",
+                                version_from, version_to_install
+                            )),
+                            &operation_id,
+                        )
+                        .await;
                     }
                 }
 
                 // Restart server if it was previously running
                 if let Some(previous_instance) = opt_stopped_instance {
                     info!("Restarting server");
-                    self.reply(AgentResponse::Message("Restarting server after upgrade".to_owned()), &operation_id).await;
+                    self.reply(
+                        AgentResponse::Message("Restarting server after upgrade".to_owned()),
+                        &operation_id,
+                    )
+                    .await;
                     let version = vm.versions.get(&version_to_install).unwrap(); // safe since we still hold the lock
                     self.internal_server_start_with_version(
                         version,
@@ -458,6 +513,30 @@ impl AgentController {
         operation_id: OperationId,
         opt_restart_instance: Option<StoppedInstance>,
     ) {
+        // Verify savefile exists
+        if let ServerStartSaveFile::Specific(name) = &savefile {
+            let save_path = util::saves::get_savefile_path(name);
+            if !save_path.is_file() {
+                self.reply_failed(
+                    AgentResponse::Error(format!("Savefile with name {} does not exist", name)),
+                    operation_id,
+                )
+                .await;
+                return;
+            }
+        }
+
+        // Latest save functionality doesn't work with custom save dir
+        // Just disallow it
+        if let ServerStartSaveFile::Latest = &savefile {
+            self.reply_failed(
+                AgentResponse::Error("Latest save functionality not implemented".to_owned()),
+                operation_id,
+            )
+            .await;
+            return;
+        }
+
         // Launch settings is required to start
         // Pre-populate with default if not exist
         let launch_settings;
@@ -498,9 +577,7 @@ impl AgentController {
             Ok(al) => admin_list = al,
             Err(_e) => {
                 self.reply_failed(
-                    AgentResponse::Error(
-                        "Failed to read or initialise admin list file".to_owned(),
-                    ),
+                    AgentResponse::Error("Failed to read or initialise admin list file".to_owned()),
                     operation_id,
                 )
                 .await;
@@ -508,8 +585,12 @@ impl AgentController {
             }
         }
 
-        let mut builder = ServerBuilder::using_installation(version)
-            .hosting_savefile(savefile, admin_list, launch_settings, server_settings);
+        let mut builder = ServerBuilder::using_installation(version).hosting_savefile(
+            savefile,
+            admin_list,
+            launch_settings,
+            server_settings,
+        );
 
         if let Some(previous_instance) = opt_restart_instance {
             builder.replay_optional_args(previous_instance);
@@ -532,12 +613,11 @@ impl AgentController {
     }
 
     async fn server_status(&self, operation_id: OperationId) {
-        // TODO
-        self.reply_failed(
-            AgentResponse::Error("Not implemented".to_owned()),
-            operation_id,
-        )
-        .await;
+        let status = ServerStatus {
+            running: self.proc_manager.instance_is_running().await,
+        };
+        self.reply_success(AgentResponse::ServerStatus(status), operation_id)
+            .await;
     }
 
     async fn save_create(&self, save_name: String, operation_id: OperationId) {

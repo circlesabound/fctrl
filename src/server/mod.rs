@@ -140,6 +140,11 @@ impl RunningInstance {
             _optional_args: self._optional_args,
         })
     }
+
+    /// Manually poll whether the child process has exited
+    pub async fn poll_process_exited(&mut self) -> crate::error::Result<bool> {
+        Ok(self.process.try_wait()?.is_some())
+    }
 }
 
 pub struct StoppedInstance {

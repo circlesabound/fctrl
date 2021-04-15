@@ -133,14 +133,16 @@ impl AdminList {
 
     pub async fn write(&self) -> crate::error::Result<()> {
         if let Err(e) = fs::create_dir_all(self.path.parent().unwrap()).await {
-            error!(
-                "Error creating directory structure for admin list: {:?}",
-                e
-            );
+            error!("Error creating directory structure for admin list: {:?}", e);
             return Err(e.into());
         }
 
-        if let Err(e) = fs::write(&self.path, serde_json::to_string_pretty(&self.list).unwrap()).await {
+        if let Err(e) = fs::write(
+            &self.path,
+            serde_json::to_string_pretty(&self.list).unwrap(),
+        )
+        .await
+        {
             error!(
                 "Error writing admin list to {}: {:?}",
                 self.path.display(),
