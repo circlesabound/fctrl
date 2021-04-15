@@ -40,9 +40,9 @@ impl LaunchSettings {
     }
 
     pub async fn read_or_apply_default() -> crate::error::Result<LaunchSettings> {
-        match LaunchSettings::read().await {
-            Ok(Some(ls)) => Ok(ls),
-            Ok(None) => {
+        match LaunchSettings::read().await? {
+            Some(ls) => Ok(ls),
+            None => {
                 info!("Generating launch settings using defaults");
                 let ls: LaunchSettings = Default::default();
                 if let Err(e) = ls.write().await {
@@ -50,10 +50,6 @@ impl LaunchSettings {
                     warn!("Failed to write default launch settings to file: {:?}", e);
                 }
                 Ok(ls)
-            }
-            Err(e) => {
-                error!("Error: failed to read launch settings file: {:?}", e);
-                Err(e.into())
             }
         }
     }
@@ -87,6 +83,76 @@ impl Default for LaunchSettings {
     }
 }
 
+pub struct AdminList {
+    pub list: Vec<String>,
+    pub path: PathBuf,
+}
+
+impl AdminList {
+    pub async fn read() -> crate::error::Result<Option<AdminList>> {
+        let path = &*ADMIN_LIST_PATH;
+        if !path.exists() {
+            Ok(None)
+        } else {
+            match fs::read_to_string(path).await {
+                Ok(s) => match serde_json::from_str(&s) {
+                    Ok(list) => Ok(Some(AdminList {
+                        list,
+                        path: path.clone(),
+                    })),
+                    Err(e) => {
+                        error!("Error parsing admin list: {:?}", e);
+                        Err(e.into())
+                    }
+                },
+                Err(e) => {
+                    error!("Error reading server settings: {:?}", e);
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    pub async fn read_or_apply_default() -> crate::error::Result<AdminList> {
+        match AdminList::read().await? {
+            Some(adminlist) => Ok(adminlist),
+            None => {
+                info!("Generating admin list using defaults");
+                let adminlist = AdminList {
+                    list: vec![],
+                    path: ADMIN_LIST_PATH.clone(),
+                };
+                if let Err(e) = adminlist.write().await {
+                    // this is okay
+                    warn!("Failed to write default admin list to file: {:?}", e);
+                }
+                Ok(adminlist)
+            }
+        }
+    }
+
+    pub async fn write(&self) -> crate::error::Result<()> {
+        if let Err(e) = fs::create_dir_all(self.path.parent().unwrap()).await {
+            error!(
+                "Error creating directory structure for admin list: {:?}",
+                e
+            );
+            return Err(e.into());
+        }
+
+        if let Err(e) = fs::write(&self.path, serde_json::to_string_pretty(&self.list).unwrap()).await {
+            error!(
+                "Error writing admin list to {}: {:?}",
+                self.path.display(),
+                e
+            );
+            Err(e.into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 pub struct ServerSettings {
     pub json: String,
     pub path: PathBuf,
@@ -114,9 +180,9 @@ impl ServerSettings {
     pub async fn read_or_apply_default(
         installation: &Factorio,
     ) -> crate::error::Result<ServerSettings> {
-        match ServerSettings::read().await {
-            Ok(Some(ls)) => Ok(ls),
-            Ok(None) => {
+        match ServerSettings::read().await? {
+            Some(ls) => Ok(ls),
+            None => {
                 info!("Generating server settings using defaults");
                 let defaults = ServerSettings::read_default_server_settings(installation).await?;
                 let s = ServerSettings {
@@ -129,10 +195,6 @@ impl ServerSettings {
                 } else {
                     Ok(s)
                 }
-            }
-            Err(e) => {
-                error!("Error: failed to read server settings file: {:?}", e);
-                Err(e.into())
             }
         }
     }
@@ -176,6 +238,7 @@ impl ServerSettings {
 
 lazy_static! {
     static ref LAUNCH_SETTINGS_PATH: PathBuf = CONFIG_DIR.join("launch-settings.toml");
+    static ref ADMIN_LIST_PATH: PathBuf = CONFIG_DIR.join("server-adminlist.json");
     static ref SERVER_SETTINGS_PATH: PathBuf = CONFIG_DIR.join("server-settings.json");
 }
 

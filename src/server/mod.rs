@@ -18,9 +18,11 @@ pub mod settings;
 
 pub struct StartableInstance {
     cmd: Command,
+    admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
     server_settings: ServerSettings,
+    _optional_args: Vec<String>,
 }
 
 impl StartableInstance {
@@ -56,9 +58,11 @@ impl StartableInstance {
             process: instance,
             handle_out,
             handle_err,
+            admin_list: self.admin_list,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
             server_settings: self.server_settings,
+            _optional_args: self._optional_args,
         })
     }
 }
@@ -67,9 +71,11 @@ pub struct RunningInstance {
     process: Child,
     handle_out: JoinHandle<()>,
     handle_err: JoinHandle<()>,
+    admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
     server_settings: ServerSettings,
+    _optional_args: Vec<String>,
 }
 
 impl RunningInstance {
@@ -90,9 +96,11 @@ impl RunningInstance {
             );
             return Ok(StoppedInstance {
                 exit_status,
+                admin_list: self.admin_list,
                 launch_settings: self.launch_settings,
                 savefile: self.savefile,
                 server_settings: self.server_settings,
+                _optional_args: self._optional_args,
             });
         }
 
@@ -125,18 +133,22 @@ impl RunningInstance {
 
         Ok(StoppedInstance {
             exit_status,
+            admin_list: self.admin_list,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
             server_settings: self.server_settings,
+            _optional_args: self._optional_args,
         })
     }
 }
 
 pub struct StoppedInstance {
     pub exit_status: ExitStatus,
+    pub admin_list: AdminList,
     pub launch_settings: LaunchSettings,
     pub savefile: ServerStartSaveFile,
     pub server_settings: ServerSettings,
+    pub _optional_args: Vec<String>,
 }
 
 pub struct StartableShortLivedInstance {

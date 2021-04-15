@@ -9,6 +9,7 @@ pub enum Error {
 
     // Generic wrappers around external error types
     Io(std::io::Error),
+    Json(serde_json::error::Error),
     Reqwest(reqwest::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
@@ -22,15 +23,22 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
-        Error::Reqwest(e)
-    }
-}
-
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         Error::Io(e)
+    }
+}
+
+impl From<serde_json::error::Error> for Error {
+
+    fn from(e: serde_json::error::Error) -> Self {
+        Error::Json(e)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Error::Reqwest(e)
     }
 }
 

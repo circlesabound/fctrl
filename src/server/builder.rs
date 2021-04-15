@@ -4,12 +4,10 @@ use tokio::process::Command;
 
 use crate::{factorio::Factorio, schema::ServerStartSaveFile, util};
 
-use super::{
-    settings::{LaunchSettings, ServerSettings},
-    StartableInstance, StartableShortLivedInstance,
-};
+use super::{StartableInstance, StartableShortLivedInstance, StoppedInstance, settings::{AdminList, LaunchSettings, ServerSettings}};
 
 pub trait StartableInstanceBuilder {
+    fn replay_optional_args(&mut self, previous_instance: StoppedInstance) -> &Self;
     fn build(self) -> StartableInstance;
 }
 
@@ -50,6 +48,7 @@ impl ServerBuilder {
     pub fn hosting_savefile(
         mut self,
         savefile: ServerStartSaveFile,
+        admin_list: AdminList,
         launch_settings: LaunchSettings,
         server_settings: ServerSettings,
     ) -> ServerHostBuilder {
@@ -74,11 +73,18 @@ impl ServerBuilder {
 
         self.with_cli_args(&["--server-settings", server_settings.path.to_str().unwrap()]);
 
+        self.with_cli_args(&[
+            "--server-adminlist",
+            admin_list.path.to_str().unwrap(),
+        ]);
+
         ServerHostBuilder {
             server_builder: self,
+            admin_list,
             launch_settings,
             savefile,
             server_settings,
+            _optional_args: vec![],
         }
     }
 
@@ -94,22 +100,19 @@ impl ServerBuilder {
 
 pub struct ServerHostBuilder {
     server_builder: ServerBuilder,
+    admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
     server_settings: ServerSettings,
-}
-
-impl ServerHostBuilder {
-    pub fn with_admin_list_file<P: AsRef<Path>>(mut self, admin_list_path: P) -> Self {
-        self.server_builder.with_cli_args(&[
-            "--server-adminlist",
-            admin_list_path.as_ref().to_str().unwrap(),
-        ]);
-        self
-    }
+    _optional_args: Vec<String>,
 }
 
 impl StartableInstanceBuilder for ServerHostBuilder {
+    fn replay_optional_args(&mut self, previous_instance: StoppedInstance) -> &Self {
+        self._optional_args.extend(previous_instance._optional_args);
+        self
+    }
+
     fn build(mut self) -> StartableInstance {
         // configure io to be piped
         self.server_builder
@@ -123,9 +126,11 @@ impl StartableInstanceBuilder for ServerHostBuilder {
 
         StartableInstance {
             cmd: self.server_builder.cmd_builder,
+            admin_list: self.admin_list,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
             server_settings: self.server_settings,
+            _optional_args: self._optional_args,
         }
     }
 }

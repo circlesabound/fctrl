@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use fctrl_agent::consts::*;
+use fctrl_agent::{consts::*, server::{StoppedInstance, builder::StartableInstanceBuilder, settings::AdminList}};
 use fctrl_agent::factorio::Factorio;
 use fctrl_agent::schema::*;
 use fctrl_agent::server::builder::ServerBuilder;
@@ -411,15 +411,15 @@ impl AgentController {
                 }
 
                 // Restart server if it was previously running
-                let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile);
-                if let Some(previous_savefile) = opt_previous_savefile {
+                if let Some(previous_instance) = opt_stopped_instance {
                     info!("Restarting server");
                     self.reply(AgentResponse::Message("Restarting server after upgrade".to_owned()), &operation_id).await;
                     let version = vm.versions.get(&version_to_install).unwrap(); // safe since we still hold the lock
                     self.internal_server_start_with_version(
                         version,
-                        previous_savefile,
+                        previous_instance.savefile.clone(),
                         operation_id,
+                        Some(previous_instance),
                     )
                     .await;
                 } else {
@@ -447,7 +447,7 @@ impl AgentController {
             }
         }
 
-        self.internal_server_start_with_version(version, savefile, operation_id)
+        self.internal_server_start_with_version(version, savefile, operation_id, None)
             .await;
     }
 
@@ -456,6 +456,7 @@ impl AgentController {
         version: &Factorio,
         savefile: ServerStartSaveFile,
         operation_id: OperationId,
+        opt_restart_instance: Option<StoppedInstance>,
     ) {
         // Launch settings is required to start
         // Pre-populate with default if not exist
@@ -491,9 +492,28 @@ impl AgentController {
             }
         }
 
-        let builder = ServerBuilder::using_installation(version)
-            .hosting_savefile(savefile, launch_settings, server_settings)
-            .with_admin_list_file(CONFIG_DIR.join("server-adminlist.json"));
+        // Admin list
+        let admin_list;
+        match AdminList::read_or_apply_default().await {
+            Ok(al) => admin_list = al,
+            Err(_e) => {
+                self.reply_failed(
+                    AgentResponse::Error(
+                        "Failed to read or initialise admin list file".to_owned(),
+                    ),
+                    operation_id,
+                )
+                .await;
+                return;
+            }
+        }
+
+        let mut builder = ServerBuilder::using_installation(version)
+            .hosting_savefile(savefile, admin_list, launch_settings, server_settings);
+
+        if let Some(previous_instance) = opt_restart_instance {
+            builder.replay_optional_args(previous_instance);
+        }
 
         if let Err(e) = self.proc_manager.start_instance(builder).await {
             self.reply_failed(
