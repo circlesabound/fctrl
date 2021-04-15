@@ -37,17 +37,17 @@ pub struct RconConfig {
 // * WebSocket API schemas *
 // *************************
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
 pub struct OperationId(String);
 
-#[derive(Debug, Deserialize)]
-pub struct IncomingMessage {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AgentRequestWithId {
     pub operation_id: OperationId,
-    pub request: IncomingRequest,
+    pub message: AgentRequest,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub enum IncomingRequest {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum AgentRequest {
     // Installation management
     VersionInstall(String),
 
@@ -63,28 +63,28 @@ pub enum IncomingRequest {
     RconCommand(String),
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct OutgoingMessageWithId {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AgentResponseWithId {
     pub operation_id: OperationId,
     pub status: OperationStatus,
-    pub content: OutgoingMessage,
+    pub content: AgentResponse,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum OperationStatus {
     Ongoing,
     Completed,
     Failed,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub enum OutgoingMessage {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum AgentResponse {
     Message(String),
     Error(String),
     Ok,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ServerStartSaveFile {
     Latest,
     Specific(String),

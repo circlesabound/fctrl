@@ -1,8 +1,9 @@
-
+use fctrl_agent::schema::*;
 
 use futures::{Sink, Stream};
-use futures_util::StreamExt;
 use futures_util::sink::SinkExt;
+use futures_util::StreamExt;
+use std::io::Write;
 use tokio_tungstenite::tungstenite::{self, Message};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,9 +13,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .block_on(async {
             print!("Connect to websocket address: ");
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input)?;
-            let addr = url::Url::parse(input.trim())?;
+            let addr_str = std::env::args().nth(1).expect("expecting arg for websocket address");
+            let addr = url::Url::parse(addr_str.trim())?;
 
             let (ws_stream, ..) = tokio_tungstenite::connect_async(addr).await?;
             let (ws_write, ws_read) = ws_stream.split();
@@ -26,13 +26,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
 }
 
-async fn message_loop<W, R>(mut ws_write: W, mut ws_read: R) -> Result<(), Box<dyn std::error::Error>>
+async fn message_loop<W, R>(
+    mut ws_write: W,
+    mut ws_read: R,
+) -> Result<(), Box<dyn std::error::Error>>
 where
     W: Sink<Message> + Unpin,
     R: Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
 {
     loop {
         print!("> ");
+        std::io::stdout().flush()?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if input.trim().is_empty() {
@@ -42,15 +46,27 @@ where
         match get_message_from_input(input) {
             None => {
                 println!("?")
-            },
-            Some(msg) => {
-                ws_write.send(msg).await;
+            }
+            Some(req) => {
+                if ws_write.send(Message::Text(serde_json::to_string(&req).unwrap())).await.is_err() {
+                    println!("Error sending message");
+                    continue;
+                }
 
                 // wait for replies
                 loop {
                     let reply = ws_read.next().await.unwrap().unwrap();
                     if let Message::Text(json) = reply {
-                        let reply: OutgoingMessageWithId = serde_json::from_str(&json).unwrap();
+                        let reply: AgentResponseWithId = serde_json::from_str(&json).unwrap();
+                        println!("{}", json);
+                        match reply.status {
+                            OperationStatus::Completed | OperationStatus::Failed => {
+                                break;
+                            },
+                            OperationStatus::Ongoing => {
+                                // more messages on the way
+                            },
+                        }
                     } else {
                         println!("received unknown reply");
                         break;
@@ -60,22 +76,64 @@ where
         }
     }
 
+    if ws_write.close().await.is_err() {
+        println!("Error closing connection cleanly");
+    }
+
     Ok(())
 }
 
-fn get_message_from_input(input: String) -> Option<Message> {
+fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
+    let operation_id = OperationId::from(uuid::Uuid::new_v4().to_string());
     let args: Vec<_> = input.trim().split_whitespace().collect();
-    match args[1] {
-        "VersionInstall" => {
-            todo!()
-        },
-        "ServerStart" => {
-            if args[2] == "Latest" {
-                //
-            } else {
-
-            }
+    match args.get(0)? {
+        &"VersionInstall" => {
+            args.get(1).map(|v| AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::VersionInstall(v.to_string())
+            })
         }
-        _ => println!("?"),
-    };
+        &"ServerStart" => {
+            args.get(1).map(|savefile| {
+                if *savefile == "Latest" {
+                    Some(AgentRequestWithId {
+                        operation_id,
+                        message: AgentRequest::ServerStart(ServerStartSaveFile::Latest),
+                    })
+                } else if *savefile == "Specific" {
+                    args.get(2).map(|name| AgentRequestWithId {
+                        operation_id,
+                        message: AgentRequest::ServerStart(ServerStartSaveFile::Specific(name.to_string()))
+                    })
+                } else {
+                    None
+                }
+            }).flatten()
+        }
+        &"ServerStop" => {
+            Some(AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::ServerStop,
+            })
+        }
+        &"ServerStatus" => {
+            Some(AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::ServerStatus,
+            })
+        }
+        &"SaveCreate" => {
+            args.get(1).map(|name| AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::SaveCreate(name.to_string()),
+            })
+        }
+        &"RconCommand" => {
+            args.get(1).map(|cmd| AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::RconCommand(cmd.to_string()),
+            })
+        }
+        _ => None,
+    }
 }

@@ -1,19 +1,23 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use crate::consts::*;
-use crate::schema::*;
-use crate::server::builder::ServerBuilder;
-use factorio::Factorio;
+use fctrl_agent::consts::*;
+use fctrl_agent::factorio::Factorio;
+use fctrl_agent::schema::*;
+use fctrl_agent::server::builder::ServerBuilder;
+use fctrl_agent::server::proc::ProcessManager;
+use fctrl_agent::{
+    factorio::VersionManager,
+    server::settings::{LaunchSettings, ServerSettings},
+};
 use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use lazy_static::lazy_static;
+// use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 // use logwatcher::LogWatcher;
 use rcon::Connection;
-use regex::Regex;
-use server::proc::ProcessManager;
+// use regex::Regex;
 use tokio::{
     fs,
     net::{TcpListener, TcpStream},
@@ -22,13 +26,6 @@ use tokio::{
 };
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 use tungstenite::Message;
-
-mod consts;
-mod error;
-mod factorio;
-mod schema;
-mod server;
-mod util;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = toml::from_str(&config_str)?;
 
     info!("Init Factorio installation manager");
-    let version_manager = factorio::VersionManager::new(&*FACTORIO_INSTALL_DIR).await?;
+    let version_manager = VersionManager::new(&*FACTORIO_INSTALL_DIR).await?;
 
     info!("Init Factorio server process management");
     let proc_manager = ProcessManager::new();
@@ -55,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rcon = None;
     }
 
-    let (global_bus_tx, ..) = broadcast::channel::<OutgoingMessage>(50);
+    let (global_bus_tx, ..) = broadcast::channel::<AgentResponse>(50);
 
     // info!("Init console out features");
     // if let Some(console_out_config) = config.console {
@@ -109,10 +106,10 @@ impl WebSocketListener {
 
     async fn run(
         self,
-        global_bus_tx: Arc<broadcast::Sender<OutgoingMessage>>,
+        global_bus_tx: Arc<broadcast::Sender<AgentResponse>>,
         proc_manager: Arc<ProcessManager>,
         rcon: Arc<Mutex<Option<Connection>>>,
-        version_manager: Arc<Mutex<factorio::VersionManager>>,
+        version_manager: Arc<Mutex<VersionManager>>,
     ) {
         while let Ok((stream, _)) = self.tcp.accept().await {
             match AgentController::handle_connection(
@@ -151,7 +148,7 @@ struct AgentController {
     peer_addr: SocketAddr,
     proc_manager: Arc<ProcessManager>,
     rcon: Arc<Mutex<Option<Connection>>>,
-    version_manager: Arc<Mutex<factorio::VersionManager>>,
+    version_manager: Arc<Mutex<VersionManager>>,
     ws_rx: SplitStream<WebSocketStream<TcpStream>>,
     ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
     _send_global_outgoing_msgs_task: JoinHandle<()>,
@@ -160,10 +157,10 @@ struct AgentController {
 impl AgentController {
     async fn handle_connection(
         tcp: TcpStream,
-        global_bus_tx: Arc<broadcast::Sender<OutgoingMessage>>,
+        global_bus_tx: Arc<broadcast::Sender<AgentResponse>>,
         proc_manager: Arc<ProcessManager>,
         rcon: Arc<Mutex<Option<Connection>>>,
-        version_manager: Arc<Mutex<factorio::VersionManager>>,
+        version_manager: Arc<Mutex<VersionManager>>,
     ) -> tungstenite::Result<AgentController> {
         let peer_addr = tcp.peer_addr()?;
         let ws = accept_async(tcp).await?;
@@ -207,35 +204,35 @@ impl AgentController {
             match msg {
                 Ok(Message::Text(json)) => {
                     debug!("Is a text message, contents: {}", json);
-                    if let Ok(msg) = serde_json::from_str::<IncomingMessage>(&json) {
+                    if let Ok(msg) = serde_json::from_str::<AgentRequestWithId>(&json) {
                         info!("Got incoming message from {}: {}", self.peer_addr, json);
                         let operation_id = msg.operation_id;
-                        match msg.request {
-                            IncomingRequest::VersionInstall(version) => {
+                        match msg.message {
+                            AgentRequest::VersionInstall(version) => {
                                 debug!("handling: VersionInstall({})", version);
                                 self.version_install(version, operation_id).await
                             }
-                            IncomingRequest::ServerStart(savefile) => {
+                            AgentRequest::ServerStart(savefile) => {
                                 debug!("handling: ServerStart({:?})", savefile);
                                 self.server_start(savefile, operation_id).await
                             }
 
-                            IncomingRequest::ServerStop => {
+                            AgentRequest::ServerStop => {
                                 debug!("handling: ServerStop");
                                 self.server_stop(operation_id).await
                             }
 
-                            IncomingRequest::ServerStatus => {
+                            AgentRequest::ServerStatus => {
                                 debug!("handling: ServerStatus");
                                 self.server_status(operation_id).await
                             }
 
-                            IncomingRequest::SaveCreate(save_name) => {
+                            AgentRequest::SaveCreate(save_name) => {
                                 debug!("handling: CreateSave({})", save_name);
                                 self.save_create(save_name, operation_id).await
                             }
 
-                            IncomingRequest::RconCommand(cmd) => {
+                            AgentRequest::RconCommand(cmd) => {
                                 self.rcon_command(cmd, operation_id).await
                             }
                         }
@@ -266,7 +263,7 @@ impl AgentController {
     }
 
     async fn pong(&self) {
-        if let Err(e) = self
+        if let Err(_e) = self
             .ws_tx
             .lock()
             .await
@@ -277,8 +274,17 @@ impl AgentController {
         }
     }
 
-    async fn reply(&self, message: OutgoingMessage, operation_id: &OperationId) {
-        let with_id = OutgoingMessageWithId {
+    async fn _send_message(&self, message: Message) {
+        let mut tx = self.ws_tx.lock().await;
+        if let Err(e) = tx.send(message).await {
+            error!("Error sending message: {:?}", e);
+        } else {
+            let _ = tx.flush().await;
+        }
+    }
+
+    async fn reply(&self, message: AgentResponse, operation_id: &OperationId) {
+        let with_id = AgentResponseWithId {
             operation_id: operation_id.clone(),
             status: OperationStatus::Ongoing,
             content: message,
@@ -287,15 +293,12 @@ impl AgentController {
         if let Err(e) = json {
             error!("Error serialising message: {:?}", e);
         } else {
-            let msg = Message::Text(json.unwrap());
-            if let Err(e) = self.ws_tx.lock().await.send(msg).await {
-                error!("Error sending message: {:?}", e);
-            }
+            self._send_message(Message::Text(json.unwrap())).await;
         }
     }
 
-    async fn reply_success(&self, message: OutgoingMessage, operation_id: OperationId) {
-        let with_id = OutgoingMessageWithId {
+    async fn reply_success(&self, message: AgentResponse, operation_id: OperationId) {
+        let with_id = AgentResponseWithId {
             operation_id,
             status: OperationStatus::Completed,
             content: message,
@@ -304,15 +307,12 @@ impl AgentController {
         if let Err(e) = json {
             error!("Error serialising message: {:?}", e);
         } else {
-            let msg = Message::Text(json.unwrap());
-            if let Err(e) = self.ws_tx.lock().await.send(msg).await {
-                error!("Error sending message: {:?}", e);
-            }
+            self._send_message(Message::Text(json.unwrap())).await;
         }
     }
 
-    async fn reply_failed(&self, message: OutgoingMessage, operation_id: OperationId) {
-        let with_id = OutgoingMessageWithId {
+    async fn reply_failed(&self, message: AgentResponse, operation_id: OperationId) {
+        let with_id = AgentResponseWithId {
             operation_id,
             status: OperationStatus::Failed,
             content: message,
@@ -321,10 +321,7 @@ impl AgentController {
         if let Err(e) = json {
             error!("Error serialising message: {:?}", e);
         } else {
-            let msg = Message::Text(json.unwrap());
-            if let Err(e) = self.ws_tx.lock().await.send(msg).await {
-                error!("Error sending message: {:?}", e);
-            }
+            self._send_message(Message::Text(json.unwrap())).await;
         }
     }
 
@@ -334,15 +331,18 @@ impl AgentController {
         // Assume there is at most one version installed
         match vm.versions.keys().next() {
             None => {
-                if let Err(e) = vm.install(version_to_install).await {
+                info!("Installing version {}", version_to_install);
+                self.reply(AgentResponse::Message(format!("Starting to install version {}", version_to_install)), &operation_id).await;
+                if let Err(e) = vm.install(version_to_install.clone()).await {
                     self.reply_failed(
-                        OutgoingMessage::Message(format!("Failed to install: {:?}", e)),
+                        AgentResponse::Message(format!("Failed to install: {:?}", e)),
                         operation_id,
                     )
                     .await;
                     return;
                 } else {
-                    self.reply_success(OutgoingMessage::Ok, operation_id).await;
+                    info!("Installed version {}", version_to_install);
+                    self.reply_success(AgentResponse::Ok, operation_id).await;
                 }
             }
             Some(version_from) => {
@@ -354,31 +354,47 @@ impl AgentController {
                     // Stop server first before re-installing
                     info!("Stopping server for reinstall");
                     opt_stopped_instance = self.proc_manager.stop_instance().await;
+                    if opt_stopped_instance.is_some() {
+                        self.reply(
+                            AgentResponse::Message("Stopped server for reinstall".to_owned()), &operation_id).await;
+                    }
 
                     info!("Reinstalling version {}", version_to_install);
+                    self.reply(AgentResponse::Message(format!("Starting to reinstall version {}", version_to_install)), &operation_id).await;
                     if let Err(e) = vm.install(version_to_install.clone()).await {
                         self.reply_failed(
-                            OutgoingMessage::Error(format!("Failed to install: {:?}", e)),
+                            AgentResponse::Error(format!("Failed to install: {:?}", e)),
                             operation_id,
                         )
                         .await;
                         return;
+                    } else {
+                        info!("Reinstalled version {}", version_to_install);
+                        self.reply(AgentResponse::Message(format!("Reinstalled version {}", version_to_install)), &operation_id).await;
                     }
                 } else {
                     // Install requested version
                     info!("Installing version {} for upgrade", version_to_install);
+                    self.reply(AgentResponse::Message(format!("Starting to install version {}", version_to_install)), &operation_id).await;
                     if let Err(e) = vm.install(version_to_install.clone()).await {
                         self.reply_failed(
-                            OutgoingMessage::Error(format!("Failed to install: {:?}", e)),
+                            AgentResponse::Error(format!("Failed to install: {:?}", e)),
                             operation_id,
                         )
                         .await;
                         return;
+                    } else {
+                        info!("Installed version {} for upgrade", version_to_install);
+                        self.reply(AgentResponse::Message(format!("Installed version {} for upgrade", version_to_install)), &operation_id).await;
                     }
 
                     // Stop server if running
                     info!("Stopping server for upgrade");
                     opt_stopped_instance = self.proc_manager.stop_instance().await;
+                    if opt_stopped_instance.is_some() {
+                        self.reply(
+                            AgentResponse::Message("Stopped server for upgrade".to_owned()), &operation_id).await;
+                    }
                 }
 
                 // TODO stage save migrations?
@@ -387,8 +403,10 @@ impl AgentController {
                 if !is_reinstall {
                     info!("Removing previous version {} after upgrade", version_from);
                     if let Err(e) = vm.delete(&version_from).await {
-                        self.reply_failed(OutgoingMessage::Error(format!("Failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e)), operation_id).await;
+                        self.reply_failed(AgentResponse::Error(format!("Failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e)), operation_id).await;
                         return;
+                    } else {
+                        self.reply(AgentResponse::Message(format!("Removed previous version {} after upgrading to version {}", version_from, version_to_install)), &operation_id).await;
                     }
                 }
 
@@ -396,6 +414,7 @@ impl AgentController {
                 let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile);
                 if let Some(previous_savefile) = opt_previous_savefile {
                     info!("Restarting server");
+                    self.reply(AgentResponse::Message("Restarting server after upgrade".to_owned()), &operation_id).await;
                     let version = vm.versions.get(&version_to_install).unwrap(); // safe since we still hold the lock
                     self.internal_server_start_with_version(
                         version,
@@ -404,7 +423,7 @@ impl AgentController {
                     )
                     .await;
                 } else {
-                    self.reply_success(OutgoingMessage::Ok, operation_id).await;
+                    self.reply_success(AgentResponse::Ok, operation_id).await;
                 }
             }
         }
@@ -417,7 +436,7 @@ impl AgentController {
         match vm.versions.values().next() {
             None => {
                 self.reply_failed(
-                    OutgoingMessage::Error("No installations of factorio detected".to_owned()),
+                    AgentResponse::Error("No installations of factorio detected".to_owned()),
                     operation_id,
                 )
                 .await;
@@ -441,11 +460,11 @@ impl AgentController {
         // Launch settings is required to start
         // Pre-populate with default if not exist
         let launch_settings;
-        match server::settings::LaunchSettings::read_or_apply_default().await {
+        match LaunchSettings::read_or_apply_default().await {
             Ok(ls) => launch_settings = ls,
             Err(_e) => {
                 self.reply_failed(
-                    OutgoingMessage::Error(
+                    AgentResponse::Error(
                         "Failed to read or initialise launch settings file".to_owned(),
                     ),
                     operation_id,
@@ -458,11 +477,11 @@ impl AgentController {
         // Server settings is required to start
         // Pre-populate with the example file if not exist
         let server_settings;
-        match server::settings::ServerSettings::read_or_apply_default(version).await {
+        match ServerSettings::read_or_apply_default(version).await {
             Ok(ss) => server_settings = ss,
             Err(_e) => {
                 self.reply_failed(
-                    OutgoingMessage::Error(
+                    AgentResponse::Error(
                         "Failed to read or initialise server settings file".to_owned(),
                     ),
                     operation_id,
@@ -478,24 +497,24 @@ impl AgentController {
 
         if let Err(e) = self.proc_manager.start_instance(builder).await {
             self.reply_failed(
-                OutgoingMessage::Error(format!("Failed to start: {:?}", e)),
+                AgentResponse::Error(format!("Failed to start: {:?}", e)),
                 operation_id,
             )
             .await;
         } else {
-            self.reply_success(OutgoingMessage::Ok, operation_id).await;
+            self.reply_success(AgentResponse::Ok, operation_id).await;
         }
     }
 
     async fn server_stop(&self, operation_id: OperationId) {
         self.proc_manager.stop_instance().await;
-        self.reply_success(OutgoingMessage::Ok, operation_id).await;
+        self.reply_success(AgentResponse::Ok, operation_id).await;
     }
 
     async fn server_status(&self, operation_id: OperationId) {
         // TODO
         self.reply_failed(
-            OutgoingMessage::Error("Not implemented".to_owned()),
+            AgentResponse::Error("Not implemented".to_owned()),
             operation_id,
         )
         .await;
@@ -508,7 +527,7 @@ impl AgentController {
         match version_mg.versions.values().next() {
             None => {
                 self.reply_failed(
-                    OutgoingMessage::Error("No installations of Factorio detected".to_owned()),
+                    AgentResponse::Error("No installations of Factorio detected".to_owned()),
                     operation_id,
                 )
                 .await;
@@ -528,7 +547,7 @@ impl AgentController {
                 e
             );
             self.reply_failed(
-                OutgoingMessage::Error(format!("Failed to create save dir: {:?}", e)),
+                AgentResponse::Error(format!("Failed to create save dir: {:?}", e)),
                 operation_id,
             )
             .await;
@@ -543,12 +562,12 @@ impl AgentController {
             .await
         {
             self.reply_failed(
-                OutgoingMessage::Error(format!("Savefile creation failed: {:?}", e)),
+                AgentResponse::Error(format!("Savefile creation failed: {:?}", e)),
                 operation_id,
             )
             .await;
         } else {
-            self.reply_success(OutgoingMessage::Ok, operation_id).await;
+            self.reply_success(AgentResponse::Ok, operation_id).await;
         }
     }
 
