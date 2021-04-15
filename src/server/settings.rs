@@ -1,7 +1,10 @@
-use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+};
 
-use crate::factorio::Factorio;
 use crate::consts::*;
+use crate::factorio::Factorio;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -21,15 +24,13 @@ impl LaunchSettings {
             Ok(None)
         } else {
             match fs::read_to_string(path).await {
-                Ok(s) => {
-                    match toml::from_str(&s) {
-                        Ok(launch_settings) => Ok(Some(launch_settings)),
-                        Err(e) => {
-                            error!("Error parsing launch settings: {:?}", e);
-                            Err(e.into())
-                        }
+                Ok(s) => match toml::from_str(&s) {
+                    Ok(launch_settings) => Ok(Some(launch_settings)),
+                    Err(e) => {
+                        error!("Error parsing launch settings: {:?}", e);
+                        Err(e.into())
                     }
-                }
+                },
                 Err(e) => {
                     error!("Error reading launch settings: {:?}", e);
                     Err(e.into())
@@ -60,7 +61,10 @@ impl LaunchSettings {
     pub async fn write(&self) -> crate::error::Result<()> {
         let path = &*LAUNCH_SETTINGS_PATH;
         if let Err(e) = fs::create_dir_all(path.parent().unwrap()).await {
-            error!("Error creating directory structure for launch settings: {:?}", e);
+            error!(
+                "Error creating directory structure for launch settings: {:?}",
+                e
+            );
             return Err(e.into());
         }
 
@@ -107,7 +111,9 @@ impl ServerSettings {
         }
     }
 
-    pub async fn read_or_apply_default(installation: &Factorio) -> crate::error::Result<ServerSettings> {
+    pub async fn read_or_apply_default(
+        installation: &Factorio,
+    ) -> crate::error::Result<ServerSettings> {
         match ServerSettings::read().await {
             Ok(Some(ls)) => Ok(ls),
             Ok(None) => {
@@ -133,12 +139,19 @@ impl ServerSettings {
 
     pub async fn write(&self) -> crate::error::Result<()> {
         if let Err(e) = fs::create_dir_all(self.path.parent().unwrap()).await {
-            error!("Error creating directory structure for server settings: {:?}", e);
+            error!(
+                "Error creating directory structure for server settings: {:?}",
+                e
+            );
             return Err(e.into());
         }
 
         if let Err(e) = fs::write(&self.path, &self.json).await {
-            error!("Error writing server settings to {}: {:?}", self.path.display(), e);
+            error!(
+                "Error writing server settings to {}: {:?}",
+                self.path.display(),
+                e
+            );
             Err(e.into())
         } else {
             Ok(())
@@ -185,7 +198,8 @@ mod tests {
 server_bind = "0.0.0.0:12345"
 rcon_bind = "127.0.0.1:54321"
 rcon_password = "password123"
-"#.to_owned();
+"#
+        .to_owned();
         let ls_from_string = toml::from_str(&string)?;
 
         assert_eq!(ls, ls_from_string);

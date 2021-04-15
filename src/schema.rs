@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 // *************************
 // * Configuration schemas *
@@ -38,7 +39,13 @@ pub struct RconConfig {
 // *************************
 
 #[derive(Clone, Debug, Deserialize)]
-pub enum IncomingMessage {
+pub struct IncomingMessage {
+    pub correlation_id: Uuid,
+    pub request: IncomingRequest,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub enum IncomingRequest {
     // Installation management
     VersionInstall(String),
 

@@ -208,31 +208,34 @@ impl AgentController {
                     debug!("Is a text message, contents: {}", json);
                     if let Ok(msg) = serde_json::from_str::<IncomingMessage>(&json) {
                         info!("Got incoming message from {}: {}", self.peer_addr, json);
-                        match msg {
-                            IncomingMessage::VersionInstall(version) => {
+                        match msg.request {
+                            IncomingRequest::VersionInstall(version) => {
                                 debug!("handling: VersionInstall({})", version);
                                 self.version_install(version).await
                             }
-                            IncomingMessage::ServerStart(savefile) => {
+                            IncomingRequest::ServerStart(savefile) => {
                                 debug!("handling: ServerStart({:?})", savefile);
                                 self.server_start(savefile).await
                             }
 
-                            IncomingMessage::ServerStop => {
+                            IncomingRequest::ServerStop => {
                                 debug!("handling: ServerStop");
                                 self.server_stop().await
                             }
 
-                            IncomingMessage::ServerStatus => todo!(),
-
-                            IncomingMessage::SaveCreate(save_name) => {
-                                debug!("handling: CreateSave({})", save_name);
-                                self.save_create(save_name).await;
+                            IncomingRequest::ServerStatus => {
+                                debug!("handling: ServerStatus");
+                                self.server_status().await
                             }
 
-                            IncomingMessage::ChatPrint(chat_msg) => self.chat_print(chat_msg).await,
+                            IncomingRequest::SaveCreate(save_name) => {
+                                debug!("handling: CreateSave({})", save_name);
+                                self.save_create(save_name).await
+                            }
 
-                            IncomingMessage::RconCommand(cmd) => self.rcon_command(cmd).await,
+                            IncomingRequest::ChatPrint(chat_msg) => self.chat_print(chat_msg).await,
+
+                            IncomingRequest::RconCommand(cmd) => self.rcon_command(cmd).await,
                         }
                     }
                 }
@@ -294,16 +297,22 @@ impl AgentController {
 
                     info!("Reinstalling version {}", version_to_install);
                     if let Err(e) = vm.install(version_to_install.clone()).await {
-                        self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
-                            .await;
+                        self.send_message(Message::Text(format!(
+                            "Error: failed to install: {:?}",
+                            e
+                        )))
+                        .await;
                         return;
                     }
                 } else {
                     // Install requested version
                     info!("Installing version {} for upgrade", version_to_install);
                     if let Err(e) = vm.install(version_to_install.clone()).await {
-                        self.send_message(Message::Text(format!("Error: failed to install: {:?}", e)))
-                            .await;
+                        self.send_message(Message::Text(format!(
+                            "Error: failed to install: {:?}",
+                            e
+                        )))
+                        .await;
                         return;
                     }
 
@@ -316,43 +325,50 @@ impl AgentController {
 
                 // If not a reinstall, remove previous version
                 if !is_reinstall {
-                    info!(
-                        "Removing previous version {} after upgrade",
-                        version_from
-                    );
+                    info!("Removing previous version {} after upgrade", version_from);
                     if let Err(e) = vm.delete(&version_from).await {
                         self.send_message(Message::Text(format!("Error: failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e))).await;
                     }
                 }
 
                 // Restart server if it was previously running
-                let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile).flatten();
+                let opt_previous_savefile = opt_stopped_instance.map(|si| si.savefile);
                 if let Some(previous_savefile) = opt_previous_savefile {
                     info!("Restarting server");
                     let new_version = vm.versions.get(&version_to_install).unwrap(); // safe since we maintain the lock
 
                     // refresh various settings files while we're here
-                    let launch_settings = server::settings::LaunchSettings::read_or_apply_default().await;
-                    let server_settings = server::settings::ServerSettings::read_or_apply_default(new_version).await;
+                    let launch_settings =
+                        server::settings::LaunchSettings::read_or_apply_default().await;
+                    let server_settings =
+                        server::settings::ServerSettings::read_or_apply_default(new_version).await;
 
                     if let Ok(launch_settings) = launch_settings {
                         if let Ok(server_settings) = server_settings {
                             let builder = ServerBuilder::using_installation(new_version)
-                                .with_launch_settings(launch_settings)
-                                .with_savefile(previous_savefile)
+                                .hosting_savefile(previous_savefile, launch_settings)
                                 .with_server_settings(server_settings);
 
-                            if let Err(e) = self.proc_manager.run_instance(builder).await {
-                                self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
-                                    .await;
+                            if let Err(e) = self.proc_manager.start_instance(builder).await {
+                                self.send_message(Message::Text(format!(
+                                    "Error: failed to start: {:?}",
+                                    e
+                                )))
+                                .await;
                             } else {
                                 self.send_message(Message::Text("Ok".to_owned())).await;
                             }
                         } else {
-                            self.send_message(Message::Text("Error: failed to start: failed to read server settings".to_owned())).await;
+                            self.send_message(Message::Text(
+                                "Error: failed to start: failed to read server settings".to_owned(),
+                            ))
+                            .await;
                         }
                     } else {
-                        self.send_message(Message::Text("Error: failed to start: failed to read launch settings".to_owned())).await;
+                        self.send_message(Message::Text(
+                            "Error: failed to start: failed to read launch settings".to_owned(),
+                        ))
+                        .await;
                     }
                 } else {
                     self.send_message(Message::Text("Ok".to_owned())).await;
@@ -385,8 +401,9 @@ impl AgentController {
             Ok(ls) => launch_settings = ls,
             Err(_e) => {
                 self.send_message(Message::Text(
-                    "Error: failed to read or initialise launch settings file".to_owned()
-                )).await;
+                    "Error: failed to read or initialise launch settings file".to_owned(),
+                ))
+                .await;
                 return;
             }
         }
@@ -398,19 +415,19 @@ impl AgentController {
             Ok(ss) => server_settings = ss,
             Err(_e) => {
                 self.send_message(Message::Text(
-                    "Error: failed to read or initialise server settings file".to_owned()
-                )).await;
+                    "Error: failed to read or initialise server settings file".to_owned(),
+                ))
+                .await;
                 return;
             }
         }
 
         let builder = ServerBuilder::using_installation(version)
-            .with_launch_settings(launch_settings)
-            .with_savefile(savefile)
+            .hosting_savefile(savefile, launch_settings)
             .with_server_settings(server_settings)
             .with_admin_list_file(CONFIG_DIR.join("server-adminlist.json"));
 
-        if let Err(e) = self.proc_manager.run_instance(builder).await {
+        if let Err(e) = self.proc_manager.start_instance(builder).await {
             self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
                 .await;
         } else {
@@ -460,13 +477,19 @@ impl AgentController {
             return;
         }
 
-        let builder = ServerBuilder::using_installation(version).creating_savefile(&save_name);
-        if let Err(e) = self.proc_manager.run_instance(builder).await {
-            self.send_message(Message::Text(format!("Error: failed to start: {:?}", e)))
-                .await;
+        let builder =
+            ServerBuilder::using_installation(version).creating_savefile(save_name.clone());
+        if let Err(e) = self
+            .proc_manager
+            .start_and_wait_for_shortlived_instance(builder)
+            .await
+        {
+            self.send_message(Message::Text(format!(
+                "Error: savefile creation failed: {:?}",
+                e
+            )))
+            .await;
         }
-
-        self.proc_manager.wait_for_instance().await;
 
         self.send_message(Message::Text(format!(
             "Successfully created savefile with name {}",

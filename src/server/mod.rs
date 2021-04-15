@@ -18,8 +18,8 @@ pub mod settings;
 
 pub struct StartableInstance {
     cmd: Command,
-    launch_settings: Option<LaunchSettings>,
-    savefile: Option<ServerStartSaveFile>,
+    launch_settings: LaunchSettings,
+    savefile: ServerStartSaveFile,
 }
 
 impl StartableInstance {
@@ -63,8 +63,8 @@ impl StartableInstance {
 
 pub struct RunningInstance {
     process: Child,
-    launch_settings: Option<LaunchSettings>,
-    savefile: Option<ServerStartSaveFile>,
+    launch_settings: LaunchSettings,
+    savefile: ServerStartSaveFile,
     handle_out: JoinHandle<()>,
     handle_err: JoinHandle<()>,
 }
@@ -129,8 +129,56 @@ impl RunningInstance {
 
 pub struct StoppedInstance {
     pub exit_status: ExitStatus,
-    pub launch_settings: Option<LaunchSettings>,
-    pub savefile: Option<ServerStartSaveFile>,
+    pub launch_settings: LaunchSettings,
+    pub savefile: ServerStartSaveFile,
+}
+
+pub struct StartableShortLivedInstance {
+    cmd: Command,
+}
+
+impl StartableShortLivedInstance {
+    pub async fn start_and_wait(mut self) -> crate::error::Result<StoppedShortLivedInstance> {
+        let mut instance = self.cmd.spawn()?;
+        info!(
+            "Child process started with PID {}!",
+            instance
+                .id()
+                .map_or("None".to_owned(), |pid| pid.to_string())
+        );
+
+        let out_stream = instance.stdout.take().unwrap();
+        let err_stream = instance.stderr.take().unwrap();
+
+        let handle_out = tokio::spawn(async move {
+            let mut lines = tokio::io::BufReader::new(out_stream).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                info!("## Short-lived instance stdout ## {}", line);
+            }
+            info!("## Short-lived instance stdout end ##")
+        });
+
+        let handle_err = tokio::spawn(async move {
+            let mut lines = tokio::io::BufReader::new(err_stream).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                info!("## Short-lived instance stderr ## {}", line);
+            }
+            info!("## Short-lived instance stderr end ##")
+        });
+
+        let exit_status = instance.wait().await?;
+        info!("Child process exited with status {}", exit_status);
+
+        // clean up piped output handlers
+        handle_out.abort();
+        handle_err.abort();
+
+        Ok(StoppedShortLivedInstance { exit_status })
+    }
+}
+
+pub struct StoppedShortLivedInstance {
+    pub exit_status: ExitStatus,
 }
 
 /*

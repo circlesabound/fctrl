@@ -4,12 +4,21 @@ use tokio::process::Command;
 
 use crate::{factorio::Factorio, schema::ServerStartSaveFile, util};
 
-use super::{StartableInstance, settings::{LaunchSettings, ServerSettings}};
+use super::{
+    settings::{LaunchSettings, ServerSettings},
+    StartableInstance, StartableShortLivedInstance,
+};
+
+pub trait StartableInstanceBuilder {
+    fn build(self) -> StartableInstance;
+}
+
+pub trait StartableShortLivedInstanceBuilder {
+    fn build(self) -> StartableShortLivedInstance;
+}
 
 pub struct ServerBuilder {
     cmd_builder: Command,
-    launch_settings: Option<LaunchSettings>,
-    savefile: Option<ServerStartSaveFile>,
 }
 
 impl ServerBuilder {
@@ -22,23 +31,28 @@ impl ServerBuilder {
             .join("factorio");
         ServerBuilder {
             cmd_builder: Command::new(path_to_executable),
-            launch_settings: None,
-            savefile: None,
         }
     }
 
-    pub fn creating_savefile(self, new_savefile_name: &str) -> Self {
+    pub fn creating_savefile(mut self, new_savefile_name: String) -> SaveCreatorBuilder {
         self.with_cli_args(&[
             "--create",
-            util::saves::get_savefile_path(new_savefile_name)
+            util::saves::get_savefile_path(&new_savefile_name)
                 .to_str()
                 .unwrap(),
-        ])
+        ]);
+        SaveCreatorBuilder {
+            server_builder: self,
+            _new_savefile_name: new_savefile_name,
+        }
     }
 
-    pub fn with_savefile(mut self, savefile: ServerStartSaveFile) -> Self {
-        self.savefile.replace(savefile.clone());
-        match savefile {
+    pub fn hosting_savefile(
+        mut self,
+        savefile: ServerStartSaveFile,
+        server_launch_settings: LaunchSettings,
+    ) -> ServerHostBuilder {
+        match &savefile {
             ServerStartSaveFile::Latest => self.with_cli_args(&["--start-server-load-latest"]), // TODO this doesn't work with a custom save dir
             ServerStartSaveFile::Specific(savefile_name) => self.with_cli_args(&[
                 "--start-server",
@@ -46,58 +60,95 @@ impl ServerBuilder {
                     .to_str()
                     .unwrap(),
             ]),
-        }
-    }
+        };
 
-    pub fn with_launch_settings(mut self, launch_settings: LaunchSettings) -> Self {
-        self.launch_settings.replace(launch_settings.clone());
         self.with_cli_args(&[
             "--bind",
-            &launch_settings.server_bind.to_string(),
+            &server_launch_settings.server_bind.to_string(),
             "--rcon-bind",
-            &launch_settings.rcon_bind.to_string(),
+            &server_launch_settings.rcon_bind.to_string(),
             "--rcon-password",
-            &launch_settings.rcon_password,
-        ])
-    }
+            &server_launch_settings.rcon_password,
+        ]);
 
-    pub fn with_server_settings(self, server_settings: ServerSettings) -> Self {
-        self.with_cli_args(&[
-            "--server-settings",
-            server_settings.path.to_str().unwrap(),
-        ])
-    }
-
-    pub fn with_admin_list_file<P: AsRef<Path>>(self, admin_list_path: P) -> Self {
-        self.with_cli_args(&[
-            "--server-adminlist",
-            admin_list_path.as_ref().to_str().unwrap(),
-        ])
-    }
-
-    pub fn build(mut self) -> StartableInstance {
-        // configure io to be piped
-        self.cmd_builder
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        // set this for a better night's sleep
-        self.cmd_builder.kill_on_drop(true);
-
-        StartableInstance {
-            cmd: self.cmd_builder,
-            launch_settings: self.launch_settings,
-            savefile: self.savefile,
+        ServerHostBuilder {
+            server_builder: self,
+            launch_settings: server_launch_settings,
+            savefile,
         }
     }
 
-    pub fn with_cli_args<I, S>(mut self, args: I) -> Self
+    fn with_cli_args<I, S>(&mut self, args: I) -> &Self
     where
         I: IntoIterator<Item = S>,
         S: AsRef<std::ffi::OsStr>,
     {
         self.cmd_builder.args(args);
         self
+    }
+}
+
+pub struct ServerHostBuilder {
+    server_builder: ServerBuilder,
+    launch_settings: LaunchSettings,
+    savefile: ServerStartSaveFile,
+}
+
+impl ServerHostBuilder {
+    pub fn with_admin_list_file<P: AsRef<Path>>(mut self, admin_list_path: P) -> Self {
+        self.server_builder.with_cli_args(&[
+            "--server-adminlist",
+            admin_list_path.as_ref().to_str().unwrap(),
+        ]);
+        self
+    }
+
+    pub fn with_server_settings(mut self, server_settings: ServerSettings) -> Self {
+        self.server_builder
+            .with_cli_args(&["--server-settings", server_settings.path.to_str().unwrap()]);
+        self
+    }
+}
+
+impl StartableInstanceBuilder for ServerHostBuilder {
+    fn build(mut self) -> StartableInstance {
+        // configure io to be piped
+        self.server_builder
+            .cmd_builder
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        // set this for a better night's sleep
+        self.server_builder.cmd_builder.kill_on_drop(true);
+
+        StartableInstance {
+            cmd: self.server_builder.cmd_builder,
+            launch_settings: self.launch_settings,
+            savefile: self.savefile,
+        }
+    }
+}
+
+pub struct SaveCreatorBuilder {
+    server_builder: ServerBuilder,
+    _new_savefile_name: String,
+}
+
+impl StartableShortLivedInstanceBuilder for SaveCreatorBuilder {
+    fn build(mut self) -> StartableShortLivedInstance {
+        // configure io to be piped
+        self.server_builder
+            .cmd_builder
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        // set this for a better night's sleep
+        self.server_builder.cmd_builder.kill_on_drop(true);
+
+        StartableShortLivedInstance {
+            cmd: self.server_builder.cmd_builder,
+        }
     }
 }

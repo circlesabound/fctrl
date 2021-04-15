@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use super::{builder::ServerBuilder, *};
+use super::{
+    builder::{StartableInstanceBuilder, StartableShortLivedInstanceBuilder},
+    *,
+};
 
 pub struct ProcessManager {
     running_instance: Arc<Mutex<Option<RunningInstance>>>,
@@ -15,7 +18,10 @@ impl ProcessManager {
         }
     }
 
-    pub async fn run_instance(&self, builder: ServerBuilder) -> crate::error::Result<()> {
+    pub async fn start_instance<B: StartableInstanceBuilder>(
+        &self,
+        builder: B,
+    ) -> crate::error::Result<()> {
         let mut mg = self.running_instance.lock().await;
 
         if mg.is_some() {
@@ -67,6 +73,23 @@ impl ProcessManager {
                 }
             }
         }
+    }
+
+    pub async fn start_and_wait_for_shortlived_instance<B: StartableShortLivedInstanceBuilder>(
+        &self,
+        builder: B,
+    ) -> crate::error::Result<StoppedShortLivedInstance> {
+        // hold mutex to prevent anything else from running
+        let mg = self.running_instance.lock().await;
+
+        if mg.is_some() {
+            return Err(crate::error::Error::ProcessAlreadyRunning);
+        }
+
+        let startable = builder.build();
+        let stopped = startable.start_and_wait().await?;
+
+        Ok(stopped)
     }
 
     pub async fn instance_is_running(&self) -> bool {
