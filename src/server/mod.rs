@@ -10,7 +10,7 @@ use tokio::{io::AsyncBufReadExt, task::JoinHandle};
 
 use crate::schema::ServerStartSaveFile;
 
-use settings::LaunchSettings;
+use settings::*;
 
 pub mod builder;
 pub mod proc;
@@ -20,6 +20,7 @@ pub struct StartableInstance {
     cmd: Command,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
+    server_settings: ServerSettings,
 }
 
 impl StartableInstance {
@@ -53,20 +54,22 @@ impl StartableInstance {
 
         Ok(RunningInstance {
             process: instance,
-            launch_settings: self.launch_settings,
-            savefile: self.savefile,
             handle_out,
             handle_err,
+            launch_settings: self.launch_settings,
+            savefile: self.savefile,
+            server_settings: self.server_settings,
         })
     }
 }
 
 pub struct RunningInstance {
     process: Child,
-    launch_settings: LaunchSettings,
-    savefile: ServerStartSaveFile,
     handle_out: JoinHandle<()>,
     handle_err: JoinHandle<()>,
+    launch_settings: LaunchSettings,
+    savefile: ServerStartSaveFile,
+    server_settings: ServerSettings,
 }
 
 impl RunningInstance {
@@ -89,6 +92,7 @@ impl RunningInstance {
                 exit_status,
                 launch_settings: self.launch_settings,
                 savefile: self.savefile,
+                server_settings: self.server_settings,
             });
         }
 
@@ -123,6 +127,7 @@ impl RunningInstance {
             exit_status,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
+            server_settings: self.server_settings,
         })
     }
 }
@@ -131,6 +136,7 @@ pub struct StoppedInstance {
     pub exit_status: ExitStatus,
     pub launch_settings: LaunchSettings,
     pub savefile: ServerStartSaveFile,
+    pub server_settings: ServerSettings,
 }
 
 pub struct StartableShortLivedInstance {

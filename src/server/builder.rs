@@ -50,7 +50,8 @@ impl ServerBuilder {
     pub fn hosting_savefile(
         mut self,
         savefile: ServerStartSaveFile,
-        server_launch_settings: LaunchSettings,
+        launch_settings: LaunchSettings,
+        server_settings: ServerSettings,
     ) -> ServerHostBuilder {
         match &savefile {
             ServerStartSaveFile::Latest => self.with_cli_args(&["--start-server-load-latest"]), // TODO this doesn't work with a custom save dir
@@ -64,17 +65,20 @@ impl ServerBuilder {
 
         self.with_cli_args(&[
             "--bind",
-            &server_launch_settings.server_bind.to_string(),
+            &launch_settings.server_bind.to_string(),
             "--rcon-bind",
-            &server_launch_settings.rcon_bind.to_string(),
+            &launch_settings.rcon_bind.to_string(),
             "--rcon-password",
-            &server_launch_settings.rcon_password,
+            &launch_settings.rcon_password,
         ]);
+
+        self.with_cli_args(&["--server-settings", server_settings.path.to_str().unwrap()]);
 
         ServerHostBuilder {
             server_builder: self,
-            launch_settings: server_launch_settings,
+            launch_settings,
             savefile,
+            server_settings,
         }
     }
 
@@ -92,6 +96,7 @@ pub struct ServerHostBuilder {
     server_builder: ServerBuilder,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
+    server_settings: ServerSettings,
 }
 
 impl ServerHostBuilder {
@@ -100,12 +105,6 @@ impl ServerHostBuilder {
             "--server-adminlist",
             admin_list_path.as_ref().to_str().unwrap(),
         ]);
-        self
-    }
-
-    pub fn with_server_settings(mut self, server_settings: ServerSettings) -> Self {
-        self.server_builder
-            .with_cli_args(&["--server-settings", server_settings.path.to_str().unwrap()]);
         self
     }
 }
@@ -126,6 +125,7 @@ impl StartableInstanceBuilder for ServerHostBuilder {
             cmd: self.server_builder.cmd_builder,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
+            server_settings: self.server_settings,
         }
     }
 }

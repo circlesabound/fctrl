@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 // *************************
 // * Configuration schemas *
@@ -38,9 +37,12 @@ pub struct RconConfig {
 // * WebSocket API schemas *
 // *************************
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OperationId(String);
+
+#[derive(Debug, Deserialize)]
 pub struct IncomingMessage {
-    pub correlation_id: Uuid,
+    pub operation_id: OperationId,
     pub request: IncomingRequest,
 }
 
@@ -58,30 +60,28 @@ pub enum IncomingRequest {
     SaveCreate(String),
 
     // In-game
-    ChatPrint(String),
     RconCommand(String),
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub enum OutgoingMessage {
-    ConsoleOut(ConsoleOutMessage),
+pub struct OutgoingMessageWithId {
+    pub operation_id: OperationId,
+    pub status: OperationStatus,
+    pub content: OutgoingMessage,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub enum ConsoleOutMessage {
-    Chat {
-        timestamp: String,
-        user: String,
-        msg: String,
-    },
-    Join {
-        timestamp: String,
-        user: String,
-    },
-    Leave {
-        timestamp: String,
-        user: String,
-    },
+pub enum OperationStatus {
+    Ongoing,
+    Completed,
+    Failed,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub enum OutgoingMessage {
+    Message(String),
+    Error(String),
+    Ok,
 }
 
 #[derive(Clone, Debug, Deserialize)]
