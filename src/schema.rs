@@ -70,7 +70,7 @@ pub struct AgentResponseWithId {
     pub content: AgentResponse,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum OperationStatus {
     Ongoing,
     Completed,

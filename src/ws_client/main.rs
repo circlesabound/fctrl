@@ -1,31 +1,48 @@
-use fctrl_agent::schema::*;
+use fctrl::schema::*;
 
 use futures::{Sink, Stream};
 use futures_util::sink::SinkExt;
 use futures_util::StreamExt;
+use lazy_static::lazy_static;
 use std::io::Write;
+use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::{self, Message};
+
+lazy_static! {
+    /// Pipe mode - disable output decoratives to facilitate piping input/output
+    static ref PIPE_MODE: Mutex<bool> = Mutex::new(false);
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build()
-        .unwrap()
+        .build()?
         .block_on(async {
-            print!("Connect to websocket address: ");
             let addr_str = std::env::args()
                 .nth(1)
                 .expect("expecting arg for websocket address");
             let addr = url::Url::parse(addr_str.trim())?;
 
+            if let Some(s) = std::env::args().nth(2) {
+                if s == "--pipe-mode" {
+                    *(PIPE_MODE.lock().await) = true;
+                }
+            }
+
             let (ws_stream, ..) = tokio_tungstenite::connect_async(addr).await?;
             let (ws_write, ws_read) = ws_stream.split();
-            println!("Connected");
+            if !is_pipe_mode().await {
+                println!("Connected");
+            }
 
             message_loop(ws_write, ws_read).await?;
 
             Ok(())
         })
+}
+
+async fn is_pipe_mode() -> bool {
+    PIPE_MODE.lock().await.clone()
 }
 
 async fn message_loop<W, R>(
@@ -37,8 +54,10 @@ where
     R: Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
 {
     loop {
-        print!("> ");
-        std::io::stdout().flush()?;
+        if !is_pipe_mode().await {
+            print!("> ");
+            std::io::stdout().flush()?;
+        }
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if input.trim().is_empty() {

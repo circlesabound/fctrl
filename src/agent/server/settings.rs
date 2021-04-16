@@ -3,12 +3,12 @@ use std::{
     path::PathBuf,
 };
 
-use crate::consts::*;
-use crate::factorio::Factorio;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
+
+use crate::{consts::*, error::Result, factorio::Factorio};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct LaunchSettings {
@@ -18,7 +18,7 @@ pub struct LaunchSettings {
 }
 
 impl LaunchSettings {
-    pub async fn read() -> crate::error::Result<Option<LaunchSettings>> {
+    pub async fn read() -> Result<Option<LaunchSettings>> {
         let path = &*LAUNCH_SETTINGS_PATH;
         if !path.exists() {
             Ok(None)
@@ -39,7 +39,7 @@ impl LaunchSettings {
         }
     }
 
-    pub async fn read_or_apply_default() -> crate::error::Result<LaunchSettings> {
+    pub async fn read_or_apply_default() -> Result<LaunchSettings> {
         match LaunchSettings::read().await? {
             Some(ls) => Ok(ls),
             None => {
@@ -54,7 +54,7 @@ impl LaunchSettings {
         }
     }
 
-    pub async fn write(&self) -> crate::error::Result<()> {
+    pub async fn write(&self) -> Result<()> {
         let path = &*LAUNCH_SETTINGS_PATH;
         if let Err(e) = fs::create_dir_all(path.parent().unwrap()).await {
             error!(
@@ -89,7 +89,7 @@ pub struct AdminList {
 }
 
 impl AdminList {
-    pub async fn read() -> crate::error::Result<Option<AdminList>> {
+    pub async fn read() -> Result<Option<AdminList>> {
         let path = &*ADMIN_LIST_PATH;
         if !path.exists() {
             Ok(None)
@@ -113,7 +113,7 @@ impl AdminList {
         }
     }
 
-    pub async fn read_or_apply_default() -> crate::error::Result<AdminList> {
+    pub async fn read_or_apply_default() -> Result<AdminList> {
         match AdminList::read().await? {
             Some(adminlist) => Ok(adminlist),
             None => {
@@ -131,7 +131,7 @@ impl AdminList {
         }
     }
 
-    pub async fn write(&self) -> crate::error::Result<()> {
+    pub async fn write(&self) -> Result<()> {
         if let Err(e) = fs::create_dir_all(self.path.parent().unwrap()).await {
             error!("Error creating directory structure for admin list: {:?}", e);
             return Err(e.into());
@@ -161,7 +161,7 @@ pub struct ServerSettings {
 }
 
 impl ServerSettings {
-    pub async fn read() -> crate::error::Result<Option<ServerSettings>> {
+    pub async fn read() -> Result<Option<ServerSettings>> {
         let path = &*SERVER_SETTINGS_PATH;
         if !path.exists() {
             Ok(None)
@@ -179,9 +179,7 @@ impl ServerSettings {
         }
     }
 
-    pub async fn read_or_apply_default(
-        installation: &Factorio,
-    ) -> crate::error::Result<ServerSettings> {
+    pub async fn read_or_apply_default(installation: &Factorio) -> Result<ServerSettings> {
         match ServerSettings::read().await? {
             Some(ls) => Ok(ls),
             None => {
@@ -201,7 +199,7 @@ impl ServerSettings {
         }
     }
 
-    pub async fn write(&self) -> crate::error::Result<()> {
+    pub async fn write(&self) -> Result<()> {
         if let Err(e) = fs::create_dir_all(self.path.parent().unwrap()).await {
             error!(
                 "Error creating directory structure for server settings: {:?}",
@@ -222,7 +220,7 @@ impl ServerSettings {
         }
     }
 
-    async fn read_default_server_settings(installation: &Factorio) -> crate::error::Result<String> {
+    async fn read_default_server_settings(installation: &Factorio) -> Result<String> {
         let path = installation
             .path
             .join("factorio")
@@ -249,8 +247,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn can_deserialise_and_serialise_launch_settings() -> Result<(), Box<dyn std::error::Error>> {
-        crate::util::testing::logger_init();
+    fn can_deserialise_and_serialise_launch_settings(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        fctrl::util::testing::logger_init();
 
         let ls = LaunchSettings {
             server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 12345),

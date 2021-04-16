@@ -1,17 +1,16 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use fctrl_agent::{
+use crate::{
     consts::*,
     factorio::{Factorio, VersionManager},
-    schema::*,
     server::{
         builder::{ServerBuilder, StartableInstanceBuilder},
         proc::ProcessManager,
         settings::{AdminList, LaunchSettings, ServerSettings},
         StoppedInstance,
     },
-    util,
 };
+use fctrl::schema::*;
 use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
@@ -29,6 +28,12 @@ use tokio::{
 };
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 use tungstenite::Message;
+
+mod consts;
+mod error;
+mod factorio;
+mod server;
+mod util;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -293,10 +298,14 @@ impl AgentController {
             content: message,
         };
         let json = serde_json::to_string(&with_id);
-        if let Err(e) = json {
-            error!("Error serialising message: {:?}", e);
-        } else {
-            self._send_message(Message::Text(json.unwrap())).await;
+        match json {
+            Err(e) => {
+                error!("Error serialising message: {:?}", e);
+            }
+            Ok(json) => {
+                info!("Sending reply: {}", json);
+                self._send_message(Message::Text(json)).await;
+            }
         }
     }
 
@@ -307,10 +316,14 @@ impl AgentController {
             content: message,
         };
         let json = serde_json::to_string(&with_id);
-        if let Err(e) = json {
-            error!("Error serialising message: {:?}", e);
-        } else {
-            self._send_message(Message::Text(json.unwrap())).await;
+        match json {
+            Err(e) => {
+                error!("Error serialising message: {:?}", e);
+            }
+            Ok(json) => {
+                info!("Sending reply_success: {}", json);
+                self._send_message(Message::Text(json)).await;
+            }
         }
     }
 
@@ -321,10 +334,14 @@ impl AgentController {
             content: message,
         };
         let json = serde_json::to_string(&with_id);
-        if let Err(e) = json {
-            error!("Error serialising message: {:?}", e);
-        } else {
-            self._send_message(Message::Text(json.unwrap())).await;
+        match json {
+            Err(e) => {
+                error!("Error serialising message: {:?}", e);
+            }
+            Ok(json) => {
+                info!("Sending reply_failed: {}", json);
+                self._send_message(Message::Text(json)).await;
+            }
         }
     }
 

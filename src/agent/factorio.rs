@@ -10,7 +10,7 @@ use tar::Archive;
 use tokio::fs;
 use xz2::read::XzDecoder;
 
-use crate::util;
+use crate::{error::Result, util};
 
 /// Represents an installation of Factorio headless server software
 pub struct Factorio {
@@ -28,7 +28,7 @@ pub struct VersionManager {
 }
 
 impl VersionManager {
-    pub async fn new<P: AsRef<Path>>(install_dir: P) -> crate::error::Result<VersionManager> {
+    pub async fn new<P: AsRef<Path>>(install_dir: P) -> Result<VersionManager> {
         let mut versions = HashMap::new();
 
         // create install dir if not exists
@@ -66,7 +66,7 @@ impl VersionManager {
         })
     }
 
-    pub async fn install(&mut self, version: String) -> crate::error::Result<()> {
+    pub async fn install(&mut self, version: String) -> Result<()> {
         let uri = format!(
             "https://factorio.com/get-download/{}/headless/linux64",
             version
@@ -95,7 +95,7 @@ impl VersionManager {
         }
     }
 
-    pub async fn delete(&mut self, version: &str) -> crate::error::Result<()> {
+    pub async fn delete(&mut self, version: &str) -> Result<()> {
         if let Some(installation) = self.versions.get(version) {
             fs::remove_dir_all(&installation.path).await?;
             self.versions.remove(version);
@@ -127,7 +127,7 @@ mod tests {
 
     #[tokio::test]
     async fn can_install_version_1_1_30() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        crate::util::testing::logger_init();
+        fctrl::util::testing::logger_init();
 
         let tmp_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
         fs::create_dir(&tmp_dir).await?;

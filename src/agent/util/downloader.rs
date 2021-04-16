@@ -4,7 +4,9 @@ use std::time::Duration;
 use std::{path::PathBuf, time::SystemTime};
 use tokio::fs;
 
-pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> crate::error::Result<Bytes> {
+use crate::error::Result;
+
+pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> Result<Bytes> {
     if let Some(cached_bytes) = read_from_cache(id).await? {
         debug!("Cache hit on {}", id);
         return Ok(cached_bytes);
@@ -24,7 +26,7 @@ pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> crate::error::Re
     }
 }
 
-pub async fn purge(id: &str) -> crate::error::Result<()> {
+pub async fn purge(id: &str) -> Result<()> {
     let path = get_cache_path().await?.join(id);
     if let Err(e) = fs::remove_file(path).await {
         if e.kind() == std::io::ErrorKind::NotFound {
@@ -37,7 +39,7 @@ pub async fn purge(id: &str) -> crate::error::Result<()> {
     }
 }
 
-pub async fn purge_all() -> crate::error::Result<()> {
+pub async fn purge_all() -> Result<()> {
     let mut entries = fs::read_dir(get_cache_path().await?).await?;
     while let Some(entry) = entries.next_entry().await? {
         fs::remove_dir_all(entry.path()).await?;
@@ -45,13 +47,13 @@ pub async fn purge_all() -> crate::error::Result<()> {
     Ok(())
 }
 
-async fn get_cache_path() -> crate::error::Result<PathBuf> {
+async fn get_cache_path() -> Result<PathBuf> {
     let cache_path = std::env::temp_dir().join("fctrl_downloader_cache");
     fs::create_dir_all(&cache_path).await?;
     Ok(cache_path)
 }
 
-async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
+async fn read_from_cache(id: &str) -> Result<Option<Bytes>> {
     let cached_item_path = get_cache_path().await?.join(id);
     debug!(
         "Attempting to read metadata for {}",
@@ -91,7 +93,7 @@ async fn read_from_cache(id: &str) -> crate::error::Result<Option<Bytes>> {
     }
 }
 
-async fn write_to_cache(id: &str, bytes: &Bytes) -> crate::error::Result<()> {
+async fn write_to_cache(id: &str, bytes: &Bytes) -> Result<()> {
     let save_path = get_cache_path().await?.join(id);
     fs::write(&save_path, bytes).await?;
     debug!("Cached at {}", save_path.display());
@@ -105,7 +107,7 @@ mod tests {
     #[tokio::test]
     async fn can_read_from_cache_after_write() -> std::result::Result<(), Box<dyn std::error::Error>>
     {
-        crate::util::testing::logger_init();
+        fctrl::util::testing::logger_init();
 
         let id = "can_read_from_cache_after_write";
         let data = Bytes::from_static(b"test bytes");

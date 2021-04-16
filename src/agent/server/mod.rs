@@ -8,7 +8,8 @@ use nix::{
 use tokio::process::*;
 use tokio::{io::AsyncBufReadExt, task::JoinHandle};
 
-use crate::schema::ServerStartSaveFile;
+use crate::error::{Error, Result};
+use fctrl::schema::ServerStartSaveFile;
 
 use settings::*;
 
@@ -26,7 +27,7 @@ pub struct StartableInstance {
 }
 
 impl StartableInstance {
-    pub async fn start(mut self) -> crate::error::Result<RunningInstance> {
+    pub async fn start(mut self) -> Result<RunningInstance> {
         let mut instance = self.cmd.spawn()?;
         info!(
             "Child process started with PID {}!",
@@ -87,7 +88,7 @@ impl RunningInstance {
     /// - failed to find pid
     /// - sending SIGTERM failed
     /// - wait() on the process failed
-    pub async fn stop(mut self) -> crate::error::Result<StoppedInstance> {
+    pub async fn stop(mut self) -> Result<StoppedInstance> {
         if let Some(exit_status) = self.process.try_wait()? {
             // process already exited
             warn!(
@@ -105,10 +106,7 @@ impl RunningInstance {
         }
 
         // Grab pid, this will fail in the unlikely case if process exits between the previous try_wait and now
-        let pid = self
-            .process
-            .id()
-            .ok_or(crate::error::Error::ProcessPidError)? as i32;
+        let pid = self.process.id().ok_or(Error::ProcessPidError)? as i32;
 
         // send SIGTERM to factorio child process
         // server will gracefully save and shut down
@@ -117,13 +115,13 @@ impl RunningInstance {
                 "Failed to send SIGTERM to child process with pid {}: {:?}",
                 pid, e
             );
-            return Err(crate::error::Error::ProcessSignalError(e));
+            return Err(Error::ProcessSignalError(e));
         }
 
         self.wait().await
     }
 
-    pub async fn wait(mut self) -> crate::error::Result<StoppedInstance> {
+    pub async fn wait(mut self) -> Result<StoppedInstance> {
         let exit_status = self.process.wait().await?;
         info!("Child process exited with status {}", exit_status);
 
@@ -142,7 +140,7 @@ impl RunningInstance {
     }
 
     /// Manually poll whether the child process has exited
-    pub async fn poll_process_exited(&mut self) -> crate::error::Result<bool> {
+    pub async fn poll_process_exited(&mut self) -> Result<bool> {
         Ok(self.process.try_wait()?.is_some())
     }
 }
@@ -161,7 +159,7 @@ pub struct StartableShortLivedInstance {
 }
 
 impl StartableShortLivedInstance {
-    pub async fn start_and_wait(mut self) -> crate::error::Result<StoppedShortLivedInstance> {
+    pub async fn start_and_wait(mut self) -> Result<StoppedShortLivedInstance> {
         let mut instance = self.cmd.spawn()?;
         info!(
             "Child process started with PID {}!",
