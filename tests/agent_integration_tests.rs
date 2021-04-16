@@ -100,10 +100,13 @@ async fn test_request_server_status() {
     let mut f = AgentTestFixture::new().await;
 
     f.client_writeln("ServerStatus".to_owned()).await;
-    let response = timeout(
-        Duration::from_millis(500),
-        f.client_wait_for_final_reply()
-    ).await.unwrap().unwrap();
+    let response = timeout(Duration::from_millis(500), f.client_wait_for_final_reply())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(response.status, OperationStatus::Completed);
-    assert!(matches!(response.content, AgentResponse::ServerStatus(ServerStatus { running: false })));
+    assert!(matches!(
+        response.content,
+        AgentResponse::ServerStatus(ServerStatus { running: false })
+    ));
 }

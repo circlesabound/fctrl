@@ -23,7 +23,7 @@ use rcon::Connection;
 use tokio::{
     fs,
     net::{TcpListener, TcpStream},
-    sync::{broadcast, Mutex},
+    sync::{broadcast, watch, Mutex},
     task::JoinHandle,
 };
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
@@ -46,10 +46,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = toml::from_str(&config_str)?;
 
     info!("Init Factorio installation manager");
-    let version_manager = VersionManager::new(&*FACTORIO_INSTALL_DIR).await?;
+    let version_manager = Arc::new(Mutex::new(
+        VersionManager::new(&*FACTORIO_INSTALL_DIR).await?,
+    ));
 
     info!("Init Factorio server process management");
-    let proc_manager = ProcessManager::new();
+    let proc_manager = Arc::new(ProcessManager::new());
 
     info!("Init RCON");
     let rcon;
@@ -89,15 +91,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Init WebSocketListener");
     let ws_listener = WebSocketListener::new(&config.agent).await?;
 
+    info!("Init SIGINT handler");
+    let (sigint_tx, sigint_rx) = watch::channel(false);
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        info!("SIGINT detected");
+        if let Err(e) = sigint_tx.send(true) {
+            error!(
+                "Failed to signal SIGINT channel, this will not be a clean shutdown. Error: {:?}",
+                e
+            );
+        }
+    });
+
     info!("Listening on {}", ws_listener.tcp.local_addr()?);
     ws_listener
         .run(
+            sigint_rx,
             Arc::new(global_bus_tx),
-            Arc::new(proc_manager),
+            Arc::clone(&proc_manager),
             Arc::new(Mutex::new(rcon)),
-            Arc::new(Mutex::new(version_manager)),
+            version_manager,
         )
         .await;
+
+    info!("Shutting down");
+    proc_manager.stop_instance().await;
 
     Ok(())
 }
@@ -114,39 +133,50 @@ impl WebSocketListener {
 
     async fn run(
         self,
+        mut shutdown_rx: watch::Receiver<bool>,
         global_bus_tx: Arc<broadcast::Sender<AgentResponse>>,
         proc_manager: Arc<ProcessManager>,
         rcon: Arc<Mutex<Option<Connection>>>,
         version_manager: Arc<Mutex<VersionManager>>,
     ) {
-        while let Ok((stream, _)) = self.tcp.accept().await {
-            match AgentController::handle_connection(
-                stream,
-                Arc::clone(&global_bus_tx),
-                Arc::clone(&proc_manager),
-                Arc::clone(&rcon),
-                Arc::clone(&version_manager),
-            )
-            .await
-            {
-                Ok(controller) => {
-                    tokio::spawn(async move {
-                        if let Err(e) = controller.message_loop().await {
-                            match e {
+        loop {
+            tokio::select! {
+                res = self.tcp.accept() => {
+                    if let Ok((stream, _)) = res {
+                        match AgentController::handle_connection(
+                            stream,
+                            shutdown_rx.clone(),
+                            Arc::clone(&global_bus_tx),
+                            Arc::clone(&proc_manager),
+                            Arc::clone(&rcon),
+                            Arc::clone(&version_manager),
+                        )
+                        .await
+                        {
+                            Ok(controller) => {
+                                tokio::spawn(async move {
+                                    if let Err(e) = controller.message_loop().await {
+                                        match e {
+                                            tungstenite::Error::ConnectionClosed
+                                            | tungstenite::Error::Protocol(_)
+                                            | tungstenite::Error::Utf8 => (),
+                                            err => error!("Error in message loop: {}", err),
+                                        }
+                                    }
+                                });
+                            }
+                            Err(e) => match e {
                                 tungstenite::Error::ConnectionClosed
                                 | tungstenite::Error::Protocol(_)
                                 | tungstenite::Error::Utf8 => (),
-                                err => error!("Error in message loop: {}", err),
-                            }
+                                err => error!("Error handling connection: {}", err),
+                            },
                         }
-                    });
+                    }
                 }
-                Err(e) => match e {
-                    tungstenite::Error::ConnectionClosed
-                    | tungstenite::Error::Protocol(_)
-                    | tungstenite::Error::Utf8 => (),
-                    err => error!("Error handling connection: {}", err),
-                },
+                _ = shutdown_rx.changed() => {
+                    break;
+                }
             }
         }
     }
@@ -165,6 +195,7 @@ struct AgentController {
 impl AgentController {
     async fn handle_connection(
         tcp: TcpStream,
+        mut shutdown_rx: watch::Receiver<bool>,
         global_bus_tx: Arc<broadcast::Sender<AgentResponse>>,
         proc_manager: Arc<ProcessManager>,
         rcon: Arc<Mutex<Option<Connection>>>,
@@ -194,6 +225,14 @@ impl AgentController {
             }
         });
 
+        // Background task to close connection on SIGINT
+        let ws_tx_close = Arc::clone(&ws_tx);
+        tokio::spawn(async move {
+            let _ = shutdown_rx.changed().await;
+            info!("Closing WebSocket connection for peer {}", peer_addr);
+            let _ = ws_tx_close.lock().await.close().await;
+        });
+
         Ok(AgentController {
             peer_addr,
             proc_manager,
@@ -206,12 +245,9 @@ impl AgentController {
     }
 
     async fn message_loop(mut self) -> tungstenite::Result<()> {
-        debug!("In message loop");
         while let Some(msg) = self.ws_rx.next().await {
-            debug!("Got message");
             match msg {
                 Ok(Message::Text(json)) => {
-                    debug!("Is a text message, contents: {}", json);
                     if let Ok(msg) = serde_json::from_str::<AgentRequestWithId>(&json) {
                         info!("Got incoming message from {}: {}", self.peer_addr, json);
                         let operation_id = msg.operation_id;
