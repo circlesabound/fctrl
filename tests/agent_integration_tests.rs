@@ -24,6 +24,9 @@ impl AgentTestFixture {
             .join("target")
             .join("debug");
         let agent = Command::new(executables_dir.join("agent"))
+            .env("AGENT_WS_PORT", "5463")
+            .env("FACTORIO_PORT", "34197")
+            .env("FACTORIO_RCON_PORT", "27015")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

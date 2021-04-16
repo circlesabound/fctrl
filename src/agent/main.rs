@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc};
 
 use crate::{
     consts::*,
@@ -39,12 +39,6 @@ mod util;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    info!("Reading config");
-    let config_str = fs::read_to_string("config.toml")
-        .await
-        .expect("Couldn't read config.toml");
-    let config: Config = toml::from_str(&config_str)?;
-
     info!("Init Factorio installation manager");
     let version_manager = Arc::new(Mutex::new(
         VersionManager::new(&*FACTORIO_INSTALL_DIR).await?,
@@ -53,14 +47,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Init Factorio server process management");
     let proc_manager = Arc::new(ProcessManager::new());
 
-    info!("Init RCON");
-    let rcon;
-    if let Some(rcon_config) = config.rcon {
-        rcon = Some(rcon_connect(&rcon_config).await?);
-    } else {
-        warn!("No RCON connection established as config section is missing");
-        rcon = None;
-    }
+    // TODO rework rcon, likely include it as part of factorio instance
+    let rcon = None;
+    // info!("Init RCON");
+    // let rcon;
+    // if let Some(rcon_config) = config.rcon {
+    //     rcon = Some(rcon_connect(&rcon_config).await?);
+    // } else {
+    //     warn!("No RCON connection established as config section is missing");
+    //     rcon = None;
+    // }
 
     let (global_bus_tx, ..) = broadcast::channel::<AgentResponse>(50);
 
@@ -89,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // }
 
     info!("Init WebSocketListener");
-    let ws_listener = WebSocketListener::new(&config.agent).await?;
+    let ws_listener = WebSocketListener::new().await?;
 
     info!("Init SIGINT handler");
     let (sigint_tx, sigint_rx) = watch::channel(false);
@@ -126,8 +122,11 @@ struct WebSocketListener {
 }
 
 impl WebSocketListener {
-    async fn new(config: &AgentConfig) -> Result<WebSocketListener, std::io::Error> {
-        let tcp = TcpListener::bind(&config.websocket_bind_address).await?;
+    async fn new() -> Result<WebSocketListener, std::io::Error> {
+        // Safe to unwrap as this is checked by docker-compose
+        let port = std::env::var(ENV_AGENT_WS_PORT).unwrap().parse().unwrap();
+        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
+        let tcp = TcpListener::bind(bind_addr).await?;
         Ok(WebSocketListener { tcp })
     }
 
@@ -190,6 +189,7 @@ struct AgentController {
     ws_rx: SplitStream<WebSocketStream<TcpStream>>,
     ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
     _send_global_outgoing_msgs_task: JoinHandle<()>,
+    _sigint_task: JoinHandle<()>,
 }
 
 impl AgentController {
@@ -227,7 +227,7 @@ impl AgentController {
 
         // Background task to close connection on SIGINT
         let ws_tx_close = Arc::clone(&ws_tx);
-        tokio::spawn(async move {
+        let _sigint_task = tokio::spawn(async move {
             let _ = shutdown_rx.changed().await;
             info!("Closing WebSocket connection for peer {}", peer_addr);
             let _ = ws_tx_close.lock().await.close().await;
@@ -241,6 +241,7 @@ impl AgentController {
             ws_rx,
             ws_tx,
             _send_global_outgoing_msgs_task,
+            _sigint_task,
         })
     }
 
@@ -303,6 +304,7 @@ impl AgentController {
 
         info!("Cleaning up for peer {}", self.peer_addr);
         self._send_global_outgoing_msgs_task.abort();
+        self._sigint_task.abort();
         Ok(())
     }
 
@@ -734,15 +736,15 @@ impl AgentController {
     }
 }
 
-async fn rcon_connect(rcon_config: &RconConfig) -> Result<rcon::Connection, rcon::Error> {
-    info!("Attempting to connect to RCON at {}", rcon_config.address);
-    let conn = rcon::Connection::builder()
-        .enable_factorio_quirks(true)
-        .connect(rcon_config.address.to_owned(), &rcon_config.password)
-        .await?;
-    info!("Connected to RCON at {}", rcon_config.address);
-    Ok(conn)
-}
+// async fn rcon_connect(rcon_config: &RconConfig) -> Result<rcon::Connection, rcon::Error> {
+//     info!("Attempting to connect to RCON at {}", rcon_config.address);
+//     let conn = rcon::Connection::builder()
+//         .enable_factorio_quirks(true)
+//         .connect(rcon_config.address.to_owned(), &rcon_config.password)
+//         .await?;
+//     info!("Connected to RCON at {}", rcon_config.address);
+//     Ok(conn)
+// }
 
 // fn try_parse_console_out_message(line: &str) -> Option<ConsoleOutMessage> {
 //     lazy_static! {

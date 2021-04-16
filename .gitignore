@@ -9,6 +9,3 @@ target/
 # Application folders
 install/
 data/
-
-# Config
-config.toml

@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  agent:
+    image: fctrl/agent:latest
+    build:
+      context: .
+      dockerfile: agent.Dockerfile
+  mgmt-server:
+    image: fctrl/mgmt-server:latest
+    build:
+      context: .
+      dockerfile: mgmt-server.Dockerfile

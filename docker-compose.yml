@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  agent:
+    image: docker.pkg.github.com/circlesabound/fctrl/agent:latest
+    volumes:
+      - type: bind
+        source: ./data
+        target: /app/data
+    environment:
+      - AGENT_WS_PORT
+      - FACTORIO_PORT
+      - FACTORIO_RCON_PORT
+      - RUST_LOG=${LOG_LEVEL}
+    ports:
+      - '127.0.0.1:${AGENT_WS_PORT}:${AGENT_WS_PORT}/tcp'
+      - '${FACTORIO_PORT}:${FACTORIO_PORT}/udp'
+      - '${FACTORIO_RCON_PORT}:${FACTORIO_RCON_PORT}/tcp'
+    stop_signal: SIGINT
+  # mgmt-server:
+  #   image: docker.pkg.github.com/circlesabound/fctrl/mgmt-server:latest

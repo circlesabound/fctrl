@@ -24,8 +24,14 @@ impl LaunchSettings {
             Ok(None)
         } else {
             match fs::read_to_string(path).await {
-                Ok(s) => match toml::from_str(&s) {
-                    Ok(launch_settings) => Ok(Some(launch_settings)),
+                Ok(s) => match toml::from_str::<LaunchSettings>(&s) {
+                    Ok(launch_settings) => {
+                        // ignore saved values for the binds, use defaults read from env vars
+                        Ok(Some(LaunchSettings {
+                            rcon_password: launch_settings.rcon_password,
+                            ..Default::default()
+                        }))
+                    }
                     Err(e) => {
                         error!("Error parsing launch settings: {:?}", e);
                         Err(e.into())
@@ -75,9 +81,12 @@ impl LaunchSettings {
 
 impl Default for LaunchSettings {
     fn default() -> Self {
+        // Safe to unwrap these as they are checked by docker-compose
+        let server_port = std::env::var(ENV_FACTORIO_PORT).unwrap().parse().unwrap();
+        let rcon_port = std::env::var(ENV_FACTORIO_RCON_PORT).unwrap().parse().unwrap();
         LaunchSettings {
-            server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 34197),
-            rcon_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 7266),
+            server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), server_port),
+            rcon_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), rcon_port),
             rcon_password: "rcon".to_owned(),
         }
     }

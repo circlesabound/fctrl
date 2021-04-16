@@ -1,39 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 // *************************
-// * Configuration schemas *
-// *************************
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct Config {
-    pub agent: AgentConfig,
-    pub console: Option<ConsoleOutConfig>,
-    pub observers: Option<ObserversConfig>,
-    pub rcon: Option<RconConfig>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct AgentConfig {
-    pub websocket_bind_address: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct ConsoleOutConfig {
-    pub console_log_path: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct ObserversConfig {
-    pub script_output_path: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct RconConfig {
-    pub address: String,
-    pub password: String,
-}
-
-// *************************
 // * WebSocket API schemas *
 // *************************
 

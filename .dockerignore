@@ -1,0 +1,10 @@
+/.git/
+/data/
+/install/
+/target/
+/.dockerignore
+/.gitignore
+/LICENCE
+/*.Dockerfile
+/docker-compose*.yml
+/local-*.sh
