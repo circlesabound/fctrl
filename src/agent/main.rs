@@ -1,4 +1,7 @@
-use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 
 use crate::{
     consts::*,
@@ -253,28 +256,47 @@ impl AgentController {
                         info!("Got incoming message from {}: {}", self.peer_addr, json);
                         let operation_id = msg.operation_id;
                         match msg.message {
-                            AgentRequest::VersionInstall(version) => {
-                                debug!("handling: VersionInstall({})", version);
-                                self.version_install(version, operation_id).await
+                            AgentRequest::VersionInstall {
+                                version,
+                                force_install,
+                            } => {
+                                self.version_install(version, force_install, operation_id)
+                                    .await
                             }
                             AgentRequest::ServerStart(savefile) => {
-                                debug!("handling: ServerStart({:?})", savefile);
                                 self.server_start(savefile, operation_id).await
                             }
 
-                            AgentRequest::ServerStop => {
-                                debug!("handling: ServerStop");
-                                self.server_stop(operation_id).await
-                            }
+                            AgentRequest::ServerStop => self.server_stop(operation_id).await,
 
-                            AgentRequest::ServerStatus => {
-                                debug!("handling: ServerStatus");
-                                self.server_status(operation_id).await
-                            }
+                            AgentRequest::ServerStatus => self.server_status(operation_id).await,
 
                             AgentRequest::SaveCreate(save_name) => {
-                                debug!("handling: CreateSave({})", save_name);
                                 self.save_create(save_name, operation_id).await
+                            }
+
+                            AgentRequest::ConfigAdminListGet => {
+                                self.config_admin_list_get(operation_id).await;
+                            }
+
+                            AgentRequest::ConfigAdminListSet { admins } => {
+                                self.config_admin_list_set(admins, operation_id).await;
+                            }
+
+                            AgentRequest::ConfigRconGet => {
+                                self.config_rcon_get(operation_id).await;
+                            }
+
+                            AgentRequest::ConfigRconSet { password } => {
+                                self.config_rcon_set(password, operation_id).await;
+                            }
+
+                            AgentRequest::ConfigServerSettingsGet => {
+                                self.config_server_settings_get(operation_id).await;
+                            }
+
+                            AgentRequest::ConfigServerSettingsSet { json } => {
+                                self.config_server_settings_set(json, operation_id).await;
                             }
 
                             AgentRequest::RconCommand(cmd) => {
@@ -383,7 +405,12 @@ impl AgentController {
         }
     }
 
-    async fn version_install(&self, version_to_install: String, operation_id: OperationId) {
+    async fn version_install(
+        &self,
+        version_to_install: String,
+        force_install: bool,
+        operation_id: OperationId,
+    ) {
         let mut vm = self.version_manager.lock().await;
 
         // Assume there is at most one version installed
@@ -413,6 +440,12 @@ impl AgentController {
             Some(version_from) => {
                 let version_from = version_from.to_string();
                 let is_reinstall = version_from == version_to_install;
+
+                // Only reinstall if forced, otherwise noop
+                if is_reinstall && !force_install {
+                    self.reply_success(AgentResponse::Ok, operation_id).await;
+                    return;
+                }
 
                 let opt_stopped_instance;
                 if is_reinstall {
@@ -726,13 +759,151 @@ impl AgentController {
         }
     }
 
-    async fn rcon_command(&self, cmd: String, operation_id: OperationId) {
-        let mut mg = self.rcon.as_ref().lock().await;
-        if let Some(rcon) = mg.as_mut() {
-            if let Err(e) = rcon.cmd(&cmd).await {
-                error!("Couldn't send message to rcon: {:?}", e)
+    async fn config_admin_list_get(&self, operation_id: OperationId) {
+        match AdminList::read_or_apply_default().await {
+            Ok(al) => {
+                self.reply_success(AgentResponse::ConfigAdminList(al.list), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentResponse::Error(format!(
+                        "Failed to read or initialise admin list file: {:?}",
+                        e
+                    )),
+                    operation_id,
+                )
+                .await;
             }
         }
+    }
+
+    async fn config_admin_list_set(&self, list: Vec<String>, operation_id: OperationId) {
+        match AdminList::set(list).await {
+            Ok(_) => {
+                self.reply_success(AgentResponse::Ok, operation_id).await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentResponse::Error(format!("Failed to set admin list: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_rcon_get(&self, operation_id: OperationId) {
+        match LaunchSettings::read_or_apply_default().await {
+            Ok(ls) => {
+                self.reply_success(
+                    AgentResponse::ConfigRcon {
+                        password: ls.rcon_password,
+                        port: ls.rcon_bind.port(),
+                    },
+                    operation_id,
+                )
+                .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentResponse::Error(format!(
+                        "Failed to read or initialise launch settings file: {:?}",
+                        e
+                    )),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_rcon_set(&self, password: String, operation_id: OperationId) {
+        match LaunchSettings::read_or_apply_default().await {
+            Ok(mut ls) => {
+                ls.rcon_password = password;
+                if let Err(e) = ls.write().await {
+                    self.reply_failed(
+                        AgentResponse::Error(format!("Failed to set launch settings: {:?}", e)),
+                        operation_id,
+                    )
+                    .await;
+                } else {
+                    self.reply_success(AgentResponse::Ok, operation_id).await;
+                }
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentResponse::Error(format!(
+                        "Failed to read or initialise launch settings file: {:?}",
+                        e
+                    )),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_server_settings_get(&self, operation_id: OperationId) {
+        if let Ok(Some(ss)) = ServerSettings::read().await {
+            self.reply_success(AgentResponse::ConfigServerSettings(ss.json), operation_id)
+                .await;
+            return;
+        }
+
+        let vm = self.version_manager.lock().await;
+        if let Some((_, version)) = vm.versions.iter().next() {
+            match ServerSettings::read_or_apply_default(version).await {
+                Ok(ss) => {
+                    self.reply_success(AgentResponse::ConfigServerSettings(ss.json), operation_id)
+                        .await;
+                }
+                Err(e) => {
+                    self.reply_failed(
+                        AgentResponse::Error(format!(
+                            "Failed to read or initialise server settings file: {:?}",
+                            e
+                        )),
+                        operation_id,
+                    )
+                    .await;
+                }
+            }
+        } else {
+            self.reply_failed(AgentResponse::Error("No server settings saved and no version of Factorio is installed to generate a default".to_owned()), operation_id).await;
+        }
+    }
+
+    async fn config_server_settings_set(&self, json: String, operation_id: OperationId) {
+        match ServerSettings::set(json).await {
+            Ok(_) => {
+                self.reply_success(AgentResponse::Ok, operation_id).await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentResponse::Error(format!("Failed to set server settings: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn rcon_command(&self, cmd: String, operation_id: OperationId) {
+        // let mut mg = self.rcon.as_ref().lock().await;
+        // if let Some(rcon) = mg.as_mut() {
+        //     if let Err(e) = rcon.cmd(&cmd).await {
+        //         error!("Couldn't send message to rcon: {:?}", e)
+        //     }
+        // }
+        // TODO
+        let _ = cmd;
+        self.reply_failed(
+            AgentResponse::Error("Not yet implemented".to_owned()),
+            operation_id,
+        )
+        .await;
     }
 }
 

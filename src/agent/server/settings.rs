@@ -83,7 +83,10 @@ impl Default for LaunchSettings {
     fn default() -> Self {
         // Safe to unwrap these as they are checked by docker-compose
         let server_port = std::env::var(ENV_FACTORIO_PORT).unwrap().parse().unwrap();
-        let rcon_port = std::env::var(ENV_FACTORIO_RCON_PORT).unwrap().parse().unwrap();
+        let rcon_port = std::env::var(ENV_FACTORIO_RCON_PORT)
+            .unwrap()
+            .parse()
+            .unwrap();
         LaunchSettings {
             server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), server_port),
             rcon_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), rcon_port),
@@ -138,6 +141,14 @@ impl AdminList {
                 Ok(adminlist)
             }
         }
+    }
+
+    pub async fn set(list: Vec<String>) -> Result<()> {
+        let al = AdminList {
+            list,
+            path: ADMIN_LIST_PATH.clone(),
+        };
+        al.write().await
     }
 
     pub async fn write(&self) -> Result<()> {
@@ -206,6 +217,14 @@ impl ServerSettings {
                 }
             }
         }
+    }
+
+    pub async fn set(json: String) -> Result<()> {
+        let ss = ServerSettings {
+            json,
+            path: SERVER_SETTINGS_PATH.clone(),
+        };
+        ss.write().await
     }
 
     pub async fn write(&self) -> Result<()> {

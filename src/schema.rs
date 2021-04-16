@@ -16,7 +16,10 @@ pub struct AgentRequestWithId {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum AgentRequest {
     // Installation management
-    VersionInstall(String),
+    VersionInstall {
+        version: String,
+        force_install: bool,
+    },
 
     // Server control
     ServerStart(ServerStartSaveFile),
@@ -25,6 +28,20 @@ pub enum AgentRequest {
 
     // Save management
     SaveCreate(String),
+
+    // Configuration
+    ConfigAdminListGet,
+    ConfigAdminListSet {
+        admins: Vec<String>,
+    },
+    ConfigRconGet,
+    ConfigRconSet {
+        password: String,
+    },
+    ConfigServerSettingsGet,
+    ConfigServerSettingsSet {
+        json: String,
+    },
 
     // In-game
     RconCommand(String),
@@ -39,9 +56,9 @@ pub struct AgentResponseWithId {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum OperationStatus {
-    Ongoing,
     Completed,
     Failed,
+    Ongoing,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -52,6 +69,9 @@ pub enum AgentResponse {
     Ok,
 
     // Structured messages
+    ConfigAdminList(Vec<String>),
+    ConfigRcon { port: u16, password: String },
+    ConfigServerSettings(String),
     ServerStatus(ServerStatus),
 }
 

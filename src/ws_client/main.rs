@@ -112,9 +112,18 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
     let operation_id = OperationId::from(uuid::Uuid::new_v4().to_string());
     let args: Vec<_> = input.trim().split_whitespace().collect();
     match args.get(0)? {
-        &"VersionInstall" => args.get(1).map(|v| AgentRequestWithId {
-            operation_id,
-            message: AgentRequest::VersionInstall(v.to_string()),
+        &"VersionInstall" => args.get(1).map(|v| {
+            let mut force_install = false;
+            if let Some(&"true") = args.get(2) {
+                force_install = true;
+            }
+            AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::VersionInstall {
+                    version: v.to_string(),
+                    force_install,
+                },
+            }
         }),
         &"ServerStart" => args
             .get(1)
@@ -147,6 +156,37 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
         &"SaveCreate" => args.get(1).map(|name| AgentRequestWithId {
             operation_id,
             message: AgentRequest::SaveCreate(name.to_string()),
+        }),
+        &"ConfigAdminListGet" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ConfigAdminListGet,
+        }),
+        &"ConfigAdminListSet" => {
+            let al = args.iter().skip(1).map(|s| s.to_string()).collect();
+            Some(AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::ConfigAdminListSet { admins: al },
+            })
+        }
+        &"ConfigRconGet" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ConfigRconGet,
+        }),
+        &"ConfigRconSet" => args.get(1).map(|pw| AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ConfigRconSet {
+                password: pw.to_string(),
+            },
+        }),
+        &"ConfigServerSettingsGet" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ConfigServerSettingsGet,
+        }),
+        &"ConfigServerSettingsSet" => args.get(1).map(|json| AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ConfigServerSettingsSet {
+                json: json.to_string(), // BUG whitespace in the json breaks this
+            },
         }),
         &"RconCommand" => args.get(1).map(|cmd| AgentRequestWithId {
             operation_id,

@@ -27,6 +27,9 @@ url = "2"
 uuid = { version = "0.8", features = [ "serde", "v4" ] }
 xz2 = "0.1"
 
+[dev-dependencies]
+serial_test = "0.5"
+
 [[bin]]
 name = "agent"
 path = "src/agent/main.rs"

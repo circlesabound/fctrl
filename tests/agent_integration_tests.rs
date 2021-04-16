@@ -3,10 +3,10 @@ use std::{path::PathBuf, process::Stdio};
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use serial_test::serial;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
-    time::timeout,
 };
 
 use fctrl::{schema::*, util};
@@ -29,7 +29,7 @@ impl AgentTestFixture {
             .env("FACTORIO_RCON_PORT", "27015")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::null()) // Comment out this line to show agent logs for debugging
             .spawn()
             .unwrap();
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -57,7 +57,16 @@ impl AgentTestFixture {
         self.client_stdin.write_all(line.as_bytes()).await.unwrap();
     }
 
-    pub async fn client_wait_for_final_reply(&mut self) -> std::io::Result<AgentResponseWithId> {
+    pub async fn client_wait_for_final_reply(&mut self, timeout: Duration) -> AgentResponseWithId {
+        tokio::time::timeout(timeout, self.internal_client_wait_for_final_reply())
+            .await
+            .unwrap()
+            .unwrap()
+    }
+
+    async fn internal_client_wait_for_final_reply(
+        &mut self,
+    ) -> std::io::Result<AgentResponseWithId> {
         loop {
             match self.client_stdout_lines.next_line().await {
                 Ok(Some(line)) => {
@@ -87,29 +96,142 @@ impl AgentTestFixture {
 
 impl Drop for AgentTestFixture {
     fn drop(&mut self) {
-        // send SIGTERM to agent
+        // send SIGINT to agent
         signal::kill(
             Pid::from_raw(self.agent.id().unwrap() as i32),
-            Signal::SIGTERM,
+            Signal::SIGINT,
         )
         .unwrap();
+
+        // send SIGKILL to ws-client
+        self.client.start_kill().unwrap();
     }
 }
 
 #[tokio::test]
-async fn test_request_server_status() {
+#[serial]
+async fn can_request_server_status() {
     util::testing::logger_init();
 
     let mut f = AgentTestFixture::new().await;
 
     f.client_writeln("ServerStatus".to_owned()).await;
-    let response = timeout(Duration::from_millis(500), f.client_wait_for_final_reply())
-        .await
-        .unwrap()
-        .unwrap();
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
         AgentResponse::ServerStatus(ServerStatus { running: false })
     ));
+
+    drop(f);
+}
+
+#[tokio::test]
+#[serial]
+async fn can_set_then_get_admin_list() {
+    util::testing::logger_init();
+
+    let mut f = AgentTestFixture::new().await;
+
+    f.client_writeln("VersionInstall 1.1.32".to_owned()).await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_secs(120))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+
+    let new_list = "admin1 admin2".to_owned();
+    f.client_writeln(format!("ConfigAdminListSet {}", new_list))
+        .await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+    assert!(matches!(response.content, AgentResponse::Ok));
+
+    f.client_writeln("ConfigAdminListGet".to_owned()).await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+    assert!(matches!(
+        response.content,
+        AgentResponse::ConfigAdminList(list) if list.len() == 2 && list.contains(&"admin1".to_owned()) && list.contains(&"admin2".to_owned())
+    ));
+
+    drop(f);
+}
+
+#[tokio::test]
+#[serial]
+async fn can_set_then_get_rcon_config() {
+    util::testing::logger_init();
+
+    let mut f = AgentTestFixture::new().await;
+
+    f.client_writeln("VersionInstall 1.1.32".to_owned()).await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_secs(120))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+
+    let new_password = "newpassword".to_owned();
+    f.client_writeln(format!("ConfigRconSet {}", new_password))
+        .await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+    assert!(matches!(response.content, AgentResponse::Ok));
+
+    f.client_writeln("ConfigRconGet".to_owned()).await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+    assert!(matches!(
+        response.content,
+        AgentResponse::ConfigRcon {
+            port: 27015, password } if password == new_password
+    ));
+
+    drop(f);
+}
+
+#[tokio::test]
+#[serial]
+async fn can_set_then_get_server_settings() {
+    util::testing::logger_init();
+
+    let mut f = AgentTestFixture::new().await;
+
+    f.client_writeln("VersionInstall 1.1.32".to_owned()).await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_secs(120))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+
+    let new_server_settings = String::from(
+        r#"{"name":"test123","description":"test123","visibility":{"public":false,"lan":false}}"#,
+    );
+    f.client_writeln(format!("ConfigServerSettingsSet {}", new_server_settings))
+        .await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+    assert!(matches!(response.content, AgentResponse::Ok));
+
+    f.client_writeln("ConfigServerSettingsGet".to_owned()).await;
+    let response = f
+        .client_wait_for_final_reply(Duration::from_millis(500))
+        .await;
+    assert_eq!(response.status, OperationStatus::Completed);
+    assert!(matches!(
+        response.content,
+        AgentResponse::ConfigServerSettings(json) if json == new_server_settings
+    ));
+
+    drop(f);
 }
