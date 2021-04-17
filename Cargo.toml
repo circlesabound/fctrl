@@ -3,6 +3,8 @@ name = "fctrl"
 version = "0.1.0"
 authors = ["circlesabound <circlesabound@users.noreply.github.com>"]
 edition = "2018"
+license = "Apache-2.0"
+publish = false
 
 [dependencies]
 bytes = "1.0"

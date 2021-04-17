@@ -10,3 +10,6 @@ target/
 /data/
 /db/
 /install/
+
+# node modules
+node_modules

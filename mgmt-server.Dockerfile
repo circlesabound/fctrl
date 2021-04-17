@@ -17,12 +17,18 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 FROM rustlang/rust:nightly AS builder
 WORKDIR /usr/src/app
-RUN apt update
-RUN apt install -y clang
+RUN curl -fsSL https://deb.nodesource.com/setup_15.x | bash \
+    && apt update \
+    && apt install -y clang nodejs openjdk-11-jre-headless
+COPY package-lock.json .
+COPY package.json .
+RUN npm install
+COPY build.rs .
 COPY --from=cache /usr/src/app/target target
 COPY --from=cache $CARGO_HOME $CARGO_HOME
 COPY Cargo.toml .
 COPY Cargo.lock .
+COPY openapi openapi
 COPY tests tests
 COPY src src
 RUN cargo build --release --bin mgmt-server

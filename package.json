@@ -1,0 +1,7 @@
+{
+  "name": "fctrl",
+  "version": "0.1.0",
+  "devDependencies": {
+    "@openapitools/openapi-generator-cli": "2.2.5"
+  }
+}

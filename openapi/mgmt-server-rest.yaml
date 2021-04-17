@@ -8,7 +8,7 @@ servers:
   - url: /api/v0
 
 paths:
-  /server/status:
+  /server/control:
     get:
       summary: Returns the status of the Factorio multiplayer server.
       responses:
@@ -17,12 +17,15 @@ paths:
           content:
             application/json:
               schema:
+                title: ServerControlGetResponse
                 type: object
+                required:
+                  - running
                 properties:
                   running:
                     type: boolean
                     example: true
-  /server/start:
+  /server/control/start:
     post:
       summary: Starts the Factorio multiplayer server.
       requestBody:
@@ -30,7 +33,10 @@ paths:
         content:
           application/json:
             schema:
+              title: ServerControlStartPostRequest
               type: object
+              required:
+                - savefile
               properties:
                 savefile:
                   type: string
@@ -38,9 +44,155 @@ paths:
       responses:
         '202':
           description: Accepted
-  /server/stop:
+  /server/control/stop:
     post:
       summary: Stops the Factorio multiplayer server.
       responses:
         '202':
           description: Accepted
+  /server/install:
+    get:
+      summary: Gets the currently installed version of Factorio.
+      responses:
+        '200':
+          description: A JSON object indicating the version of Factorio installed on the server.
+          content:
+            application/json:
+              schema:
+                title: ServerInstallGetResponse
+                type: object
+                required:
+                  - version
+                properties:
+                  version:
+                    type: string
+                    description: Version of Factorio installed on the server.
+    post:
+      summary: Upgrades the Factorio server to the specified version, or install if no version previously installed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: ServerInstallPostRequest
+              type: object
+              required:
+                - version
+              properties:
+                version:
+                  type: string
+                  description: Version of Factorio to install
+                force_install:
+                  type: boolean
+                  description: If set, force a reinstall if the specified version is already installed
+      responses:
+        '202':
+          description: Accepted
+  /server/config/adminlist:
+    get:
+      summary: Gets the adminlist the Factorio server is configured to use.
+      responses:
+        '200':
+          description: A JSON array containing string representing users with admin permissions on the Factorio server
+          content:
+            application/json:
+              schema:
+                title: ServerConfigAdminListGetResponse
+                type: array
+                items:
+                  type: string
+    put:
+      summary: Pushes an adminlist to the Factorio server for use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: ServerConfigAdminlistPutRequest
+              type: array
+              items:
+                type: string
+      responses:
+        '200':
+          description: Ok
+  /server/config/rcon:
+    get:
+      summary: Gets the RCON configuration used by the Factorio server.
+      responses:
+        '200':
+          description: A JSON object representing the RCON configuration used by the Factorio server.
+          content:
+            application/json:
+              schema:
+                title: ServerConfigRconGetResponse
+                type: object
+                properties:
+                  port:
+                    type: integer
+                    description: Port used for RCON connection
+                  password:
+                    type: string
+                    description: Password for RCON connection
+
+    put:
+      summary: Pushes an RCON to the Factorio server for use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: ServerConfigRconPutRequest
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  description: Password for RCON connection
+      responses:
+        '200':
+          description: Ok
+  /server/config/server-settings:
+    get:
+      summary: Gets the server-settings file used by the Factorio server.
+      responses:
+        '200':
+          description: The server-settings JSON file
+          content:
+            application/json:
+              schema:
+                title: ServerControlServerSettingsGetResponse
+
+    put:
+      summary: Pushes a server-settings file to the Factorio server for use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: ServerConfigServerSettingsPutRequest
+              type: array
+              items:
+                type: string
+      responses:
+        '200':
+          description: Ok
+  /server/mods:
+    get:
+      summary: Gets a list of mods installed on the Factorio server.
+      responses:
+        '200':
+          description: A JSON array of objects representing mods installed on the Factorio server.
+          content:
+            application/json:
+              schema:
+                title: ServerModsGetResponse
+                type: array
+                items:
+                  title: ModObject
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    version:
+                      type: string
