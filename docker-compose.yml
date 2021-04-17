@@ -16,5 +16,8 @@ services:
       - '${FACTORIO_PORT}:${FACTORIO_PORT}/udp'
       - '${FACTORIO_RCON_PORT}:${FACTORIO_RCON_PORT}/tcp'
     stop_signal: SIGINT
-  # mgmt-server:
-  #   image: docker.pkg.github.com/circlesabound/fctrl/mgmt-server:latest
+  mgmt-server:
+    image: docker.pkg.github.com/circlesabound/fctrl/mgmt-server:latest
+    environment:
+      - RUST_LOG=${LOG_LEVEL}
+    stop_signal: SIGINT

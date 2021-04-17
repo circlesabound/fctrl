@@ -14,6 +14,7 @@ lazy_static! {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // tokio::main macro doesn't work if there are multiple binaries
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?

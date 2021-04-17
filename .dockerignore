@@ -1,5 +1,6 @@
 /.git/
 /data/
+/db/
 /install/
 /target/
 /.dockerignore

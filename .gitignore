@@ -7,5 +7,6 @@ target/
 **/*.rs.bk
 
 # Application folders
-install/
-data/
+/data/
+/db/
+/install/

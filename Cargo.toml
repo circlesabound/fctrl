@@ -17,6 +17,9 @@ nix = "0.20"
 rcon = "0.4"
 regex = "1.4"
 reqwest = "0.11"
+rocksdb = "0.15"
+rocket = { git = "https://github.com/SergioBenitez/Rocket", rev = "dd0c03" }
+rocket_contrib = { version = "0.4.7", default-features = false, features = [ "json" ]}
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 tar = "0.4"

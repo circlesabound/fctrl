@@ -1,0 +1,6 @@
+use rocket::{Request, catch};
+
+#[catch(400)]
+pub fn not_found(req: &Request) -> String {
+    format!("404 not found")
+}
