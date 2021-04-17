@@ -39,8 +39,8 @@ path = "src/agent/main.rs"
 
 [[bin]]
 name = "mgmt-server"
-path = "src/mgmt_server/main.rs"
+path = "src/mgmt-server/main.rs"
 
 [[bin]]
 name = "ws-client"
-path = "src/ws_client/main.rs"
+path = "src/ws-client/main.rs"

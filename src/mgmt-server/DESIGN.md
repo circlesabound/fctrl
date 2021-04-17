@@ -22,7 +22,7 @@ Request body sample:
 
 ```json
 {
-    "save": "my save"
+    "savefile": "my save"
 }
 ```
 

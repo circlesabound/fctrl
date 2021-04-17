@@ -1,0 +1,46 @@
+openapi: 3.0.0
+info:
+  title: fctrl mgmt-server REST API
+  description: REST API exposed by fctrl mgmt-server
+  version: 0.1.0
+
+servers:
+  - url: /api/v0
+
+paths:
+  /server/status:
+    get:
+      summary: Returns the status of the Factorio multiplayer server.
+      responses:
+        '200':
+          description: A JSON object indicating the status of the Factorio multiplayer server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    example: true
+  /server/start:
+    post:
+      summary: Starts the Factorio multiplayer server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                savefile:
+                  type: string
+                  description: Name of the savefile to use
+      responses:
+        '202':
+          description: Accepted
+  /server/stop:
+    post:
+      summary: Stops the Factorio multiplayer server.
+      responses:
+        '202':
+          description: Accepted

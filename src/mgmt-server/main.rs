@@ -2,10 +2,12 @@
 
 use log::{error, info};
 use rocket::{catchers, get, routes};
+use rocket::fairing::AdHoc;
 use tokio::fs;
 
 mod catchers;
 mod consts;
+mod routes;
 
 #[rocket::main]
 async fn main() {
@@ -13,12 +15,13 @@ async fn main() {
 
     test123().await;
     let _ = rocket::build()
-        .mount("/hello", routes![world])
+        .mount("/api", routes![world])
         .register("/", catchers![
             catchers::not_found,
         ])
         .launch()
         .await;
+    info!("Shutting down");
 }
 
 #[get("/world")]
