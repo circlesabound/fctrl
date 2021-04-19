@@ -10,6 +10,7 @@ pub enum Error {
     // Generic wrappers around external error types
     Io(std::io::Error),
     Json(serde_json::error::Error),
+    ModSettingsSerde(factorio_mod_settings_parser::Error),
     Reqwest(reqwest::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
@@ -32,6 +33,12 @@ impl From<std::io::Error> for Error {
 impl From<serde_json::error::Error> for Error {
     fn from(e: serde_json::error::Error) -> Self {
         Error::Json(e)
+    }
+}
+
+impl From<factorio_mod_settings_parser::Error> for Error {
+    fn from(e: factorio_mod_settings_parser::Error) -> Self {
+        Error::ModSettingsSerde(e)
     }
 }
 

@@ -22,7 +22,7 @@ use futures_util::{
 use log::{debug, error, info, warn};
 // use logwatcher::LogWatcher;
 use rcon::Connection;
-use server::mods::Mods;
+use server::mods::ModManager;
 // use regex::Regex;
 use tokio::{
     fs,
@@ -628,7 +628,20 @@ impl AgentController {
 
         // Mods
         // TODO mod folder
-        let mods = Mods {};
+        let mods;
+        match ModManager::read_or_apply_default().await {
+            Ok(m) => mods = m,
+            Err(_e) => {
+                self.reply_failed(
+                    AgentResponse::Error(
+                        "Failedto read or initialise mod directory".to_owned(),
+                    ),
+                    operation_id,
+                )
+                .await;
+                return;
+            }
+        }
 
         // Launch settings is required to start
         // Pre-populate with default if not exist
