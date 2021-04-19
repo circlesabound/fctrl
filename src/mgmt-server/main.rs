@@ -1,8 +1,11 @@
 #![feature(decl_macro)]
 
+use std::path::PathBuf;
+
 use log::{error, info};
 use rocket::{catchers, get, routes};
 use rocket::fairing::AdHoc;
+use rocket_contrib::serve::StaticFiles;
 use tokio::fs;
 
 mod catchers;
@@ -15,7 +18,11 @@ async fn main() {
 
     test123().await;
     let _ = rocket::build()
-        .mount("/api", routes![world])
+        .mount("/api", routes![
+            routes::server::status,
+            routes::server::start_server,
+            routes::server::stop_server])
+        .mount("/", StaticFiles::from(get_dist_path()))
         .register("/", catchers![
             catchers::not_found,
         ])
@@ -24,9 +31,8 @@ async fn main() {
     info!("Shutting down");
 }
 
-#[get("/world")]
-async fn world() -> String {
-    "test".to_owned()
+fn get_dist_path() -> PathBuf {
+    std::env::current_dir().unwrap().join("web").join("dist")
 }
 
 async fn test123() -> Result<(), Box<dyn std::error::Error>> {

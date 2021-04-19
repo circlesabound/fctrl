@@ -1,6 +1,21 @@
-use rocket::get;
+use fctrl::schema::mgmt_server_rest::*;
+use rocket::{get, post};
+use rocket::http::Status;
+use rocket_contrib::json::Json;
 
-#[get("/status")]
-pub async fn status() -> String {
-    "todo".to_owned()
+#[get("/control")]
+pub async fn status() -> Json<ServerControlGetResponse> {
+    todo!()
 }
+
+#[post("/control/start")]
+pub async fn start_server() -> Status {
+    Status::Accepted
+}
+
+
+#[post("/control/stop")]
+pub async fn stop_server() -> Status {
+    Status::Accepted
+}
+
