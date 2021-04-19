@@ -1,19 +1,27 @@
 use std::process::ExitStatus;
+use std::str::FromStr;
+use std::sync::Arc;
 
+use lazy_static::lazy_static;
 use log::{error, info, warn};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
 };
+use regex::Regex;
+use strum_macros::EnumString;
 use tokio::process::*;
+use tokio::sync::RwLock;
 use tokio::{io::AsyncBufReadExt, task::JoinHandle};
 
 use crate::error::{Error, Result};
 use fctrl::schema::ServerStartSaveFile;
 
+use mods::*;
 use settings::*;
 
 pub mod builder;
+pub mod mods;
 pub mod proc;
 pub mod settings;
 
@@ -27,7 +35,7 @@ pub struct StartableInstance {
 }
 
 impl StartableInstance {
-    pub async fn start(mut self) -> Result<RunningInstance> {
+    pub async fn start(mut self) -> Result<StartedInstance> {
         let mut instance = self.cmd.spawn()?;
         info!(
             "Child process started with PID {}!",
@@ -39,26 +47,42 @@ impl StartableInstance {
         let out_stream = instance.stdout.take().unwrap();
         let err_stream = instance.stderr.take().unwrap();
 
-        let handle_out = tokio::spawn(async move {
+        let internal_server_state = Arc::new(RwLock::new(InternalServerState::Ready));
+        let internal_server_state_clone = Arc::clone(&internal_server_state);
+        tokio::spawn(async move {
             let mut lines = tokio::io::BufReader::new(out_stream).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                info!("## Server stdout ## {}", line);
+                // Parse for internal server state
+                lazy_static! {
+                    static ref STATE_CHANGE_RE: Regex =
+                        Regex::new(r"changing state from\(([a-zA-Z]+)\) to\(([a-zA-Z]+)\)")
+                            .unwrap();
+                }
+                if let Some(captures) = STATE_CHANGE_RE.captures(&line) {
+                    let from =
+                        InternalServerState::from_str(captures.get(1).unwrap().as_str()).unwrap();
+                    let to =
+                        InternalServerState::from_str(captures.get(2).unwrap().as_str()).unwrap();
+                    info!(
+                        "Server switching internal state from {:?} to {:?}",
+                        from, to
+                    );
+                    *internal_server_state_clone.write().await = to;
+                }
             }
-            info!("## Server stdout end ##")
         });
 
-        let handle_err = tokio::spawn(async move {
+        tokio::spawn(async move {
             let mut lines = tokio::io::BufReader::new(err_stream).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                info!("## Server stderr ## {}", line);
+                // Not sure if Factorio executable logs anything to stderr
+                error!("## Server stderr ## {}", line);
             }
-            info!("## Server stderr end ##")
         });
 
-        Ok(RunningInstance {
+        Ok(StartedInstance {
             process: instance,
-            handle_out,
-            handle_err,
+            internal_server_state,
             admin_list: self.admin_list,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
@@ -68,10 +92,9 @@ impl StartableInstance {
     }
 }
 
-pub struct RunningInstance {
+pub struct StartedInstance {
     process: Child,
-    handle_out: JoinHandle<()>,
-    handle_err: JoinHandle<()>,
+    internal_server_state: Arc<RwLock<InternalServerState>>,
     admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
@@ -79,7 +102,7 @@ pub struct RunningInstance {
     _optional_args: Vec<String>,
 }
 
-impl RunningInstance {
+impl StartedInstance {
     /// Attempts to stop the instance by sending SIGTERM and waiting for the process to exit.
     ///
     /// # Errors
@@ -125,10 +148,6 @@ impl RunningInstance {
         let exit_status = self.process.wait().await?;
         info!("Child process exited with status {}", exit_status);
 
-        // clean up piped output handlers
-        self.handle_out.abort();
-        self.handle_err.abort();
-
         Ok(StoppedInstance {
             exit_status,
             admin_list: self.admin_list,
@@ -142,6 +161,10 @@ impl RunningInstance {
     /// Manually poll whether the child process has exited
     pub async fn poll_process_exited(&mut self) -> Result<bool> {
         Ok(self.process.try_wait()?.is_some())
+    }
+
+    pub async fn get_internal_server_state(&self) -> InternalServerState {
+        self.internal_server_state.read().await.clone()
     }
 }
 
@@ -176,15 +199,14 @@ impl StartableShortLivedInstance {
             while let Ok(Some(line)) = lines.next_line().await {
                 info!("## Short-lived instance stdout ## {}", line);
             }
-            info!("## Short-lived instance stdout end ##")
         });
 
         let handle_err = tokio::spawn(async move {
             let mut lines = tokio::io::BufReader::new(err_stream).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                info!("## Short-lived instance stderr ## {}", line);
+                // Not sure if Factorio executable logs anything to stderr
+                error!("## Short-lived instance stderr ## {}", line);
             }
-            info!("## Short-lived instance stderr end ##")
         });
 
         let exit_status = instance.wait().await?;
@@ -202,16 +224,15 @@ pub struct StoppedShortLivedInstance {
     pub exit_status: ExitStatus,
 }
 
-/*
-
-CLI configurability:
-
-- savefile (portable location)
-- mod folder (portable location)
-- server settings file (portable location)
-- server admin list file (portable location)
-- server bind
-- rcon bind
-- rcon password
-
-*/
+/// Internal state of the Factorio multiplayer server as tracked by output logs
+#[derive(Clone, Debug, EnumString)]
+pub enum InternalServerState {
+    Ready,
+    PreparedToHostGame,
+    CreatingGame,
+    InGame,
+    DisconnectingScheduled,
+    Disconnecting,
+    Disconnected,
+    Closed,
+}

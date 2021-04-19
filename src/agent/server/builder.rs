@@ -6,6 +6,7 @@ use crate::{factorio::Factorio, util};
 use fctrl::schema::ServerStartSaveFile;
 
 use super::{
+    mods::Mods,
     settings::{AdminList, LaunchSettings, ServerSettings},
     StartableInstance, StartableShortLivedInstance, StoppedInstance,
 };
@@ -52,6 +53,7 @@ impl ServerBuilder {
     pub fn hosting_savefile(
         mut self,
         savefile: ServerStartSaveFile,
+        mods: Mods,
         admin_list: AdminList,
         launch_settings: LaunchSettings,
         server_settings: ServerSettings,

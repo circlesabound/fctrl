@@ -1,6 +1,10 @@
-use std::{env, fs::{self, File}, path::{Path, PathBuf}};
 use std::io::Write;
 use std::process::Command;
+use std::{
+    env,
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
 
 fn main() {
     let proj_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("openapi");
@@ -34,8 +38,8 @@ fn codegen<P1: AsRef<Path>, P2: AsRef<Path>>(spec_file: P1, out_dir: P2) {
     let _ = Command::new("npx")
         .arg("openapi-generator-cli")
         .arg("generate")
-        .args(&[ "--global-property", "models,modelDocs=false" ])
-        .args(&[ "-g", "rust" ])
+        .args(&["--global-property", "models,modelDocs=false"])
+        .args(&["-g", "rust"])
         .arg("-i")
         .arg(spec_file.as_ref())
         .arg("-o")

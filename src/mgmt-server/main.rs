@@ -3,8 +3,7 @@
 use std::path::PathBuf;
 
 use log::{error, info};
-use rocket::{catchers, get, routes};
-use rocket::fairing::AdHoc;
+use rocket::{catchers, routes};
 use rocket_contrib::serve::StaticFiles;
 use tokio::fs;
 
@@ -18,14 +17,16 @@ async fn main() {
 
     test123().await;
     let _ = rocket::build()
-        .mount("/api", routes![
-            routes::server::status,
-            routes::server::start_server,
-            routes::server::stop_server])
+        .mount(
+            "/api",
+            routes![
+                routes::server::status,
+                routes::server::start_server,
+                routes::server::stop_server
+            ],
+        )
         .mount("/", StaticFiles::from(get_dist_path()))
-        .register("/", catchers![
-            catchers::not_found,
-        ])
+        .register("/", catchers![catchers::not_found,])
         .launch()
         .await;
     info!("Shutting down");
@@ -43,7 +44,10 @@ async fn test123() -> Result<(), Box<dyn std::error::Error>> {
     db.put(b"key", b"hello this is value")?;
     match db.get(b"key") {
         Ok(Some(value)) => {
-            info!("Retrieved written value from the db: {}", String::from_utf8(value).unwrap());
+            info!(
+                "Retrieved written value from the db: {}",
+                String::from_utf8(value).unwrap()
+            );
         }
         Ok(None) => {
             error!("Retrieved empty value from db");

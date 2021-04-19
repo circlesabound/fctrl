@@ -18,6 +18,10 @@ services:
     stop_signal: SIGINT
   mgmt-server:
     image: docker.pkg.github.com/circlesabound/fctrl/mgmt-server:latest
+    volumes:
+      - type: bind
+        source: ./db
+        target: /app/db
     environment:
       - ROCKET_PORT=${MGMT_SERVER_PORT}
       - RUST_LOG=${LOG_LEVEL}

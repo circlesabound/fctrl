@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub struct ProcessManager {
-    running_instance: Arc<Mutex<Option<RunningInstance>>>,
+    running_instance: Arc<Mutex<Option<StartedInstance>>>,
 }
 
 impl ProcessManager {
@@ -19,6 +19,11 @@ impl ProcessManager {
         ProcessManager {
             running_instance: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub async fn status(&self) -> ProcessStatus {
+        self.instance_is_running_or_cleanup().await;
+        self.internal_status().await
     }
 
     pub async fn start_instance<B: StartableInstanceBuilder>(&self, builder: B) -> Result<()> {
@@ -92,7 +97,16 @@ impl ProcessManager {
         Ok(stopped)
     }
 
-    pub async fn instance_is_running(&self) -> bool {
+    async fn internal_status(&self) -> ProcessStatus {
+        let mg = self.running_instance.lock().await;
+        if let Some(started) = mg.as_ref() {
+            ProcessStatus::Running(started.get_internal_server_state().await)
+        } else {
+            ProcessStatus::NotRunning
+        }
+    }
+
+    async fn instance_is_running_or_cleanup(&self) -> bool {
         let mut mg = self.running_instance.lock().await;
         if let Some(running) = mg.as_mut() {
             match running.poll_process_exited().await {
@@ -121,4 +135,9 @@ impl ProcessManager {
         let _ = mg.take().unwrap().wait().await;
         false
     }
+}
+
+pub enum ProcessStatus {
+    NotRunning,
+    Running(InternalServerState),
 }

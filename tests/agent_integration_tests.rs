@@ -11,6 +11,8 @@ use tokio::{
 
 use fctrl::{schema::*, util};
 
+const VERSION_TO_INSTALL: &'static str = "1.1.32";
+
 struct AgentTestFixture {
     agent: Child,
     client: Child,
@@ -122,7 +124,7 @@ async fn can_request_server_status() {
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
-        AgentResponse::ServerStatus(ServerStatus { running: false })
+        AgentResponse::ServerStatus(ServerStatus::NotRunning)
     ));
 
     drop(f);
@@ -135,7 +137,8 @@ async fn can_set_then_get_admin_list() {
 
     let mut f = AgentTestFixture::new().await;
 
-    f.client_writeln("VersionInstall 1.1.32".to_owned()).await;
+    f.client_writeln(format!("VersionInstall {}", VERSION_TO_INSTALL))
+        .await;
     let response = f
         .client_wait_for_final_reply(Duration::from_secs(120))
         .await;
@@ -170,7 +173,8 @@ async fn can_set_then_get_rcon_config() {
 
     let mut f = AgentTestFixture::new().await;
 
-    f.client_writeln("VersionInstall 1.1.32".to_owned()).await;
+    f.client_writeln(format!("VersionInstall {}", VERSION_TO_INSTALL))
+        .await;
     let response = f
         .client_wait_for_final_reply(Duration::from_secs(120))
         .await;
@@ -206,7 +210,8 @@ async fn can_set_then_get_server_settings() {
 
     let mut f = AgentTestFixture::new().await;
 
-    f.client_writeln("VersionInstall 1.1.32".to_owned()).await;
+    f.client_writeln(format!("VersionInstall {}", VERSION_TO_INSTALL))
+        .await;
     let response = f
         .client_wait_for_final_reply(Duration::from_secs(120))
         .await;

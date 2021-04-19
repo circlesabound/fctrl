@@ -91,6 +91,9 @@ pub enum ServerStartSaveFile {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ServerStatus {
-    pub running: bool,
+pub enum ServerStatus {
+    NotRunning,
+    PreGame,
+    InGame,
+    PostGame,
 }

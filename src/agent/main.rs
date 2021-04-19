@@ -22,6 +22,7 @@ use futures_util::{
 use log::{debug, error, info, warn};
 // use logwatcher::LogWatcher;
 use rcon::Connection;
+use server::mods::Mods;
 // use regex::Regex;
 use tokio::{
     fs,
@@ -625,6 +626,10 @@ impl AgentController {
             return;
         }
 
+        // Mods
+        // TODO mod folder
+        let mods = Mods {};
+
         // Launch settings is required to start
         // Pre-populate with default if not exist
         let launch_settings;
@@ -675,6 +680,7 @@ impl AgentController {
 
         let mut builder = ServerBuilder::using_installation(version).hosting_savefile(
             savefile,
+            mods,
             admin_list,
             launch_settings,
             server_settings,
@@ -701,8 +707,18 @@ impl AgentController {
     }
 
     async fn server_status(&self, operation_id: OperationId) {
-        let status = ServerStatus {
-            running: self.proc_manager.instance_is_running().await,
+        let status = match self.proc_manager.status().await {
+            server::proc::ProcessStatus::NotRunning => ServerStatus::NotRunning,
+            server::proc::ProcessStatus::Running(s) => match s {
+                server::InternalServerState::Ready
+                | server::InternalServerState::PreparedToHostGame
+                | server::InternalServerState::CreatingGame => ServerStatus::PreGame,
+                server::InternalServerState::InGame => ServerStatus::InGame,
+                server::InternalServerState::DisconnectingScheduled
+                | server::InternalServerState::Disconnecting
+                | server::InternalServerState::Disconnected
+                | server::InternalServerState::Closed => ServerStatus::PostGame,
+            },
         };
         self.reply_success(AgentResponse::ServerStatus(status), operation_id)
             .await;
@@ -744,18 +760,32 @@ impl AgentController {
 
         let builder =
             ServerBuilder::using_installation(version).creating_savefile(save_name.clone());
-        if let Err(e) = self
+        match self
             .proc_manager
             .start_and_wait_for_shortlived_instance(builder)
             .await
         {
-            self.reply_failed(
-                AgentResponse::Error(format!("Savefile creation failed: {:?}", e)),
-                operation_id,
-            )
-            .await;
-        } else {
-            self.reply_success(AgentResponse::Ok, operation_id).await;
+            Err(e) => {
+                self.reply_failed(
+                    AgentResponse::Error(format!("Savefile creation failed: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+            Ok(si) => {
+                if si.exit_status.success() {
+                    self.reply_success(AgentResponse::Ok, operation_id).await;
+                } else {
+                    self.reply_failed(
+                        AgentResponse::Error(format!(
+                            "Savefile creation failed: process exited with non-success code {}",
+                            si.exit_status.to_string()
+                        )),
+                        operation_id,
+                    )
+                    .await;
+                }
+            }
         }
     }
 

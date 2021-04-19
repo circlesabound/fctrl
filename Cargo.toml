@@ -24,6 +24,8 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket", rev = "dd0c03" }
 rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", rev = "dd0c03", default-features = false, features = [ "json", "serve" ]}
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
+strum = "0.20"
+strum_macros = "0.20"
 tar = "0.4"
 tokio = { version = "1.5", features = [ "full" ] }
 tokio-tungstenite = "0.14"

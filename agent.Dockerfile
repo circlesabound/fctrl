@@ -20,6 +20,7 @@ WORKDIR /usr/src/app
 RUN curl -fsSL https://deb.nodesource.com/setup_15.x | bash \
     && apt update \
     && apt install -y clang nodejs openjdk-11-jre-headless
+COPY openapitools.json .
 COPY package-lock.json .
 COPY package.json .
 RUN npm install
