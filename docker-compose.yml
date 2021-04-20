@@ -23,6 +23,8 @@ services:
         source: ./db
         target: /app/db
     environment:
+      - ROCKET_ADDRESS=${MGMT_SERVER_BIND}
+      - ROCKET_LOG_LEVEL=normal
       - ROCKET_PORT=${MGMT_SERVER_PORT}
       - RUST_LOG=${LOG_LEVEL}
     ports:

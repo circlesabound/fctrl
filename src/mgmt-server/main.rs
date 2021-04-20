@@ -33,7 +33,7 @@ async fn main() {
 }
 
 fn get_dist_path() -> PathBuf {
-    std::env::current_dir().unwrap().join("web").join("dist")
+    std::env::current_dir().unwrap().join("web").join("dist").join("web")
 }
 
 async fn test123() -> Result<(), Box<dyn std::error::Error>> {

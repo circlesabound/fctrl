@@ -37,12 +37,15 @@ RUN cargo build --release --bin mgmt-server
 FROM node:alpine AS web-builder
 WORKDIR /app
 COPY web web
-# TODO npm ci && npm run build
+WORKDIR /app/web
+RUN npm install
+RUN npm install -g @angular/cli
+RUN ng build --prod
 
 FROM debian:buster-slim AS runtime
 WORKDIR /app
 RUN apt update
 RUN apt install -y ca-certificates
 COPY --from=builder /usr/src/app/target/release /usr/local/bin
-COPY --from=web-builder /app/web/dist /app/web/dist
+COPY --from=web-builder /app/web/dist/web /app/web/dist/web
 ENTRYPOINT [ "/usr/local/bin/mgmt-server" ]

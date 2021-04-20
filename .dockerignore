@@ -2,7 +2,10 @@
 /data/
 /db/
 /install/
+/node_modules
 /target/
+/web/dist/
+/web/node_modules
 /.dockerignore
 /.gitignore
 /LICENCE
