@@ -124,7 +124,7 @@ async fn can_request_server_status() {
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
-        AgentResponse::ServerStatus(ServerStatus::NotRunning)
+        AgentOutMessage::ServerStatus(ServerStatus::NotRunning)
     ));
 
     drop(f);
@@ -151,7 +151,7 @@ async fn can_set_then_get_admin_list() {
         .client_wait_for_final_reply(Duration::from_millis(500))
         .await;
     assert_eq!(response.status, OperationStatus::Completed);
-    assert!(matches!(response.content, AgentResponse::Ok));
+    assert!(matches!(response.content, AgentOutMessage::Ok));
 
     f.client_writeln("ConfigAdminListGet".to_owned()).await;
     let response = f
@@ -160,7 +160,7 @@ async fn can_set_then_get_admin_list() {
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
-        AgentResponse::ConfigAdminList(list) if list.len() == 2 && list.contains(&"admin1".to_owned()) && list.contains(&"admin2".to_owned())
+        AgentOutMessage::ConfigAdminList(list) if list.len() == 2 && list.contains(&"admin1".to_owned()) && list.contains(&"admin2".to_owned())
     ));
 
     drop(f);
@@ -187,7 +187,7 @@ async fn can_set_then_get_rcon_config() {
         .client_wait_for_final_reply(Duration::from_millis(500))
         .await;
     assert_eq!(response.status, OperationStatus::Completed);
-    assert!(matches!(response.content, AgentResponse::Ok));
+    assert!(matches!(response.content, AgentOutMessage::Ok));
 
     f.client_writeln("ConfigRconGet".to_owned()).await;
     let response = f
@@ -196,7 +196,7 @@ async fn can_set_then_get_rcon_config() {
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
-        AgentResponse::ConfigRcon {
+        AgentOutMessage::ConfigRcon {
             port: 27015, password } if password == new_password
     ));
 
@@ -226,7 +226,7 @@ async fn can_set_then_get_server_settings() {
         .client_wait_for_final_reply(Duration::from_millis(500))
         .await;
     assert_eq!(response.status, OperationStatus::Completed);
-    assert!(matches!(response.content, AgentResponse::Ok));
+    assert!(matches!(response.content, AgentOutMessage::Ok));
 
     f.client_writeln("ConfigServerSettingsGet".to_owned()).await;
     let response = f
@@ -235,7 +235,7 @@ async fn can_set_then_get_server_settings() {
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
-        AgentResponse::ConfigServerSettings(json) if json == new_server_settings
+        AgentOutMessage::ConfigServerSettings(json) if json == new_server_settings
     ));
 
     drop(f);

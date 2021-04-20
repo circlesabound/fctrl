@@ -8,7 +8,7 @@ use fctrl::schema::ServerStartSaveFile;
 use super::{
     mods::ModManager,
     settings::{AdminList, LaunchSettings, ServerSettings},
-    StartableInstance, StartableShortLivedInstance, StoppedInstance,
+    HandlerFn, StartableInstance, StartableShortLivedInstance, StoppedInstance,
 };
 
 pub trait StartableInstanceBuilder {
@@ -22,6 +22,7 @@ pub trait StartableShortLivedInstanceBuilder {
 
 pub struct ServerBuilder {
     cmd_builder: Command,
+    stdout_handler: Box<dyn HandlerFn>,
 }
 
 impl ServerBuilder {
@@ -34,7 +35,13 @@ impl ServerBuilder {
             .join("factorio");
         ServerBuilder {
             cmd_builder: Command::new(path_to_executable),
+            stdout_handler: Box::new(ServerBuilder::noop_stdout_handler),
         }
+    }
+
+    pub fn with_stdout_handler<H: HandlerFn>(mut self, stdout_handler: H) -> ServerBuilder {
+        self.stdout_handler = Box::new(stdout_handler);
+        self
     }
 
     pub fn creating_savefile(mut self, new_savefile_name: String) -> SaveCreatorBuilder {
@@ -45,7 +52,8 @@ impl ServerBuilder {
                 .unwrap(),
         ]);
         SaveCreatorBuilder {
-            server_builder: self,
+            cmd_builder: self.cmd_builder,
+            stdout_handler: self.stdout_handler,
             _new_savefile_name: new_savefile_name,
         }
     }
@@ -82,7 +90,8 @@ impl ServerBuilder {
         self.with_cli_args(&["--server-adminlist", admin_list.path.to_str().unwrap()]);
 
         ServerHostBuilder {
-            server_builder: self,
+            cmd_builder: self.cmd_builder,
+            stdout_handler: self.stdout_handler,
             admin_list,
             launch_settings,
             savefile,
@@ -99,10 +108,15 @@ impl ServerBuilder {
         self.cmd_builder.args(args);
         self
     }
+
+    fn noop_stdout_handler(s: String) {
+        // do nothing
+    }
 }
 
 pub struct ServerHostBuilder {
-    server_builder: ServerBuilder,
+    cmd_builder: Command,
+    stdout_handler: Box<dyn HandlerFn>,
     admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
@@ -118,17 +132,17 @@ impl StartableInstanceBuilder for ServerHostBuilder {
 
     fn build(mut self) -> StartableInstance {
         // configure io to be piped
-        self.server_builder
-            .cmd_builder
+        self.cmd_builder
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
         // set this for a better night's sleep
-        self.server_builder.cmd_builder.kill_on_drop(true);
+        self.cmd_builder.kill_on_drop(true);
 
         StartableInstance {
-            cmd: self.server_builder.cmd_builder,
+            cmd: self.cmd_builder,
+            stdout_handler: self.stdout_handler,
             admin_list: self.admin_list,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
@@ -139,24 +153,25 @@ impl StartableInstanceBuilder for ServerHostBuilder {
 }
 
 pub struct SaveCreatorBuilder {
-    server_builder: ServerBuilder,
+    cmd_builder: Command,
+    stdout_handler: Box<dyn HandlerFn>,
     _new_savefile_name: String,
 }
 
 impl StartableShortLivedInstanceBuilder for SaveCreatorBuilder {
     fn build(mut self) -> StartableShortLivedInstance {
         // configure io to be piped
-        self.server_builder
-            .cmd_builder
+        self.cmd_builder
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
         // set this for a better night's sleep
-        self.server_builder.cmd_builder.kill_on_drop(true);
+        self.cmd_builder.kill_on_drop(true);
 
         StartableShortLivedInstance {
-            cmd: self.server_builder.cmd_builder,
+            cmd: self.cmd_builder,
+            stdout_handler: self.stdout_handler,
         }
     }
 }

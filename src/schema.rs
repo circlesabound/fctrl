@@ -60,7 +60,7 @@ pub enum AgentRequest {
 pub struct AgentResponseWithId {
     pub operation_id: OperationId,
     pub status: OperationStatus,
-    pub content: AgentResponse,
+    pub content: AgentOutMessage,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -71,13 +71,13 @@ pub enum OperationStatus {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum AgentResponse {
+pub enum AgentOutMessage {
     // Generic responses
     Message(String),
     Error(String),
     Ok,
 
-    // Structured messages
+    // Structured operation responses
     ConfigAdminList(Vec<String>),
     ConfigRcon { port: u16, password: String },
     ConfigServerSettings(String),
@@ -96,4 +96,9 @@ pub enum ServerStatus {
     PreGame,
     InGame,
     PostGame,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum AgentStreamingMessage {
+    ServerStdout(String),
 }

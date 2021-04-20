@@ -81,17 +81,20 @@ where
 
                 // wait for replies
                 loop {
-                    let reply = ws_read.next().await.unwrap().unwrap();
-                    if let Message::Text(json) = reply {
-                        let reply: AgentResponseWithId = serde_json::from_str(&json).unwrap();
-                        println!("{}", json);
-                        match reply.status {
-                            OperationStatus::Completed | OperationStatus::Failed => {
-                                break;
+                    let incoming = ws_read.next().await.unwrap().unwrap();
+                    if let Message::Text(json) = incoming {
+                        if let Ok(reply) = serde_json::from_str::<AgentResponseWithId>(&json) {
+                            println!("{}", json);
+                            match reply.status {
+                                OperationStatus::Completed | OperationStatus::Failed => {
+                                    break;
+                                }
+                                OperationStatus::Ongoing => {
+                                    // more messages on the way
+                                }
                             }
-                            OperationStatus::Ongoing => {
-                                // more messages on the way
-                            }
+                        } else if let Ok(_) = serde_json::from_str::<AgentStreamingMessage>(&json) {
+                            println!("{}", json);
                         }
                     } else {
                         println!("received unknown reply");

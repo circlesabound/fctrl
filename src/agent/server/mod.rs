@@ -10,9 +10,9 @@ use nix::{
 };
 use regex::Regex;
 use strum_macros::EnumString;
+use tokio::io::AsyncBufReadExt;
 use tokio::process::*;
 use tokio::sync::RwLock;
-use tokio::{io::AsyncBufReadExt, task::JoinHandle};
 
 use crate::error::{Error, Result};
 use fctrl::schema::ServerStartSaveFile;
@@ -25,8 +25,11 @@ pub mod mods;
 pub mod proc;
 pub mod settings;
 
+pub trait HandlerFn = Fn(String) + Send + Sync + 'static;
+
 pub struct StartableInstance {
     cmd: Command,
+    stdout_handler: Box<dyn HandlerFn>,
     admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
@@ -49,6 +52,7 @@ impl StartableInstance {
 
         let internal_server_state = Arc::new(RwLock::new(InternalServerState::Ready));
         let internal_server_state_clone = Arc::clone(&internal_server_state);
+        let internal_stdout_handler = self.stdout_handler;
         tokio::spawn(async move {
             let mut lines = tokio::io::BufReader::new(out_stream).lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -69,6 +73,9 @@ impl StartableInstance {
                     );
                     *internal_server_state_clone.write().await = to;
                 }
+
+                // Pass off to stdout handler
+                (internal_stdout_handler)(line);
             }
         });
 
@@ -179,6 +186,7 @@ pub struct StoppedInstance {
 
 pub struct StartableShortLivedInstance {
     cmd: Command,
+    stdout_handler: Box<dyn HandlerFn>,
 }
 
 impl StartableShortLivedInstance {
@@ -194,10 +202,12 @@ impl StartableShortLivedInstance {
         let out_stream = instance.stdout.take().unwrap();
         let err_stream = instance.stderr.take().unwrap();
 
+        let internal_stdout_handler = self.stdout_handler;
         let handle_out = tokio::spawn(async move {
             let mut lines = tokio::io::BufReader::new(out_stream).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                info!("## Short-lived instance stdout ## {}", line);
+                // Pass off to stdout handler
+                (internal_stdout_handler)(line);
             }
         });
 
