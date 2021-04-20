@@ -633,9 +633,7 @@ impl AgentController {
             Ok(m) => mods = m,
             Err(_e) => {
                 self.reply_failed(
-                    AgentResponse::Error(
-                        "Failedto read or initialise mod directory".to_owned(),
-                    ),
+                    AgentResponse::Error("Failedto read or initialise mod directory".to_owned()),
                     operation_id,
                 )
                 .await;

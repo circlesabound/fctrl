@@ -1,8 +1,12 @@
-use std::{collections::HashMap, convert::{TryFrom, TryInto}, io::ErrorKind, path::PathBuf};
+use std::{
+    convert::{TryFrom, TryInto},
+    path::PathBuf,
+};
 
 use factorio_mod_settings_parser::ModSettings;
 use lazy_static::lazy_static;
 use log::{debug, error, info};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -24,86 +28,41 @@ impl ModManager {
         if !MOD_DIR.is_dir() {
             Ok(None)
         } else {
-            // We expect at least mod list here
-            match fs::read_to_string(&*MOD_LIST_PATH).await {
-                Ok(s) => {
-                    let mods;
-                    match serde_json::from_str::<ModList>(&s) {
-                        Ok(ml) => {
-                            // Get mod names except base
-                            let mut mod_name_version_map = HashMap::new();
-                            for elem in ml.mods {
-                                if elem.name != "base" {
-                                    mod_name_version_map.insert(elem.name, None);
-                                }
-                            }
-
-                            // Need to get the versions from the dir entries
-                            let mut entries = fs::read_dir(&*MOD_DIR).await?;
-                            while let Some(entry) = entries.next_entry().await? {
-                                if let Some(base_name) = entry.path().file_stem() {
-                                    let base_name = base_name.to_str().unwrap().to_string();
-                                    let split: Vec<_> = base_name.rsplitn(2, '_').collect();
-                                    if split.len() == 2 {
-                                        let mod_name = split[1];
-                                        let version = split[0];
-                                        if let Some(v) = mod_name_version_map.get_mut(mod_name) {
-                                            debug!("matched version {} for mod {}", version, mod_name);
-                                            v.replace(version.to_string());
-                                        }
-                                    }
-                                }
-                            }
-
-                            let mut missed = false;
-                            for (name, ..) in mod_name_version_map.iter().filter(|(_, v)| v.is_none()) {
-                                error!("Missing version match in mod dir for mod {}", name);
-                                missed = true;
-                            }
-                            if missed {
-                                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Missing version match file in mod dir").into());
-                            } else {
-                                mods = mod_name_version_map.into_iter().map(|(n, v)| Mod {
-                                    name: n,
-                                    version: v.unwrap(),
-                                }).collect();
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error parsing mod list: {:?}", e);
-                            return Err(e.into());
-                        }
-                    }
-
-                    // mod settings is optional
-                    let mut settings = None;
-                    if MOD_SETTINGS_PATH.is_file() {
-                        let bytes = fs::read(&*MOD_SETTINGS_PATH).await?;
-                        match ModSettings::try_from(bytes.as_ref()) {
-                            Ok(s) => settings = Some(s),
-                            Err(e) => {
-                                error!("Error parsing mod settings: {:?}", e);
-                                return Err(e.into());
-                            }
-                        }
-                    }
-
-                    Ok(Some(ModManager {
-                        mods,
-                        settings,
-                        path: MOD_SETTINGS_PATH.clone(),
-                    }))
+            // Don't bother with mod list, directly parse the mod zips
+            // No support for "installed but disabled" mods
+            let mut mod_zip_names = vec![];
+            let mut entries = fs::read_dir(&*MOD_DIR).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path != *MOD_SETTINGS_PATH {
+                    mod_zip_names.push(path.file_name().unwrap().to_str().unwrap().to_string());
                 }
-                Err(e) => {
-                    if e.kind() == ErrorKind::NotFound {
-                        // mod-list.json missing
-                        Ok(None)
-                    } else {
-                        error!("Error reading mod list: {:?}", e);
-                        Err(e.into())
+            }
+
+            // Parse each mod zip file name into mod name and version
+            let mods = mod_zip_names
+                .into_iter()
+                .filter_map(|n| Mod::try_from_filename(&n))
+                .collect();
+
+            // mod settings is optional
+            let mut settings = None;
+            if MOD_SETTINGS_PATH.is_file() {
+                let bytes = fs::read(&*MOD_SETTINGS_PATH).await?;
+                match ModSettings::try_from(bytes.as_ref()) {
+                    Ok(s) => settings = Some(s),
+                    Err(e) => {
+                        error!("Error parsing mod settings: {:?}", e);
+                        return Err(e.into());
                     }
                 }
             }
+
+            Ok(Some(ModManager {
+                mods,
+                settings,
+                path: MOD_SETTINGS_PATH.clone(),
+            }))
         }
     }
 
@@ -118,15 +77,16 @@ impl ModManager {
                     settings: None,
                     path: MOD_DIR.clone(),
                 };
-                ret.write().await?;
+                ret.apply().await?;
                 Ok(ret)
             }
         }
     }
 
-    pub async fn write(&self) -> Result<()> {
+    pub async fn apply(&self) -> Result<()> {
         fs::create_dir_all(&*MOD_DIR).await?;
 
+        // ModList impl automatically adds the base mod to its internal structure
         let mod_list_json = serde_json::to_string(&ModList::from(self.mods.clone()))?;
         fs::write(&*MOD_LIST_PATH, mod_list_json).await?;
 
@@ -139,10 +99,33 @@ impl ModManager {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Mod {
     pub name: String,
     pub version: String,
+}
+
+impl Mod {
+    fn try_from_filename(s: &str) -> Option<Mod> {
+        // Per https://wiki.factorio.com/Tutorial:Mod_structure, mod zip files must be named with the pattern:
+        // {mod-name}_{version-number}.zip
+        // No support for unzipped mods (yet?)
+        lazy_static! {
+            static ref MOD_FILENAME_RE: Regex = Regex::new(r"^(.+)_(\d+\.\d+\.\d+)\.zip$").unwrap();
+        }
+
+        if let Some(captures) = MOD_FILENAME_RE.captures(s) {
+            let name = captures.get(1).unwrap().as_str().to_string();
+            let version = captures.get(2).unwrap().as_str().to_string();
+            Some(Mod { name, version })
+        } else {
+            debug!(
+                "Filename {} could not be parsed into a mod name and version",
+                s
+            );
+            None
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -156,7 +139,7 @@ impl Default for ModList {
             mods: vec![ModListElem {
                 name: "base".to_owned(),
                 enabled: true,
-            }]
+            }],
         }
     }
 }
@@ -172,9 +155,7 @@ impl From<Vec<Mod>> for ModList {
             name: m.name,
             enabled: true,
         }));
-        ModList {
-            mods: elems,
-        }
+        ModList { mods: elems }
     }
 }
 
@@ -182,4 +163,97 @@ impl From<Vec<Mod>> for ModList {
 struct ModListElem {
     name: String,
     enabled: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::collections::HashMap;
+
+    use fctrl::util;
+
+    #[test]
+    fn can_parse_valid_mod_filenames() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        util::testing::logger_init();
+
+        let mut valid_names = HashMap::new();
+        valid_names.insert(
+            "A Sea Block Config_0.5.1.zip",
+            Mod {
+                name: "A Sea Block Config".to_owned(),
+                version: "0.5.1".to_owned(),
+            },
+        );
+        valid_names.insert(
+            "AfraidOfTheDark_1.1.1.zip",
+            Mod {
+                name: "AfraidOfTheDark".to_owned(),
+                version: "1.1.1".to_owned(),
+            },
+        );
+        valid_names.insert(
+            "Companion_Drones_1.0.19.zip",
+            Mod {
+                name: "Companion_Drones".to_owned(),
+                version: "1.0.19".to_owned(),
+            },
+        );
+        valid_names.insert(
+            "KS_Power_quickfix_0.4.05.zip",
+            Mod {
+                name: "KS_Power_quickfix".to_owned(),
+                version: "0.4.05".to_owned(),
+            },
+        );
+        valid_names.insert(
+            "Squeak Through_1.8.1.zip",
+            Mod {
+                name: "Squeak Through".to_owned(),
+                version: "1.8.1".to_owned(),
+            },
+        );
+        valid_names.insert(
+            "Todo-List_19.1.0.zip",
+            Mod {
+                name: "Todo-List".to_owned(),
+                version: "19.1.0".to_owned(),
+            },
+        );
+        valid_names.insert(
+            "train-pubsub_1.1.4.zip",
+            Mod {
+                name: "train-pubsub".to_owned(),
+                version: "1.1.4".to_owned(),
+            },
+        );
+
+        for (filename, expected) in valid_names {
+            let parsed = Mod::try_from_filename(filename).unwrap();
+            assert_eq!(parsed, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn cannot_parse_invalid_mod_filenames() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        util::testing::logger_init();
+
+        let invalid_names = vec![
+            "A Sea Block Config.zip",
+            "AfraidOfTheDark_1.1.1.tar.gz",
+            "Companion_Drones",
+            "_1.8.1.zip",
+            "19.1.0.zip",
+            "train-pubsub_.zip",
+        ];
+
+        for name in invalid_names {
+            let parsed = Mod::try_from_filename(name);
+            assert!(parsed.is_none());
+        }
+
+        Ok(())
+    }
 }
