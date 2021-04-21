@@ -7,6 +7,15 @@ pub enum Error {
     ProcessPidError,
     ProcessSignalError(nix::Error),
 
+    // Mods
+    ModNotFound {
+        mod_name: String,
+        mod_version: String,
+    },
+
+    // Generic
+    Aggregate(Vec<Error>),
+
     // Generic wrappers around external error types
     Io(std::io::Error),
     Json(serde_json::error::Error),

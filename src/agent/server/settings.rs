@@ -20,7 +20,7 @@ pub struct LaunchSettings {
 impl LaunchSettings {
     pub async fn read() -> Result<Option<LaunchSettings>> {
         let path = &*LAUNCH_SETTINGS_PATH;
-        if !path.exists() {
+        if !path.is_file() {
             Ok(None)
         } else {
             match fs::read_to_string(path).await {
@@ -95,6 +95,53 @@ impl Default for LaunchSettings {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Secrets {
+    pub username: String,
+    pub token: String,
+}
+
+impl Secrets {
+    pub async fn read() -> Result<Option<Secrets>> {
+        let path = &*SECRETS_PATH;
+        if !path.is_file() {
+            Ok(None)
+        } else {
+            match fs::read_to_string(path).await {
+                Ok(s) => match toml::from_str(&s) {
+                    Ok(secrets) => Ok(Some(secrets)),
+                    Err(e) => {
+                        error!("Error parsing secrets file: {:?}", e);
+                        Err(e.into())
+                    }
+                },
+                Err(e) => {
+                    error!("Error reading secrets file: {:?}", e);
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    pub async fn write(&self) -> Result<()> {
+        let path = &*SECRETS_PATH;
+        if let Err(e) = fs::create_dir_all(path.parent().unwrap()).await {
+            error!(
+                "Error creating directory structure for secrets file: {:?}",
+                e
+            );
+            return Err(e.into());
+        }
+
+        if let Err(e) = fs::write(path, toml::to_string(self).unwrap()).await {
+            error!("Error writing secrets file: {:?}", e);
+            Err(e.into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 pub struct AdminList {
     pub list: Vec<String>,
     pub path: PathBuf,
@@ -103,7 +150,7 @@ pub struct AdminList {
 impl AdminList {
     pub async fn read() -> Result<Option<AdminList>> {
         let path = &*ADMIN_LIST_PATH;
-        if !path.exists() {
+        if !path.is_file() {
             Ok(None)
         } else {
             match fs::read_to_string(path).await {
@@ -183,7 +230,7 @@ pub struct ServerSettings {
 impl ServerSettings {
     pub async fn read() -> Result<Option<ServerSettings>> {
         let path = &*SERVER_SETTINGS_PATH;
-        if !path.exists() {
+        if !path.is_file() {
             Ok(None)
         } else {
             match fs::read_to_string(path).await {
@@ -211,7 +258,7 @@ impl ServerSettings {
                 };
                 if let Err(e) = s.write().await {
                     error!("Failed to write default server settings to file: {:?}", e);
-                    Err(e.into())
+                    Err(e)
                 } else {
                     Ok(s)
                 }
@@ -268,6 +315,7 @@ lazy_static! {
     static ref LAUNCH_SETTINGS_PATH: PathBuf = CONFIG_DIR.join("launch-settings.toml");
     static ref ADMIN_LIST_PATH: PathBuf = CONFIG_DIR.join("server-adminlist.json");
     static ref SERVER_SETTINGS_PATH: PathBuf = CONFIG_DIR.join("server-settings.json");
+    static ref SECRETS_PATH: PathBuf = CONFIG_DIR.join("secrets.toml");
 }
 
 #[cfg(test)]

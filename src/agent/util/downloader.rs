@@ -64,7 +64,7 @@ async fn read_from_cache(id: &str) -> Result<Option<Bytes>> {
             if m.created()
                 .unwrap_or(SystemTime::UNIX_EPOCH)
                 .elapsed()
-                .unwrap_or(Duration::new(u64::MAX, 0))
+                .unwrap_or_else(|_| Duration::new(u64::MAX, 0))
                 > Duration::from_secs(60 * 60 * 24)
             {
                 // if cached item older than a day, purge and refresh

@@ -1,16 +1,26 @@
 use std::{
+    collections::HashSet,
     convert::{TryFrom, TryInto},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use factorio_mod_settings_parser::ModSettings;
+use futures::future;
 use lazy_static::lazy_static;
 use log::{debug, error, info};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
-use crate::{consts::*, error::Result};
+use crate::{
+    consts::*,
+    error::{Error, Result},
+    util::downloader,
+};
+
+use fctrl::schema::*;
+
+use super::settings::Secrets;
 
 lazy_static! {
     static ref MOD_LIST_PATH: PathBuf = MOD_DIR.join("mod-list.json");
@@ -34,7 +44,7 @@ impl ModManager {
             let mut entries = fs::read_dir(&*MOD_DIR).await?;
             while let Some(entry) = entries.next_entry().await? {
                 let path = entry.path();
-                if path != *MOD_SETTINGS_PATH {
+                if path != *MOD_LIST_PATH && path != *MOD_SETTINGS_PATH {
                     mod_zip_names.push(path.file_name().unwrap().to_str().unwrap().to_string());
                 }
             }
@@ -61,7 +71,7 @@ impl ModManager {
             Ok(Some(ModManager {
                 mods,
                 settings,
-                path: MOD_SETTINGS_PATH.clone(),
+                path: MOD_DIR.clone(),
             }))
         }
     }
@@ -77,13 +87,82 @@ impl ModManager {
                     settings: None,
                     path: MOD_DIR.clone(),
                 };
-                ret.apply().await?;
+                ret.apply_without_download().await?;
                 Ok(ret)
             }
         }
     }
 
-    pub async fn apply(&self) -> Result<()> {
+    pub async fn apply(&self, secrets: &Secrets) -> Result<()> {
+        // Read current mods, figure out the delta
+        let currently_installed = ModManager::read().await?.map_or(vec![], |m| m.mods);
+        let ModDelta { install, delete } =
+            ModManager::calculate_mod_delta(&currently_installed, &self.mods);
+
+        info!(
+            "Mods to install: {}",
+            install
+                .iter()
+                .map(|m| format!("{}_{}", m.name, m.version))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        info!(
+            "Mods to delete: {}",
+            delete
+                .iter()
+                .map(|m| format!("{}_{}", m.name, m.version))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        // Start tasks to install
+        let mut tasks = vec![];
+        for install in install.into_iter() {
+            let install_path = self.path.clone();
+            let secrets_clone = secrets.clone();
+            tasks.push(tokio::spawn(async move {
+                ModManager::download_mod(&install, &install_path, &secrets_clone).await
+            }));
+        }
+
+        for delete in delete.into_iter() {
+            let full_path = self
+                .path
+                .join(format!("{}_{}.zip", delete.name, delete.version));
+            tasks.push(tokio::spawn(async move {
+                Ok(fs::remove_file(full_path).await?)
+            }));
+        }
+
+        // Apply metadata changes regardless of actual success or failure
+        self.apply_without_download().await?;
+
+        let mut errors = vec![];
+        let results = future::join_all(tasks).await;
+        for result in results {
+            match result {
+                Ok(result) => {
+                    if let Err(e) = result {
+                        error!("Failed to apply mod change: {:?}", e);
+                        errors.push(e);
+                    }
+                }
+                Err(e) => {
+                    // task was cancelled or panicked. Nothing much we can do
+                    error!("Join error applying mod changes: {:?}", e);
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::Aggregate(errors))
+        }
+    }
+
+    async fn apply_without_download(&self) -> Result<()> {
         fs::create_dir_all(&*MOD_DIR).await?;
 
         // ModList impl automatically adds the base mod to its internal structure
@@ -97,9 +176,80 @@ impl ModManager {
 
         Ok(())
     }
+
+    async fn short_query_mod(mod_to_query: &Mod) -> Result<factorio_mod_portal_api::ModInfoShort> {
+        let short_query_url = format!("https://mods.factorio.com/api/mods/{}", mod_to_query.name);
+
+        debug!("Querying mod {} at {}", mod_to_query.name, short_query_url);
+        let short_query_response = reqwest::get(short_query_url).await?.error_for_status()?;
+        Ok(short_query_response
+            .json::<factorio_mod_portal_api::ModInfoShort>()
+            .await?)
+    }
+
+    async fn download_mod<P: AsRef<Path>>(
+        mod_to_download: &Mod,
+        destination_dir: P,
+        secrets: &Secrets,
+    ) -> Result<()> {
+        let info = ModManager::short_query_mod(&mod_to_download).await?;
+        if let Some(r) = info
+            .releases
+            .iter()
+            .find(|r| r.version == mod_to_download.version)
+        {
+            // Construct actual download url
+            let download_url = format!(
+                "https://mods.factorio.com/{}?username={}&token={}",
+                r.download_url, secrets.username, secrets.token,
+            );
+            let filename = format!("{}_{}.zip", mod_to_download.name, mod_to_download.version);
+            let out_file = destination_dir.as_ref().join(&filename);
+            let bytes = downloader::download(&filename, download_url).await?;
+            fs::write(&out_file, bytes).await?;
+            info!(
+                "Installed mod {} version {} to {}",
+                mod_to_download.name,
+                mod_to_download.version,
+                out_file.display()
+            );
+            Ok(())
+        } else {
+            error!(
+                "Could not find mod on mod portal matching {}_{}",
+                mod_to_download.name, mod_to_download.version
+            );
+            Err(Error::ModNotFound {
+                mod_name: mod_to_download.name.clone(),
+                mod_version: mod_to_download.version.clone(),
+            })
+        }
+    }
+
+    fn calculate_mod_delta(currently_installed: &[Mod], desired_state: &[Mod]) -> ModDelta {
+        let mut mods_to_install: HashSet<Mod> = desired_state.iter().cloned().collect();
+        let mut mods_to_delete = HashSet::new();
+
+        for requested_mod in desired_state {
+            if currently_installed.contains(&requested_mod) {
+                mods_to_install.remove(&requested_mod);
+            }
+        }
+
+        for existing_mod in currently_installed {
+            if !desired_state.contains(&existing_mod) {
+                mods_to_delete.insert(existing_mod.clone());
+            }
+        }
+
+        ModDelta {
+            install: mods_to_install,
+            delete: mods_to_delete,
+        }
+    }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Mod {
     pub name: String,
     pub version: String,
@@ -126,6 +276,11 @@ impl Mod {
             None
         }
     }
+}
+
+struct ModDelta {
+    install: HashSet<Mod>,
+    delete: HashSet<Mod>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -255,5 +410,81 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn can_query_mod_info() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        util::testing::logger_init();
+
+        let mod_to_query = Mod {
+            name: "rso-mod".to_owned(),
+            version: "6.2.5".to_owned(),
+        };
+
+        assert!(ModManager::short_query_mod(&mod_to_query).await.is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_calculate_mod_delta_with_empty_current_list() {
+        util::testing::logger_init();
+
+        let current = vec![];
+        let desired = vec![Mod {
+            name: "rso-mod".to_owned(),
+            version: "6.2.5".to_owned(),
+        }];
+
+        let delta = ModManager::calculate_mod_delta(&current, &desired);
+        assert!(delta.delete.is_empty());
+        assert_eq!(delta.install.into_iter().collect::<Vec<_>>(), desired);
+    }
+
+    #[test]
+    fn can_calculate_mod_delta() {
+        util::testing::logger_init();
+
+        let current = vec![
+            Mod {
+                name: "test1".to_owned(),
+                version: "2.3.4".to_owned(),
+            },
+            Mod {
+                name: "test2".to_owned(),
+                version: "1.2.5".to_owned(),
+            },
+            Mod {
+                name: "rso-mod".to_owned(),
+                version: "6.2.4".to_owned(),
+            },
+        ];
+        let desired = vec![
+            Mod {
+                name: "test1".to_owned(),
+                version: "2.3.4".to_owned(),
+            },
+            Mod {
+                name: "rso-mod".to_owned(),
+                version: "6.2.5".to_owned(),
+            },
+        ];
+
+        let delta = ModManager::calculate_mod_delta(&current, &desired);
+        assert_eq!(delta.delete.len(), 2);
+        assert!(delta.delete.contains(&Mod {
+            name: "test2".to_owned(),
+            version: "1.2.5".to_owned(),
+        }));
+        assert!(delta.delete.contains(&Mod {
+            name: "rso-mod".to_owned(),
+            version: "6.2.4".to_owned(),
+        }));
+        assert_eq!(delta.install.len(), 1);
+        assert_eq!(delta.install.len(), 1);
+        assert!(delta.install.contains(&Mod {
+            name: "rso-mod".to_owned(),
+            version: "6.2.5".to_owned(),
+        }));
     }
 }

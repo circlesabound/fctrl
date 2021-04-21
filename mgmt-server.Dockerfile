@@ -3,7 +3,7 @@ WORKDIR /usr/src/app
 RUN cargo install cargo-chef --version 0.1.19
 COPY Cargo.toml .
 COPY Cargo.lock .
-COPY tests tets
+COPY tests tests
 COPY src src
 RUN cargo chef prepare --recipe-path recipe.json
 

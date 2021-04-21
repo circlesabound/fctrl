@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn is_pipe_mode() -> bool {
-    PIPE_MODE.lock().await.clone()
+    *PIPE_MODE.lock().await
 }
 
 async fn message_loop<W, R>(
@@ -93,7 +93,7 @@ where
                                     // more messages on the way
                                 }
                             }
-                        } else if let Ok(_) = serde_json::from_str::<AgentStreamingMessage>(&json) {
+                        } else if serde_json::from_str::<AgentStreamingMessage>(&json).is_ok() {
                             println!("{}", json);
                         }
                     } else {
@@ -115,8 +115,8 @@ where
 fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
     let operation_id = OperationId::from(uuid::Uuid::new_v4().to_string());
     let args: Vec<_> = input.trim().split_whitespace().collect();
-    match args.get(0)? {
-        &"VersionInstall" => args.get(1).map(|v| {
+    match *args.get(0)? {
+        "VersionInstall" => args.get(1).map(|v| {
             let mut force_install = false;
             if let Some(&"true") = args.get(2) {
                 force_install = true;
@@ -129,7 +129,7 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
                 },
             }
         }),
-        &"ServerStart" => args
+        "ServerStart" => args
             .get(1)
             .map(|savefile| {
                 if *savefile == "Latest" {
@@ -149,50 +149,79 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
                 }
             })
             .flatten(),
-        &"ServerStop" => Some(AgentRequestWithId {
+        "ServerStop" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ServerStop,
         }),
-        &"ServerStatus" => Some(AgentRequestWithId {
+        "ServerStatus" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ServerStatus,
         }),
-        &"SaveCreate" => args.get(1).map(|name| AgentRequestWithId {
+        "SaveCreate" => args.get(1).map(|name| AgentRequestWithId {
             operation_id,
             message: AgentRequest::SaveCreate(name.to_string()),
         }),
-        &"ConfigAdminListGet" => Some(AgentRequestWithId {
+        "ModsGet" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ModsGet,
+        }),
+        "ModsSet" => {
+            let json = args.into_iter().skip(1).collect::<Vec<_>>().join("");
+            serde_json::from_str(&json).ok().map(|list| {
+                AgentRequestWithId {
+                    operation_id,
+                    message: AgentRequest::ModsSet(list),
+                }
+            })
+        }
+        "ConfigAdminListGet" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigAdminListGet,
         }),
-        &"ConfigAdminListSet" => {
+        "ConfigAdminListSet" => {
             let al = args.iter().skip(1).map(|s| s.to_string()).collect();
             Some(AgentRequestWithId {
                 operation_id,
                 message: AgentRequest::ConfigAdminListSet { admins: al },
             })
         }
-        &"ConfigRconGet" => Some(AgentRequestWithId {
+        "ConfigRconGet" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigRconGet,
         }),
-        &"ConfigRconSet" => args.get(1).map(|pw| AgentRequestWithId {
+        "ConfigRconSet" => args.get(1).map(|pw| AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigRconSet {
                 password: pw.to_string(),
             },
         }),
-        &"ConfigServerSettingsGet" => Some(AgentRequestWithId {
+        "ConfigSecretsGet" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ConfigSecretsGet,
+        }),
+        "ConfigSecretsSet" => args
+            .get(1)
+            .map(|username| {
+                args.get(2).map(|token| AgentRequestWithId {
+                    operation_id,
+                    message: AgentRequest::ConfigSecretsSet {
+                        username: username.to_string(),
+                        token: token.to_string(),
+                    },
+                })
+            })
+            .flatten(),
+        "ConfigServerSettingsGet" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigServerSettingsGet,
         }),
-        &"ConfigServerSettingsSet" => args.get(1).map(|json| AgentRequestWithId {
+        "ConfigServerSettingsSet" => args.get(1).map(|json| AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigServerSettingsSet {
                 json: json.to_string(), // BUG whitespace in the json breaks this
             },
         }),
-        &"RconCommand" => args.get(1).map(|cmd| AgentRequestWithId {
+        "RconCommand" => args.get(1).map(|cmd| AgentRequestWithId {
             operation_id,
             message: AgentRequest::RconCommand(cmd.to_string()),
         }),

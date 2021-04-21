@@ -24,7 +24,10 @@ use futures_util::{
 use log::{debug, error, info, warn};
 // use logwatcher::LogWatcher;
 use rcon::Connection;
-use server::mods::ModManager;
+use server::{
+    mods::{Mod, ModManager},
+    settings::Secrets,
+};
 use tokio::{
     fs,
     net::{TcpListener, TcpStream},
@@ -259,6 +262,14 @@ impl AgentController {
                                 self.save_create(save_name, operation_id).await
                             }
 
+                            AgentRequest::ModsGet => {
+                                self.mods_get(operation_id).await;
+                            }
+
+                            AgentRequest::ModsSet(mod_list) => {
+                                self.mods_set(mod_list, operation_id).await;
+                            }
+
                             AgentRequest::ConfigAdminListGet => {
                                 self.config_admin_list_get(operation_id).await;
                             }
@@ -273,6 +284,14 @@ impl AgentController {
 
                             AgentRequest::ConfigRconSet { password } => {
                                 self.config_rcon_set(password, operation_id).await;
+                            }
+
+                            AgentRequest::ConfigSecretsGet => {
+                                self.config_secrets_get(operation_id).await;
+                            }
+
+                            AgentRequest::ConfigSecretsSet { username, token } => {
+                                self.config_secrets_set(username, token, operation_id).await;
                             }
 
                             AgentRequest::ConfigServerSettingsGet => {
@@ -626,13 +645,12 @@ impl AgentController {
         }
 
         // Mods
-        // TODO mod folder
         let mods;
         match ModManager::read_or_apply_default().await {
             Ok(m) => mods = m,
             Err(_e) => {
                 self.reply_failed(
-                    AgentOutMessage::Error("Failedto read or initialise mod directory".to_owned()),
+                    AgentOutMessage::Error("Failed to read or initialise mod directory".to_owned()),
                     operation_id,
                 )
                 .await;
@@ -806,6 +824,79 @@ impl AgentController {
         }
     }
 
+    async fn mods_get(&self, operation_id: OperationId) {
+        match ModManager::read_or_apply_default().await {
+            Ok(m) => {
+                let list = m
+                    .mods
+                    .iter()
+                    .map(|m| ModObject {
+                        name: m.name.clone(),
+                        version: m.version.clone(),
+                    })
+                    .collect();
+                self.reply_success(AgentOutMessage::ModsList(list), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to get mods: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn mods_set(&self, mod_list: Vec<ModObject>, operation_id: OperationId) {
+        match ModManager::read_or_apply_default().await {
+            Ok(mut m) => match Secrets::read().await {
+                Ok(Some(s)) => {
+                    m.mods = mod_list
+                        .into_iter()
+                        .map(|m| Mod {
+                            name: m.name,
+                            version: m.version,
+                        })
+                        .collect();
+                    match m.apply(&s).await {
+                        Ok(_) => {
+                            self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                        }
+                        Err(e) => {
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!(
+                                    "Failed to apply mod changes: {:?}",
+                                    e
+                                )),
+                                operation_id,
+                            )
+                            .await;
+                        }
+                    }
+                }
+                Ok(None) => {
+                    self.reply_failed(AgentOutMessage::MissingSecrets, operation_id)
+                        .await;
+                }
+                Err(e) => {
+                    self.reply_failed(
+                        AgentOutMessage::Error(format!("Failed to read secrets: {:?}", e)),
+                        operation_id,
+                    )
+                    .await;
+                }
+            },
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to initialise mod manager: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
     async fn config_admin_list_get(&self, operation_id: OperationId) {
         match AdminList::read_or_apply_default().await {
             Ok(al) => {
@@ -892,6 +983,47 @@ impl AgentController {
         }
     }
 
+    async fn config_secrets_get(&self, operation_id: OperationId) {
+        match Secrets::read().await {
+            Ok(Some(s)) => {
+                self.reply_success(
+                    AgentOutMessage::ConfigSecrets(Some(SecretsObject {
+                        username: s.username,
+                    })),
+                    operation_id,
+                )
+                .await;
+            }
+            Ok(None) => {
+                self.reply_success(AgentOutMessage::ConfigSecrets(None), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to read secrets: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_secrets_set(&self, username: String, token: String, operation_id: OperationId) {
+        let new = Secrets { username, token };
+        match new.write().await {
+            Ok(_) => {
+                self.reply_success(AgentOutMessage::Ok, operation_id).await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to set secrets: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
     async fn config_server_settings_get(&self, operation_id: OperationId) {
         if let Ok(Some(ss)) = ServerSettings::read().await {
             self.reply_success(AgentOutMessage::ConfigServerSettings(ss.json), operation_id)
@@ -947,7 +1079,7 @@ impl AgentController {
         //         error!("Couldn't send message to rcon: {:?}", e)
         //     }
         // }
-        // TODO
+        // TODO rcon
         let _ = cmd;
         self.reply_failed(
             AgentOutMessage::Error("Not yet implemented".to_owned()),

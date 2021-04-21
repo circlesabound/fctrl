@@ -40,6 +40,7 @@ fn codegen<P1: AsRef<Path>, P2: AsRef<Path>>(spec_file: P1, out_dir: P2) {
         .arg("generate")
         .args(&["--global-property", "models,modelDocs=false"])
         .args(&["-g", "rust"])
+        .arg(format!("--additional-properties=packageName={}", "test"))
         .arg("-i")
         .arg(spec_file.as_ref())
         .arg("-o")
@@ -49,15 +50,16 @@ fn codegen<P1: AsRef<Path>, P2: AsRef<Path>>(spec_file: P1, out_dir: P2) {
 }
 
 fn generate_single_include<P1: AsRef<Path>, P2: AsRef<Path>>(from_dir: P1, out_file: P2) {
-    let mut single = File::create(out_file).unwrap();
+    let mut single = File::create(&out_file).unwrap();
     writeln!(&mut single, "use serde::{{Deserialize, Serialize}};").unwrap();
     for file in fs::read_dir(PathBuf::from(from_dir.as_ref()).join("src").join("models")).unwrap() {
         let file = file.unwrap();
         if file.file_name().to_str().unwrap().ends_with(".rs") {
-            // let mod_name = file.file_name().to_str().unwrap().trim_end_matches(".rs");
             let contents = fs::read_to_string(file.path()).unwrap();
-            // writeln!(&mut single, "mod {} {{\n{}\n}}", mod_name, contents).unwrap();
-            writeln!(&mut single, "{}", contents).unwrap();
+            // rust generator prefaces models with `crate::models::`
+            // we have no need for namespaces since we manually import the code as a string
+            let contents_replaced_namespaces = contents.replace("crate::models::", "");
+            writeln!(&mut single, "{}", contents_replaced_namespaces).unwrap();
         }
     }
 }

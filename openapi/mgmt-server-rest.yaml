@@ -133,7 +133,6 @@ paths:
                   password:
                     type: string
                     description: Password for RCON connection
-
     put:
       summary: Pushes an RCON to the Factorio server for use.
       requestBody:
@@ -162,7 +161,6 @@ paths:
             application/json:
               schema:
                 title: ServerControlServerSettingsGetResponse
-
     put:
       summary: Pushes a server-settings file to the Factorio server for use.
       requestBody:
