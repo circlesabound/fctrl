@@ -87,7 +87,7 @@ impl ModManager {
                     settings: None,
                     path: MOD_DIR.clone(),
                 };
-                ret.apply_without_download().await?;
+                ret.apply_metadata_only().await?;
                 Ok(ret)
             }
         }
@@ -136,7 +136,7 @@ impl ModManager {
         }
 
         // Apply metadata changes regardless of actual success or failure
-        self.apply_without_download().await?;
+        self.apply_metadata_only().await?;
 
         let mut errors = vec![];
         let results = future::join_all(tasks).await;
@@ -162,7 +162,7 @@ impl ModManager {
         }
     }
 
-    async fn apply_without_download(&self) -> Result<()> {
+    pub async fn apply_metadata_only(&self) -> Result<()> {
         fs::create_dir_all(&*MOD_DIR).await?;
 
         // ModList impl automatically adds the base mod to its internal structure

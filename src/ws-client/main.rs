@@ -167,13 +167,23 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
         }),
         "ModsSet" => {
             let json = args.into_iter().skip(1).collect::<Vec<_>>().join("");
-            serde_json::from_str(&json).ok().map(|list| {
-                AgentRequestWithId {
+            serde_json::from_str(&json)
+                .ok()
+                .map(|list| AgentRequestWithId {
                     operation_id,
                     message: AgentRequest::ModsSet(list),
-                }
-            })
+                })
         }
+        "ModSettingsGet" => Some(AgentRequestWithId {
+            operation_id,
+            message: AgentRequest::ModSettingsGet,
+        }),
+        "ModSettingsSet" => args.get(1).map(|filename| {
+            std::fs::read(filename).ok().map(|bytes| AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::ModSettingsSet(bytes),
+            })
+        }).flatten(),
         "ConfigAdminListGet" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigAdminListGet,

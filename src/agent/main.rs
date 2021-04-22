@@ -1,6 +1,7 @@
 #![feature(trait_alias)]
 
 use std::{
+    convert::{TryFrom, TryInto},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
@@ -15,6 +16,7 @@ use crate::{
         StoppedInstance,
     },
 };
+use factorio_mod_settings_parser::ModSettings;
 use fctrl::schema::*;
 use futures::Sink;
 use futures_util::{
@@ -243,6 +245,9 @@ impl AgentController {
                         info!("Got incoming message from {}: {}", self.peer_addr, json);
                         let operation_id = msg.operation_id;
                         match msg.message {
+                            // ***********************
+                            // Installation management
+                            // ***********************
                             AgentRequest::VersionInstall {
                                 version,
                                 force_install,
@@ -250,6 +255,10 @@ impl AgentController {
                                 self.version_install(version, force_install, operation_id)
                                     .await
                             }
+
+                            // **************
+                            // Server control
+                            // **************
                             AgentRequest::ServerStart(savefile) => {
                                 self.server_start(savefile, operation_id).await
                             }
@@ -258,10 +267,16 @@ impl AgentController {
 
                             AgentRequest::ServerStatus => self.server_status(operation_id).await,
 
+                            // *******************
+                            // Savefile management
+                            // *******************
                             AgentRequest::SaveCreate(save_name) => {
                                 self.save_create(save_name, operation_id).await
                             }
 
+                            // **************
+                            // Mod management
+                            // **************
                             AgentRequest::ModsGet => {
                                 self.mods_get(operation_id).await;
                             }
@@ -270,6 +285,17 @@ impl AgentController {
                                 self.mods_set(mod_list, operation_id).await;
                             }
 
+                            AgentRequest::ModSettingsGet => {
+                                self.mod_settings_get(operation_id).await;
+                            }
+
+                            AgentRequest::ModSettingsSet(bytes) => {
+                                self.mod_settings_set(bytes, operation_id).await;
+                            }
+
+                            // *************
+                            // Configuration
+                            // *************
                             AgentRequest::ConfigAdminListGet => {
                                 self.config_admin_list_get(operation_id).await;
                             }
@@ -302,6 +328,9 @@ impl AgentController {
                                 self.config_server_settings_set(json, operation_id).await;
                             }
 
+                            // *******
+                            // In-game
+                            // *******
                             AgentRequest::RconCommand(cmd) => {
                                 self.rcon_command(cmd, operation_id).await
                             }
@@ -890,6 +919,87 @@ impl AgentController {
             Err(e) => {
                 self.reply_failed(
                     AgentOutMessage::Error(format!("Failed to initialise mod manager: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn mod_settings_get(&self, operation_id: OperationId) {
+        match ModManager::read_or_apply_default().await {
+            Ok(m) => {
+                if let Some(s) = m.settings {
+                    match s.try_into() {
+                        Ok(bytes) => {
+                            self.reply_success(
+                                AgentOutMessage::ModSettings(Some(bytes)),
+                                operation_id,
+                            )
+                            .await;
+                        }
+                        Err(e) => {
+                            error!("Failed to serialise ModSettings: {:?}", e);
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!(
+                                    "Failed to parse ModSettings: {:?}",
+                                    e
+                                )),
+                                operation_id,
+                            )
+                            .await;
+                        }
+                    }
+                } else {
+                    self.reply_success(AgentOutMessage::ModSettings(None), operation_id)
+                        .await;
+                }
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to get mods: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn mod_settings_set(&self, bytes: Vec<u8>, operation_id: OperationId) {
+        match ModManager::read_or_apply_default().await {
+            Ok(mut m) => {
+                // Validate by attempting to parse
+                match ModSettings::try_from(bytes.as_ref()) {
+                    Ok(ms) => {
+                        m.settings = Some(ms);
+                        if let Err(e) = m.apply_metadata_only().await {
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!(
+                                    "Unable to write mod settings: {:?}",
+                                    e
+                                )),
+                                operation_id,
+                            )
+                            .await;
+                        } else {
+                            self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                        }
+                    }
+                    Err(e) => {
+                        self.reply_failed(
+                            AgentOutMessage::Error(format!(
+                                "Unable to parse mod settings: {:?}",
+                                e
+                            )),
+                            operation_id,
+                        )
+                        .await;
+                    }
+                }
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to get mods: {:?}", e)),
                     operation_id,
                 )
                 .await;

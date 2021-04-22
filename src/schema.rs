@@ -50,6 +50,8 @@ pub enum AgentRequest {
     // Mod management
     ModsGet,
     ModsSet(Vec<ModObject>),
+    ModSettingsGet,
+    ModSettingsSet(Vec<u8>),
 
     // Configuration
     ConfigAdminListGet,
@@ -101,6 +103,7 @@ pub enum AgentOutMessage {
     ConfigSecrets(Option<SecretsObject>),
     ConfigServerSettings(String),
     ModsList(Vec<ModObject>),
+    ModSettings(Option<Vec<u8>>),
     MissingSecrets,
     ServerStatus(ServerStatus),
 }
