@@ -320,7 +320,6 @@ dependencies = [
  "futures-util",
  "lazy_static",
  "log",
- "logwatcher",
  "nix",
  "rcon",
  "regex",
@@ -784,12 +783,6 @@ checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if 1.0.0",
 ]
-
-[[package]]
-name = "logwatcher"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d0925aed5b12ed59857f438d25a910cf051dbcd4107907be1e7abf6c44ec903"
 
 [[package]]
 name = "loom"

@@ -89,6 +89,8 @@ impl ServerBuilder {
 
         self.with_cli_args(&["--server-adminlist", admin_list.path.to_str().unwrap()]);
 
+        self.with_cli_args(&["--mod-directory", mods.path.to_str().unwrap()]);
+
         ServerHostBuilder {
             cmd_builder: self.cmd_builder,
             stdout_handler: self.stdout_handler,

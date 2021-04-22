@@ -105,6 +105,7 @@ pub enum AgentOutMessage {
     ModsList(Vec<ModObject>),
     ModSettings(Option<Vec<u8>>),
     MissingSecrets,
+    RconResponse(String),
     ServerStatus(ServerStatus),
 }
 

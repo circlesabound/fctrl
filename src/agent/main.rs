@@ -24,8 +24,6 @@ use futures_util::{
     SinkExt, StreamExt,
 };
 use log::{debug, error, info, warn};
-// use logwatcher::LogWatcher;
-use rcon::Connection;
 use server::{
     mods::{Mod, ModManager},
     settings::Secrets,
@@ -57,17 +55,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Init Factorio server process management");
     let proc_manager = Arc::new(ProcessManager::new());
 
-    // TODO rework rcon, likely include it as part of factorio instance
-    let rcon = None;
-    // info!("Init RCON");
-    // let rcon;
-    // if let Some(rcon_config) = config.rcon {
-    //     rcon = Some(rcon_connect(&rcon_config).await?);
-    // } else {
-    //     warn!("No RCON connection established as config section is missing");
-    //     rcon = None;
-    // }
-
     let (global_bus_tx, ..) = broadcast::channel::<AgentStreamingMessage>(50);
 
     info!("Init WebSocketListener");
@@ -92,7 +79,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             sigint_rx,
             Arc::new(global_bus_tx),
             Arc::clone(&proc_manager),
-            Arc::new(Mutex::new(rcon)),
             version_manager,
         )
         .await;
@@ -121,7 +107,6 @@ impl WebSocketListener {
         mut shutdown_rx: watch::Receiver<bool>,
         global_bus_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
         proc_manager: Arc<ProcessManager>,
-        rcon: Arc<Mutex<Option<Connection>>>,
         version_manager: Arc<Mutex<VersionManager>>,
     ) {
         loop {
@@ -133,7 +118,6 @@ impl WebSocketListener {
                             shutdown_rx.clone(),
                             Arc::clone(&global_bus_tx),
                             Arc::clone(&proc_manager),
-                            Arc::clone(&rcon),
                             Arc::clone(&version_manager),
                         )
                         .await
@@ -170,7 +154,6 @@ impl WebSocketListener {
 struct AgentController {
     peer_addr: SocketAddr,
     proc_manager: Arc<ProcessManager>,
-    rcon: Arc<Mutex<Option<Connection>>>,
     version_manager: Arc<Mutex<VersionManager>>,
     global_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
     ws_rx: SplitStream<WebSocketStream<TcpStream>>,
@@ -185,7 +168,6 @@ impl AgentController {
         mut shutdown_rx: watch::Receiver<bool>,
         global_bus_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
         proc_manager: Arc<ProcessManager>,
-        rcon: Arc<Mutex<Option<Connection>>>,
         version_manager: Arc<Mutex<VersionManager>>,
     ) -> tungstenite::Result<AgentController> {
         let peer_addr = tcp.peer_addr()?;
@@ -227,7 +209,6 @@ impl AgentController {
         Ok(AgentController {
             peer_addr,
             proc_manager,
-            rcon,
             version_manager,
             global_tx: global_bus_tx,
             ws_rx,
@@ -352,6 +333,11 @@ impl AgentController {
                 }
                 Err(e) => {
                     error!("error with incoming message: {:?}", e);
+                    if let tungstenite::Error::Io(io_error) = e {
+                        if io_error.kind() == std::io::ErrorKind::BrokenPipe {
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -772,7 +758,8 @@ impl AgentController {
                 server::InternalServerState::Ready
                 | server::InternalServerState::PreparedToHostGame
                 | server::InternalServerState::CreatingGame => ServerStatus::PreGame,
-                server::InternalServerState::InGame => ServerStatus::InGame,
+                server::InternalServerState::InGame
+                | server::InternalServerState::InGameSavingMap => ServerStatus::InGame,
                 server::InternalServerState::DisconnectingScheduled
                 | server::InternalServerState::Disconnecting
                 | server::InternalServerState::Disconnected
@@ -1183,63 +1170,19 @@ impl AgentController {
     }
 
     async fn rcon_command(&self, cmd: String, operation_id: OperationId) {
-        // let mut mg = self.rcon.as_ref().lock().await;
-        // if let Some(rcon) = mg.as_mut() {
-        //     if let Err(e) = rcon.cmd(&cmd).await {
-        //         error!("Couldn't send message to rcon: {:?}", e)
-        //     }
-        // }
-        // TODO rcon
-        let _ = cmd;
-        self.reply_failed(
-            AgentOutMessage::Error("Not yet implemented".to_owned()),
-            operation_id,
-        )
-        .await;
+        match self.proc_manager.send_rcon_command_to_instance(&cmd).await {
+            Ok(s) => {
+                self.reply_success(AgentOutMessage::RconResponse(s), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                error!("Couldn't send command to RCON: {:?}", e);
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Couldn't send command to RCON: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
     }
 }
-
-// async fn rcon_connect(rcon_config: &RconConfig) -> Result<rcon::Connection, rcon::Error> {
-//     info!("Attempting to connect to RCON at {}", rcon_config.address);
-//     let conn = rcon::Connection::builder()
-//         .enable_factorio_quirks(true)
-//         .connect(rcon_config.address.to_owned(), &rcon_config.password)
-//         .await?;
-//     info!("Connected to RCON at {}", rcon_config.address);
-//     Ok(conn)
-// }
-
-// fn try_parse_console_out_message(line: &str) -> Option<ConsoleOutMessage> {
-//     lazy_static! {
-//         static ref CHAT_RE: Regex =
-//             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();
-//         static ref JOIN_RE: Regex = Regex::new(
-//             r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+): joined the game$"
-//         )
-//         .unwrap();
-//         static ref LEAVE_RE: Regex =
-//             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$")
-//                 .unwrap();
-//     }
-
-//     if let Some(chat_captures) = CHAT_RE.captures(line) {
-//         let timestamp = chat_captures.get(1).unwrap().as_str().to_string();
-//         let user = chat_captures.get(2).unwrap().as_str().to_string();
-//         let msg = chat_captures.get(3).unwrap().as_str().to_string();
-//         Some(ConsoleOutMessage::Chat {
-//             timestamp,
-//             user,
-//             msg,
-//         })
-//     } else if let Some(join_captures) = JOIN_RE.captures(line) {
-//         let timestamp = join_captures.get(1).unwrap().as_str().to_string();
-//         let user = join_captures.get(2).unwrap().as_str().to_string();
-//         Some(ConsoleOutMessage::Join { timestamp, user })
-//     } else if let Some(leave_captures) = LEAVE_RE.captures(line) {
-//         let timestamp = leave_captures.get(1).unwrap().as_str().to_string();
-//         let user = leave_captures.get(2).unwrap().as_str().to_string();
-//         Some(ConsoleOutMessage::Leave { timestamp, user })
-//     } else {
-//         None
-//     }
-// }

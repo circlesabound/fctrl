@@ -1,9 +1,12 @@
-use std::process::ExitStatus;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{
+    net::{Ipv4Addr, SocketAddrV4},
+    process::ExitStatus,
+};
 
 use lazy_static::lazy_static;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -17,12 +20,14 @@ use tokio::sync::RwLock;
 use crate::error::{Error, Result};
 use fctrl::schema::ServerStartSaveFile;
 
-use mods::*;
 use settings::*;
+
+use self::rcon::Rcon;
 
 pub mod builder;
 pub mod mods;
 pub mod proc;
+pub mod rcon;
 pub mod settings;
 
 pub trait HandlerFn = Fn(String) + Send + Sync + 'static;
@@ -47,13 +52,20 @@ impl StartableInstance {
                 .map_or("None".to_owned(), |pid| pid.to_string())
         );
 
+        let rcon = Arc::new(RwLock::new(None));
+        let rcon_arc = Arc::clone(&rcon);
+        let configured_rcon_bind = self.launch_settings.rcon_bind.clone();
+        let rcon_password_clone = self.launch_settings.rcon_password.clone();
+
         let out_stream = instance.stdout.take().unwrap();
         let err_stream = instance.stderr.take().unwrap();
 
         let internal_server_state = Arc::new(RwLock::new(InternalServerState::Ready));
-        let internal_server_state_clone = Arc::clone(&internal_server_state);
+        let internal_server_state_arc = Arc::clone(&internal_server_state);
         let internal_stdout_handler = self.stdout_handler;
         tokio::spawn(async move {
+            let mut rcon_initialised = false;
+
             let mut lines = tokio::io::BufReader::new(out_stream).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 // Parse for internal server state
@@ -63,15 +75,59 @@ impl StartableInstance {
                             .unwrap();
                 }
                 if let Some(captures) = STATE_CHANGE_RE.captures(&line) {
-                    let from =
-                        InternalServerState::from_str(captures.get(1).unwrap().as_str()).unwrap();
-                    let to =
-                        InternalServerState::from_str(captures.get(2).unwrap().as_str()).unwrap();
-                    info!(
-                        "Server switching internal state from {:?} to {:?}",
-                        from, to
-                    );
-                    *internal_server_state_clone.write().await = to;
+                    if let Ok(from) =
+                        InternalServerState::from_str(captures.get(1).unwrap().as_str())
+                    {
+                        if let Ok(to) =
+                            InternalServerState::from_str(captures.get(2).unwrap().as_str())
+                        {
+                            info!(
+                                "Server switching internal state from {:?} to {:?}",
+                                from, to
+                            );
+                            *internal_server_state_arc.write().await = to;
+                        } else {
+                            warn!("Server internal state change but could not parse 'to' state from log: {}", line);
+                        }
+                    } else {
+                        warn!("Server internal state change but could not parse 'from' state from log: {}", line);
+                    }
+                }
+
+                // If not already open, parse for "RCON ready message"
+                lazy_static! {
+                    static ref RCON_READY_RE: Regex = Regex::new(
+                        r"Starting RCON interface at IP ADDR:\(\{\d+\.\d+\.\d+\.\d+:(\d+)\}\)"
+                    )
+                    .unwrap();
+                }
+                if !rcon_initialised {
+                    if let Some(captures) = RCON_READY_RE.captures(&line) {
+                        match u16::from_str(captures.get(1).unwrap().as_str()) {
+                            Ok(port) => {
+                                if port != configured_rcon_bind.port() {
+                                    warn!("RCON bound port was configured to be {}, but Factorio is using port {} instead!", configured_rcon_bind.port(), port);
+                                }
+                                match Rcon::connect(
+                                    SocketAddrV4::new(Ipv4Addr::LOCALHOST, port),
+                                    &rcon_password_clone,
+                                )
+                                .await
+                                {
+                                    Ok(rcon) => {
+                                        *rcon_arc.write().await = Some(rcon);
+                                        rcon_initialised = true;
+                                    }
+                                    Err(e) => {
+                                        error!("Error connecting to RCON: {:?}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Error parsing RCON ready stdout message: {:?}", e);
+                            }
+                        }
+                    }
                 }
 
                 // Pass off to stdout handler
@@ -89,6 +145,7 @@ impl StartableInstance {
 
         Ok(StartedInstance {
             process: instance,
+            rcon,
             internal_server_state,
             admin_list: self.admin_list,
             launch_settings: self.launch_settings,
@@ -101,6 +158,7 @@ impl StartableInstance {
 
 pub struct StartedInstance {
     process: Child,
+    rcon: Arc<RwLock<Option<Rcon>>>,
     internal_server_state: Arc<RwLock<InternalServerState>>,
     admin_list: AdminList,
     launch_settings: LaunchSettings,
@@ -173,6 +231,10 @@ impl StartedInstance {
     pub async fn get_internal_server_state(&self) -> InternalServerState {
         self.internal_server_state.read().await.clone()
     }
+
+    pub async fn get_rcon(&self) -> tokio::sync::RwLockReadGuard<'_, Option<Rcon>> {
+        self.rcon.read().await
+    }
 }
 
 pub struct StoppedInstance {
@@ -241,6 +303,7 @@ pub enum InternalServerState {
     PreparedToHostGame,
     CreatingGame,
     InGame,
+    InGameSavingMap,
     DisconnectingScheduled,
     Disconnecting,
     Disconnected,

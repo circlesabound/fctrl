@@ -166,7 +166,7 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
             message: AgentRequest::ModsGet,
         }),
         "ModsSet" => {
-            let json = args.into_iter().skip(1).collect::<Vec<_>>().join("");
+            let json = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
             serde_json::from_str(&json)
                 .ok()
                 .map(|list| AgentRequestWithId {
@@ -178,12 +178,17 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
             operation_id,
             message: AgentRequest::ModSettingsGet,
         }),
-        "ModSettingsSet" => args.get(1).map(|filename| {
-            std::fs::read(filename).ok().map(|bytes| AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::ModSettingsSet(bytes),
+        "ModSettingsSet" => args
+            .get(1)
+            .map(|filename| {
+                std::fs::read(filename)
+                    .ok()
+                    .map(|bytes| AgentRequestWithId {
+                        operation_id,
+                        message: AgentRequest::ModSettingsSet(bytes),
+                    })
             })
-        }).flatten(),
+            .flatten(),
         "ConfigAdminListGet" => Some(AgentRequestWithId {
             operation_id,
             message: AgentRequest::ConfigAdminListGet,
@@ -225,16 +230,22 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
             operation_id,
             message: AgentRequest::ConfigServerSettingsGet,
         }),
-        "ConfigServerSettingsSet" => args.get(1).map(|json| AgentRequestWithId {
-            operation_id,
-            message: AgentRequest::ConfigServerSettingsSet {
-                json: json.to_string(), // BUG whitespace in the json breaks this
-            },
-        }),
-        "RconCommand" => args.get(1).map(|cmd| AgentRequestWithId {
-            operation_id,
-            message: AgentRequest::RconCommand(cmd.to_string()),
-        }),
+        "ConfigServerSettingsSet" => {
+            let json = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
+            Some(AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::ConfigServerSettingsSet {
+                    json,
+                },
+            })
+        }
+        "RconCommand" => {
+            let cmd = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
+            Some(AgentRequestWithId {
+                operation_id,
+                message: AgentRequest::RconCommand(cmd),
+            })
+        }
         _ => None,
     }
 }

@@ -4,6 +4,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     // Process management
     ProcessAlreadyRunning,
+    ProcessNotRunning,
     ProcessPidError,
     ProcessSignalError(nix::Error),
 
@@ -13,6 +14,10 @@ pub enum Error {
         mod_version: String,
     },
 
+    // RCON
+    RconEmptyCommand,
+    RconNotConnected,
+
     // Generic
     Aggregate(Vec<Error>),
 
@@ -20,6 +25,7 @@ pub enum Error {
     Io(std::io::Error),
     Json(serde_json::error::Error),
     ModSettingsSerde(factorio_mod_settings_parser::Error),
+    Rcon(rcon::Error),
     Reqwest(reqwest::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
@@ -48,6 +54,12 @@ impl From<serde_json::error::Error> for Error {
 impl From<factorio_mod_settings_parser::Error> for Error {
     fn from(e: factorio_mod_settings_parser::Error) -> Self {
         Error::ModSettingsSerde(e)
+    }
+}
+
+impl From<rcon::Error> for Error {
+    fn from(e: rcon::Error) -> Self {
+        Error::Rcon(e)
     }
 }
 

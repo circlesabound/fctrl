@@ -97,6 +97,19 @@ impl ProcessManager {
         Ok(stopped)
     }
 
+    pub async fn send_rcon_command_to_instance(&self, cmd: &str) -> Result<String> {
+        let mg = self.running_instance.lock().await;
+        if let Some(instance) = mg.as_ref() {
+            if let Some(rcon) = instance.get_rcon().await.as_ref() {
+                Ok(rcon.send(cmd).await?)
+            } else {
+                Err(Error::RconNotConnected)
+            }
+        } else {
+            Err(Error::ProcessNotRunning)
+        }
+    }
+
     async fn internal_status(&self) -> ProcessStatus {
         let mg = self.running_instance.lock().await;
         if let Some(started) = mg.as_ref() {
