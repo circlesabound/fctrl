@@ -161,17 +161,17 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
             operation_id,
             message: AgentRequest::SaveCreate(name.to_string()),
         }),
-        "ModsGet" => Some(AgentRequestWithId {
+        "ModListGet" => Some(AgentRequestWithId {
             operation_id,
-            message: AgentRequest::ModsGet,
+            message: AgentRequest::ModListGet,
         }),
-        "ModsSet" => {
+        "ModListSet" => {
             let json = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
             serde_json::from_str(&json)
                 .ok()
                 .map(|list| AgentRequestWithId {
                     operation_id,
-                    message: AgentRequest::ModsSet(list),
+                    message: AgentRequest::ModListSet(list),
                 })
         }
         "ModSettingsGet" => Some(AgentRequestWithId {
@@ -234,9 +234,7 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
             let json = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
             Some(AgentRequestWithId {
                 operation_id,
-                message: AgentRequest::ConfigServerSettingsSet {
-                    json,
-                },
+                message: AgentRequest::ConfigServerSettingsSet { json },
             })
         }
         "RconCommand" => {

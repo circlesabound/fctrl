@@ -31,7 +31,7 @@ use server::{
 use tokio::{
     fs,
     net::{TcpListener, TcpStream},
-    sync::{broadcast, watch, Mutex},
+    sync::{broadcast, watch, Mutex, RwLock},
     task::JoinHandle,
 };
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     info!("Init Factorio installation manager");
-    let version_manager = Arc::new(Mutex::new(
+    let version_manager = Arc::new(RwLock::new(
         VersionManager::new(&*FACTORIO_INSTALL_DIR).await?,
     ));
 
@@ -107,7 +107,7 @@ impl WebSocketListener {
         mut shutdown_rx: watch::Receiver<bool>,
         global_bus_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
         proc_manager: Arc<ProcessManager>,
-        version_manager: Arc<Mutex<VersionManager>>,
+        version_manager: Arc<RwLock<VersionManager>>,
     ) {
         loop {
             tokio::select! {
@@ -154,7 +154,7 @@ impl WebSocketListener {
 struct AgentController {
     peer_addr: SocketAddr,
     proc_manager: Arc<ProcessManager>,
-    version_manager: Arc<Mutex<VersionManager>>,
+    version_manager: Arc<RwLock<VersionManager>>,
     global_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
     ws_rx: SplitStream<WebSocketStream<TcpStream>>,
     ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
@@ -168,7 +168,7 @@ impl AgentController {
         mut shutdown_rx: watch::Receiver<bool>,
         global_bus_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
         proc_manager: Arc<ProcessManager>,
-        version_manager: Arc<Mutex<VersionManager>>,
+        version_manager: Arc<RwLock<VersionManager>>,
     ) -> tungstenite::Result<AgentController> {
         let peer_addr = tcp.peer_addr()?;
         let ws = accept_async(tcp).await?;
@@ -237,6 +237,10 @@ impl AgentController {
                                     .await
                             }
 
+                            AgentRequest::VersionGet => {
+                                self.version_get(operation_id).await;
+                            }
+
                             // **************
                             // Server control
                             // **************
@@ -255,15 +259,19 @@ impl AgentController {
                                 self.save_create(save_name, operation_id).await
                             }
 
+                            AgentRequest::SaveList => {
+                                self.save_list(operation_id).await;
+                            }
+
                             // **************
                             // Mod management
                             // **************
-                            AgentRequest::ModsGet => {
-                                self.mods_get(operation_id).await;
+                            AgentRequest::ModListGet => {
+                                self.mod_list_get(operation_id).await;
                             }
 
-                            AgentRequest::ModsSet(mod_list) => {
-                                self.mods_set(mod_list, operation_id).await;
+                            AgentRequest::ModListSet(mod_list) => {
+                                self.mod_list_set(mod_list, operation_id).await;
                             }
 
                             AgentRequest::ModSettingsGet => {
@@ -445,7 +453,7 @@ impl AgentController {
         force_install: bool,
         operation_id: OperationId,
     ) {
-        let mut vm = self.version_manager.lock().await;
+        let mut vm = self.version_manager.write().await;
 
         // Assume there is at most one version installed
         match vm.versions.keys().next() {
@@ -606,17 +614,31 @@ impl AgentController {
         }
     }
 
-    async fn server_start(&self, savefile: ServerStartSaveFile, operation_id: OperationId) {
-        // assume there is at most one version installed
-        let vm = self.version_manager.lock().await;
-        let version;
+    async fn version_get(&self, operation_id: OperationId) {
+        let vm = self.version_manager.read().await;
         match vm.versions.values().next() {
             None => {
-                self.reply_failed(
-                    AgentOutMessage::Error("No installations of factorio detected".to_owned()),
+                self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                    .await;
+            }
+            Some(v) => {
+                self.reply_success(
+                    AgentOutMessage::FactorioVersion(v.version.clone().into()),
                     operation_id,
                 )
                 .await;
+            }
+        }
+    }
+
+    async fn server_start(&self, savefile: ServerStartSaveFile, operation_id: OperationId) {
+        // assume there is at most one version installed
+        let vm = self.version_manager.read().await;
+        let version;
+        match vm.versions.values().next() {
+            None => {
+                self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                    .await;
                 return;
             }
             Some(v) => {
@@ -772,15 +794,12 @@ impl AgentController {
 
     async fn save_create(&self, save_name: String, operation_id: OperationId) {
         // assume there is at most one version installed
-        let version_mg = self.version_manager.lock().await;
+        let version_mg = self.version_manager.read().await;
         let version;
         match version_mg.versions.values().next() {
             None => {
-                self.reply_failed(
-                    AgentOutMessage::Error("No installations of Factorio detected".to_owned()),
-                    operation_id,
-                )
-                .await;
+                self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                    .await;
                 return;
             }
             Some(v) => {
@@ -840,7 +859,23 @@ impl AgentController {
         }
     }
 
-    async fn mods_get(&self, operation_id: OperationId) {
+    async fn save_list(&self, operation_id: OperationId) {
+        match util::saves::list_savefiles().await {
+            Ok(saves) => {
+                self.reply_success(AgentOutMessage::SaveList(saves), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to list saves: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn mod_list_get(&self, operation_id: OperationId) {
         match ModManager::read_or_apply_default().await {
             Ok(m) => {
                 let list = m
@@ -864,7 +899,7 @@ impl AgentController {
         }
     }
 
-    async fn mods_set(&self, mod_list: Vec<ModObject>, operation_id: OperationId) {
+    async fn mod_list_set(&self, mod_list: Vec<ModObject>, operation_id: OperationId) {
         match ModManager::read_or_apply_default().await {
             Ok(mut m) => match Secrets::read().await {
                 Ok(Some(s)) => {
@@ -1128,7 +1163,7 @@ impl AgentController {
             return;
         }
 
-        let vm = self.version_manager.lock().await;
+        let vm = self.version_manager.read().await;
         if let Some((_, version)) = vm.versions.iter().next() {
             match ServerSettings::read_or_apply_default(version).await {
                 Ok(ss) => {

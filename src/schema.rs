@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // ******************************************
@@ -38,6 +39,7 @@ pub enum AgentRequest {
         version: String,
         force_install: bool,
     },
+    VersionGet,
 
     // Server control
     ServerStart(ServerStartSaveFile),
@@ -46,10 +48,11 @@ pub enum AgentRequest {
 
     // Save management
     SaveCreate(String),
+    SaveList,
 
     // Mod management
-    ModsGet,
-    ModsSet(Vec<ModObject>),
+    ModListGet,
+    ModListSet(Vec<ModObject>),
     ModSettingsGet,
     ModSettingsSet(Vec<u8>),
 
@@ -102,10 +105,13 @@ pub enum AgentOutMessage {
     ConfigRcon { port: u16, password: String },
     ConfigSecrets(Option<SecretsObject>),
     ConfigServerSettings(String),
+    FactorioVersion(FactorioVersion),
     ModsList(Vec<ModObject>),
     ModSettings(Option<Vec<u8>>),
     MissingSecrets,
+    NotInstalled,
     RconResponse(String),
+    SaveList(Vec<Save>),
     ServerStatus(ServerStatus),
 }
 
@@ -121,6 +127,15 @@ pub enum ServerStatus {
     PreGame,
     InGame,
     PostGame,
+}
+
+#[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
+pub struct FactorioVersion(String);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Save {
+    pub name: String,
+    pub last_modified: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
