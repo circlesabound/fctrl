@@ -10,7 +10,7 @@ pub struct Rcon {
 }
 
 impl Rcon {
-    pub async fn connect<'a, T: ToSocketAddrs>(address: T, password: &'a str) -> Result<Rcon> {
+    pub async fn connect<T: ToSocketAddrs>(address: T, password: &str) -> Result<Rcon> {
         let connection = rcon::Connection::builder()
             .enable_factorio_quirks(true)
             .connect(address, password)
@@ -19,7 +19,7 @@ impl Rcon {
         Ok(Rcon { connection })
     }
 
-    pub async fn send<'a>(&self, cmd: &'a str) -> Result<String> {
+    pub async fn send(&self, cmd: &str) -> Result<String> {
         // There is a bug with either the RCON library or with Factorio:
         // If we send an empty string, Factorio will not respond, and RCON will wait forever
         // Catch this case here

@@ -54,11 +54,11 @@ impl StartableInstance {
 
         let rcon = Arc::new(RwLock::new(None));
         let rcon_arc = Arc::clone(&rcon);
-        let configured_rcon_bind = self.launch_settings.rcon_bind.clone();
+        let configured_rcon_bind = self.launch_settings.rcon_bind;
         let rcon_password_clone = self.launch_settings.rcon_password.clone();
 
-        let out_stream = instance.stdout.take().ok_or_else(|| Error::ProcessPipeError)?;
-        let err_stream = instance.stderr.take().ok_or_else(|| Error::ProcessPipeError)?;
+        let out_stream = instance.stdout.take().ok_or(Error::ProcessPipeError)?;
+        let err_stream = instance.stderr.take().ok_or(Error::ProcessPipeError)?;
 
         let internal_server_state = Arc::new(RwLock::new(InternalServerState::Ready));
         let internal_server_state_arc = Arc::clone(&internal_server_state);
@@ -261,8 +261,8 @@ impl StartableShortLivedInstance {
                 .map_or("None".to_owned(), |pid| pid.to_string())
         );
 
-        let out_stream = instance.stdout.take().ok_or_else(|| Error::ProcessPipeError)?;
-        let err_stream = instance.stderr.take().ok_or_else(|| Error::ProcessPipeError)?;
+        let out_stream = instance.stdout.take().ok_or(Error::ProcessPipeError)?;
+        let err_stream = instance.stderr.take().ok_or(Error::ProcessPipeError)?;
 
         let internal_stdout_handler = self.stdout_handler;
         let handle_out = tokio::spawn(async move {
