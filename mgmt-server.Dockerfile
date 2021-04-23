@@ -39,8 +39,7 @@ WORKDIR /app
 COPY web web
 WORKDIR /app/web
 RUN npm install
-RUN npm install -g @angular/cli
-RUN ng build --prod
+RUN npm run ng -- build --prod
 
 FROM debian:buster-slim AS runtime
 WORKDIR /app

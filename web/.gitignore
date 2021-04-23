@@ -1,5 +1,8 @@
 # See http://help.github.com/ignore-files/ for more about ignoring files.
 
+# codegen
+/src/app/mgmt-server-rest-api
+
 # compiled output
 /dist
 /tmp

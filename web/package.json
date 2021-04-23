@@ -1,13 +1,15 @@
 {
   "name": "web",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "test": "ng test",
-    "lint": "ng lint",
-    "e2e": "ng e2e"
+    "ng-openapi-gen": "ng-openapi-gen",
+    "codegen": "npm run ng-openapi-gen -- -c mgmt-server.json",
+    "start": "npm run codegen && ng serve",
+    "build": "npm run codegen && ng build",
+    "test": "npm run codegen && ng test",
+    "lint": "npm run codegen && ng lint",
+    "e2e": "npm run codegen && ng e2e"
   },
   "private": true,
   "dependencies": {
@@ -19,6 +21,12 @@
     "@angular/platform-browser": "~11.2.10",
     "@angular/platform-browser-dynamic": "~11.2.10",
     "@angular/router": "~11.2.10",
+    "@fortawesome/angular-fontawesome": "^0.8.2",
+    "@fortawesome/fontawesome-svg-core": "^1.2.34",
+    "@fortawesome/free-regular-svg-icons": "^5.15.2",
+    "@fortawesome/free-solid-svg-icons": "^5.15.2",
+    "bulma": "^0.9.2",
+    "ng-openapi-gen": "^0.17.0",
     "rxjs": "~6.6.0",
     "tslib": "^2.0.0",
     "zone.js": "~0.11.3"
