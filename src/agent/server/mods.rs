@@ -45,7 +45,10 @@ impl ModManager {
             while let Some(entry) = entries.next_entry().await? {
                 let path = entry.path();
                 if path != *MOD_LIST_PATH && path != *MOD_SETTINGS_PATH {
-                    mod_zip_names.push(path.file_name().unwrap().to_str().unwrap().to_string());
+                    mod_zip_names.push(
+                        path.file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid dir entry")))?);
                 }
             }
 

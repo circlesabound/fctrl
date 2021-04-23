@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::{ffi::OsString, process::Stdio};
 
 use tokio::process::Command;
 
@@ -46,10 +46,8 @@ impl ServerBuilder {
 
     pub fn creating_savefile(mut self, new_savefile_name: String) -> SaveCreatorBuilder {
         self.with_cli_args(&[
-            "--create",
-            util::saves::get_savefile_path(&new_savefile_name)
-                .to_str()
-                .unwrap(),
+            &OsString::from("--create"),
+            util::saves::get_savefile_path(&new_savefile_name).as_os_str(),
         ]);
         SaveCreatorBuilder {
             cmd_builder: self.cmd_builder,
@@ -69,10 +67,8 @@ impl ServerBuilder {
         match &savefile {
             ServerStartSaveFile::Latest => self.with_cli_args(&["--start-server-load-latest"]), // TODO this doesn't work with a custom save dir
             ServerStartSaveFile::Specific(savefile_name) => self.with_cli_args(&[
-                "--start-server",
-                util::saves::get_savefile_path(&savefile_name)
-                    .to_str()
-                    .unwrap(),
+                &OsString::from("--start-server"),
+                util::saves::get_savefile_path(&savefile_name).as_os_str(),
             ]),
         };
 
@@ -85,11 +81,20 @@ impl ServerBuilder {
             &launch_settings.rcon_password,
         ]);
 
-        self.with_cli_args(&["--server-settings", server_settings.path.to_str().unwrap()]);
+        self.with_cli_args(&[
+            &OsString::from("--server-settings"),
+            server_settings.path.as_os_str(),
+        ]);
 
-        self.with_cli_args(&["--server-adminlist", admin_list.path.to_str().unwrap()]);
+        self.with_cli_args(&[
+            &OsString::from("--server-adminlist"),
+            admin_list.path.as_os_str(),
+        ]);
 
-        self.with_cli_args(&["--mod-directory", mods.path.to_str().unwrap()]);
+        self.with_cli_args(&[
+            &OsString::from("--mod-directory"),
+            mods.path.as_os_str(),
+        ]);
 
         ServerHostBuilder {
             cmd_builder: self.cmd_builder,
@@ -111,7 +116,7 @@ impl ServerBuilder {
         self
     }
 
-    fn noop_stdout_handler(s: String) {
+    fn noop_stdout_handler(_line: String) {
         // do nothing
     }
 }

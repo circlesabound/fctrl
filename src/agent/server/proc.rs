@@ -126,27 +126,24 @@ impl ProcessManager {
                 Err(e) => {
                     // log and ignore for now, use in-process status
                     error!("Error polling process status: {:?}", e);
-                    return true;
+                    true
                 }
                 Ok(false) => {
                     // process still running
-                    return true;
+                    true
                 }
                 Ok(true) => {
                     // polled result shows process exited, update our status
-                    // code path continues after `else`
+                    // Manually wait (should be no-op), and drop StoppedInstance
+                    warn!("Detected premature process exited");
+                    let _ = mg.take().unwrap().wait().await; // safe since we hold the mutex guard
+                    false
                 }
             }
         } else {
             // not running to begin with
-            return false;
+            false
         }
-
-        // Continuation from mismatched polled result
-        // Manually wait (should be no-op), and drop StoppedInstance
-        warn!("Detected premature process exited");
-        let _ = mg.take().unwrap().wait().await;
-        false
     }
 }
 

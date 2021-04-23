@@ -15,7 +15,7 @@ pub async fn download<T: reqwest::IntoUrl>(id: &str, uri: T) -> Result<Bytes> {
     match reqwest::get(uri).await {
         Ok(response) => match response.error_for_status() {
             Ok(response) => {
-                let bytes = response.bytes().await.unwrap();
+                let bytes = response.bytes().await?;
                 debug!("Download succesful, downloaded {} bytes", bytes.len());
                 write_to_cache(id, &bytes).await?;
                 Ok(bytes)

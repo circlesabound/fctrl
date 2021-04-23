@@ -6,6 +6,7 @@ pub enum Error {
     ProcessAlreadyRunning,
     ProcessNotRunning,
     ProcessPidError,
+    ProcessPipeError,
     ProcessSignalError(nix::Error),
 
     // Mods
