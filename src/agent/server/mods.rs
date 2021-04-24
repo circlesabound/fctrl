@@ -48,7 +48,13 @@ impl ModManager {
                     mod_zip_names.push(
                         path.file_name()
                             .map(|name| name.to_string_lossy().into_owned())
-                            .ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid dir entry")))?);
+                            .ok_or_else(|| {
+                                Error::Io(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    "invalid dir entry",
+                                ))
+                            })?,
+                    );
                 }
             }
 

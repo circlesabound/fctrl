@@ -125,7 +125,7 @@ pub enum ServerStartSaveFile {
 pub enum ServerStatus {
     NotRunning,
     PreGame,
-    InGame,
+    InGame { player_count: u32 },
     PostGame,
 }
 

@@ -91,10 +91,7 @@ impl ServerBuilder {
             admin_list.path.as_os_str(),
         ]);
 
-        self.with_cli_args(&[
-            &OsString::from("--mod-directory"),
-            mods.path.as_os_str(),
-        ]);
+        self.with_cli_args(&[&OsString::from("--mod-directory"), mods.path.as_os_str()]);
 
         ServerHostBuilder {
             cmd_builder: self.cmd_builder,

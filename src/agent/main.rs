@@ -776,12 +776,17 @@ impl AgentController {
     async fn server_status(&self, operation_id: OperationId) {
         let status = match self.proc_manager.status().await {
             server::proc::ProcessStatus::NotRunning => ServerStatus::NotRunning,
-            server::proc::ProcessStatus::Running(s) => match s {
+            server::proc::ProcessStatus::Running {
+                server_state,
+                player_count,
+            } => match server_state {
                 server::InternalServerState::Ready
                 | server::InternalServerState::PreparedToHostGame
                 | server::InternalServerState::CreatingGame => ServerStatus::PreGame,
                 server::InternalServerState::InGame
-                | server::InternalServerState::InGameSavingMap => ServerStatus::InGame,
+                | server::InternalServerState::InGameSavingMap => {
+                    ServerStatus::InGame { player_count }
+                }
                 server::InternalServerState::DisconnectingScheduled
                 | server::InternalServerState::Disconnecting
                 | server::InternalServerState::Disconnected

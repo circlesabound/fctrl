@@ -31,7 +31,14 @@ pub async fn list_savefiles() -> Result<Vec<Save>> {
 fn parse_from_path<P: AsRef<Path>>(path: P) -> Result<Save> {
     if let Some(ext) = path.as_ref().extension() {
         if ext == "zip" {
-            let name = path.as_ref().file_stem().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid path for save"))?.to_string_lossy().into_owned();
+            let name = path
+                .as_ref()
+                .file_stem()
+                .ok_or_else(|| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid path for save")
+                })?
+                .to_string_lossy()
+                .into_owned();
             let last_modified = path.as_ref().metadata()?.modified()?.into();
             return Ok(Save {
                 name,

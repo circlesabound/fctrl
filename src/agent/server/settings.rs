@@ -62,7 +62,14 @@ impl LaunchSettings {
 
     pub async fn write(&self) -> Result<()> {
         let path = &*LAUNCH_SETTINGS_PATH;
-        if let Err(e) = fs::create_dir_all(path.parent().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid launch settings path"))?).await {
+        if let Err(e) = fs::create_dir_all(path.parent().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid launch settings path",
+            )
+        })?)
+        .await
+        {
             error!(
                 "Error creating directory structure for launch settings: {:?}",
                 e
@@ -125,7 +132,11 @@ impl Secrets {
 
     pub async fn write(&self) -> Result<()> {
         let path = &*SECRETS_PATH;
-        if let Err(e) = fs::create_dir_all(path.parent().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid secrets path"))?).await {
+        if let Err(e) = fs::create_dir_all(path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid secrets path")
+        })?)
+        .await
+        {
             error!(
                 "Error creating directory structure for secrets file: {:?}",
                 e
@@ -199,17 +210,16 @@ impl AdminList {
     }
 
     pub async fn write(&self) -> Result<()> {
-        if let Err(e) = fs::create_dir_all(self.path.parent().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid admin list path"))?).await {
+        if let Err(e) = fs::create_dir_all(self.path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid admin list path")
+        })?)
+        .await
+        {
             error!("Error creating directory structure for admin list: {:?}", e);
             return Err(e.into());
         }
 
-        if let Err(e) = fs::write(
-            &self.path,
-            serde_json::to_string_pretty(&self.list)?,
-        )
-        .await
-        {
+        if let Err(e) = fs::write(&self.path, serde_json::to_string_pretty(&self.list)?).await {
             error!(
                 "Error writing admin list to {}: {:?}",
                 self.path.display(),
@@ -275,7 +285,14 @@ impl ServerSettings {
     }
 
     pub async fn write(&self) -> Result<()> {
-        if let Err(e) = fs::create_dir_all(self.path.parent().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid server settings path"))?).await {
+        if let Err(e) = fs::create_dir_all(self.path.parent().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid server settings path",
+            )
+        })?)
+        .await
+        {
             error!(
                 "Error creating directory structure for server settings: {:?}",
                 e

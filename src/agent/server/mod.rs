@@ -1,8 +1,11 @@
-use std::str::FromStr;
 use std::sync::Arc;
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
     process::ExitStatus,
+};
+use std::{
+    str::FromStr,
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 use lazy_static::lazy_static;
@@ -63,6 +66,9 @@ impl StartableInstance {
         let internal_server_state = Arc::new(RwLock::new(InternalServerState::Ready));
         let internal_server_state_arc = Arc::clone(&internal_server_state);
         let internal_stdout_handler = self.stdout_handler;
+
+        let player_count = Arc::new(AtomicU32::new(0));
+        let player_count_arc = Arc::clone(&player_count);
         tokio::spawn(async move {
             let mut rcon_initialised = false;
 
@@ -92,6 +98,23 @@ impl StartableInstance {
                     } else {
                         warn!("Server internal state change but could not parse 'from' state from log: {}", line);
                     }
+                }
+
+                // Parse for player join / leave, update counter
+                lazy_static! {
+                    static ref JOIN_RE: Regex = Regex::new(
+                        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+): joined the game$"
+                    )
+                    .unwrap();
+                    static ref LEAVE_RE: Regex = Regex::new(
+                        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$"
+                    )
+                    .unwrap();
+                }
+                if JOIN_RE.is_match(&line) {
+                    player_count_arc.fetch_add(1, Ordering::Relaxed);
+                } else if LEAVE_RE.is_match(&line) {
+                    player_count_arc.fetch_sub(1, Ordering::Relaxed);
                 }
 
                 // If not already open, parse for "RCON ready message"
@@ -147,6 +170,7 @@ impl StartableInstance {
             process: instance,
             rcon,
             internal_server_state,
+            player_count,
             admin_list: self.admin_list,
             launch_settings: self.launch_settings,
             savefile: self.savefile,
@@ -160,6 +184,7 @@ pub struct StartedInstance {
     process: Child,
     rcon: Arc<RwLock<Option<Rcon>>>,
     internal_server_state: Arc<RwLock<InternalServerState>>,
+    player_count: Arc<AtomicU32>,
     admin_list: AdminList,
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
@@ -230,6 +255,10 @@ impl StartedInstance {
 
     pub async fn get_internal_server_state(&self) -> InternalServerState {
         self.internal_server_state.read().await.clone()
+    }
+
+    pub fn get_player_count(&self) -> u32 {
+        self.player_count.load(Ordering::Relaxed)
     }
 
     pub async fn get_rcon(&self) -> tokio::sync::RwLockReadGuard<'_, Option<Rcon>> {

@@ -113,7 +113,10 @@ impl ProcessManager {
     async fn internal_status(&self) -> ProcessStatus {
         let mg = self.running_instance.lock().await;
         if let Some(started) = mg.as_ref() {
-            ProcessStatus::Running(started.get_internal_server_state().await)
+            ProcessStatus::Running {
+                player_count: started.get_player_count(),
+                server_state: started.get_internal_server_state().await,
+            }
         } else {
             ProcessStatus::NotRunning
         }
@@ -149,5 +152,8 @@ impl ProcessManager {
 
 pub enum ProcessStatus {
     NotRunning,
-    Running(InternalServerState),
+    Running {
+        player_count: u32,
+        server_state: InternalServerState,
+    },
 }
