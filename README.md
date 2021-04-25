@@ -58,7 +58,7 @@ Installation:
 
 `agent` is built as a Rust application, and has no additional runtime dependencies.
 
-### `mgmt-sever`
+### `mgmt-server`
 
 `mgmt-server` serves as the interface between the user and the `agent` application. It does this by providing a web-based interface with which users can control the operation of the `agent`. The user-facing components of `mgmt-server` can be broken into two components:
 

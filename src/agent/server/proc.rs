@@ -33,6 +33,8 @@ impl ProcessManager {
             return Err(Error::ProcessAlreadyRunning);
         }
 
+        // TODO extract the auto-pause setting here and store, then disable RCON when players == 0
+
         let startable = builder.build();
         let running = startable.start().await?;
         mg.replace(running);

@@ -8,6 +8,41 @@ servers:
   - url: https://mods.factorio.com
 
 paths:
+  /api/mods:
+    get:
+      summary: Batch retrieve information for mods matching given names
+      parameters:
+        - name: namelist
+          in: query
+          description: Return only mods that match the given names
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: page_size
+          in: query
+          description: The amount of results to show in your search
+          required: false
+          schema:
+            oneOf:
+              - type: integer
+              - type: string
+                enum:
+                  - 'max'
+        - name: page
+          in: query
+          description: Page number you would like to show. Makes it so you can see a certain part of the list without getting detail on all
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Short information of the requested mods
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModInfoBatch'
   /api/mods/{mod_name}:
     get:
       summary: Return short information of a specific mod
@@ -24,7 +59,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref:  "#/components/schemas/ModInfoShort"
+                $ref: '#/components/schemas/ModInfoShort'
   /api/mods/{mod_name}/full:
     get:
       summary: Returns more information of a mod
@@ -41,10 +76,85 @@ paths:
           content:
             application/json:
               schema:
-                $ref:  "#/components/schemas/ModInfoFull"
+                $ref: '#/components/schemas/ModInfoFull'
 
 components:
   schemas:
+    ModListResponse:
+      properties:
+        pagination:
+          $ref: '#/components/schemas/ModListPagination'
+        results:
+          description: A list of mods, matching any filters you specified
+          type: array
+          items:
+            $ref: '#/components/schemas/ModInfoBatch'
+      required:
+        - pagination
+        - results
+    ModListPagination:
+      properties:
+        count:
+          type: integer
+          description: Total number of mods that match your specified filters
+        links:
+          $ref: '#/components/schemas/ModListPaginationLinks'
+          description: Utility links to mod portal API requests, preserving all filters and search queries
+      required:
+        - count
+        - links
+    ModListPaginationLinks:
+      properties:
+        first:
+          description: URL to the first page of the results, or null if you're already on the first page
+          type: string
+          format: uri
+        prev:
+          description: URL to the previous page of the results, or null if you're already on the first page
+          type: string
+          format: uri
+        next:
+          description: URL to the next page of the results, or null if you're already on the last page
+          type: string
+          format: uri
+        last:
+          description: URL to the last page of the results, or null if you're already on the last page
+          type: string
+          format: uri
+    ModInfoBatch:
+      properties:
+        # NOTE: sometimes the batch API returns results with a `releases` field instead of a `latest_release` field!!
+        name:
+          type: string
+        title:
+          type: string
+        owner:
+          type: string
+        summary:
+          type: string
+        downloads_count:
+          type: integer
+        latest_release:
+          $ref: '#/components/schemas/Release'
+        releases:
+          type: array
+          items:
+            $ref: '#/components/schemas/Release'
+      oneOf:
+        - required:
+          - name
+          - title
+          - owner
+          - summary
+          - downloads_count
+          - latest_release
+        - required:
+          - name
+          - title
+          - owner
+          - summary
+          - downloads_count
+          - releases
     ModInfoShort:
       properties:
         name:
@@ -97,7 +207,7 @@ components:
         tag:
           type: array
           items:
-            $ref: "#/components/schemas/Tag"
+            $ref: '#/components/schemas/Tag'
       required:
         - name
         - title
