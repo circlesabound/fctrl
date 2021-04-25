@@ -1,1 +1,24 @@
-<p>server-config works!</p>
+<div class="columns is-desktop">
+  <div class="column is-narrow">
+    <!-- sidebar for sub-navigation -->
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a routerLink="server-settings" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavServerSettingsIcon"></fa-icon>&nbsp;Server settings
+        </a></li>
+        <li><a routerLink="admin-list" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavAdminListIcon"></fa-icon>&nbsp;Admin list
+        </a></li>
+        <li><a routerLink="ban-list" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavBanListIcon"></fa-icon>&nbsp;Ban list
+        </a></li>
+        <li><a routerLink="white-list" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavWhiteListIcon"></fa-icon>&nbsp;White list
+        </a></li>
+      </ul>
+    </aside>
+  </div>
+  <div class="column box">
+    <router-outlet></router-outlet>
+  </div>
+</div>

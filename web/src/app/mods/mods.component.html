@@ -1,1 +1,18 @@
-<p>mods works!</p>
+<div class="columns is-desktop">
+  <div class="column is-narrow">
+    <!-- sidebar for sub-navigation -->
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a routerLink="list" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavModListIcon"></fa-icon>&nbsp;Mod list
+        </a></li>
+        <li><a routerLink="settings" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavModSettingsIcon"></fa-icon>&nbsp;Mod settings
+        </a></li>
+      </ul>
+    </aside>
+  </div>
+  <div class="column box">
+    <router-outlet></router-outlet>
+  </div>
+</div>

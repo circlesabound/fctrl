@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
-import { faChartBar, faCogs, faStream, faWrench } from '@fortawesome/free-solid-svg-icons';
+import { faChartBar, faCogs, faTerminal, faWrench } from '@fortawesome/free-solid-svg-icons';
 import { filter, map, mergeMap } from 'rxjs/operators';
 
 @Component({
@@ -15,7 +15,7 @@ export class AppComponent implements OnInit {
   navDashboardIcon = faChartBar;
   navConfigIcon = faCogs;
   navModsIcon = faWrench;
-  navLogsIcon = faStream;
+  navLogsIcon = faTerminal;
 
   constructor(
     private router: Router,

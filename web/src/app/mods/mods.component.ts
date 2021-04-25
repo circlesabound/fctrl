@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { faList, faTools } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-mods',
@@ -6,6 +7,8 @@ import { Component, OnInit } from '@angular/core';
   styleUrls: ['./mods.component.sass']
 })
 export class ModsComponent implements OnInit {
+  subnavModListIcon = faList;
+  subnavModSettingsIcon = faTools;
 
   constructor() { }
 

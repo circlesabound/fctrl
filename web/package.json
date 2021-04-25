@@ -4,7 +4,9 @@
   "scripts": {
     "ng": "ng",
     "ng-openapi-gen": "ng-openapi-gen",
-    "codegen": "npm run ng-openapi-gen -- -c mgmt-server.json",
+    "codegen": "npm run codegen-factorio-mod-portal && npm run codegen-mgmt-server-rest",
+    "codegen-factorio-mod-portal": "npm run ng-openapi-gen -- -c openapi-factorio-mod-portal.json",
+    "codegen-mgmt-server-rest": "npm run ng-openapi-gen -- -c openapi-mgmt-server-rest.json",
     "start": "npm run codegen && ng serve",
     "build": "npm run codegen && ng build",
     "test": "npm run codegen && ng test",
