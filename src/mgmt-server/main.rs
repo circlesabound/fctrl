@@ -1,22 +1,35 @@
-#![feature(decl_macro)]
+#![feature(bool_to_option, decl_macro)]
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use log::{error, info};
 use rocket::{catchers, routes};
 use rocket_contrib::serve::StaticFiles;
 use tokio::fs;
 
+use crate::{clients::AgentApiClient, events::broker::EventBroker};
+
 mod catchers;
+mod clients;
 mod consts;
+mod error;
+mod events;
 mod routes;
 
 #[rocket::main]
-async fn main() {
+async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    test123().await;
+    let event_broker = Arc::new(EventBroker::new());
+
+    let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
+    info!("Creating agent client with address {}", agent_addr);
+    let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
+
+    // test123().await;
     let _ = rocket::build()
+        .manage(event_broker)
+        .manage(agent_client)
         .mount(
             "/api",
             routes![
@@ -29,7 +42,10 @@ async fn main() {
         .register("/", catchers![catchers::not_found,])
         .launch()
         .await;
+
     info!("Shutting down");
+
+    Ok(())
 }
 
 fn get_dist_path() -> PathBuf {
@@ -40,7 +56,7 @@ fn get_dist_path() -> PathBuf {
         .join("web")
 }
 
-async fn test123() -> Result<(), Box<dyn std::error::Error>> {
+async fn _test123() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(&*consts::DB_DIR).await?;
     info!("Opening db");
     let db = rocksdb::DB::open_default(consts::DB_DIR.join("testdb"))?;

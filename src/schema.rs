@@ -24,9 +24,9 @@ pub mod factorio_mod_portal_api {
 // *************************
 
 #[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
-pub struct OperationId(String);
+pub struct OperationId(pub String);
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AgentRequestWithId {
     pub operation_id: OperationId,
     pub message: AgentRequest,

@@ -20,11 +20,18 @@ paths:
                 title: ServerControlGetResponse
                 type: object
                 required:
-                  - running
+                  - game_status
+                  - player_count
                 properties:
-                  running:
-                    type: boolean
-                    example: true
+                  game_status:
+                    type: string
+                    enum:
+                      - NotRunning
+                      - PreGame
+                      - InGame
+                      - PostGame
+                  player_count:
+                    type: integer
   /server/control/start:
     post:
       summary: Starts the Factorio multiplayer server.
