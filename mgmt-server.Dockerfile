@@ -35,10 +35,11 @@ COPY src src
 RUN cargo build --release --bin mgmt-server
 
 FROM node:alpine AS web-builder
-WORKDIR /app
-COPY web web
 WORKDIR /app/web
+COPY web/package.json /app/web/package.json
+COPY web/package-lock.json /app/web/package-lock.json
 RUN npm install
+COPY web /app/web
 RUN npm run ng -- build --prod
 
 FROM debian:buster-slim AS runtime

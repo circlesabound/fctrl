@@ -17,21 +17,7 @@ paths:
           content:
             application/json:
               schema:
-                title: ServerControlGetResponse
-                type: object
-                required:
-                  - game_status
-                  - player_count
-                properties:
-                  game_status:
-                    type: string
-                    enum:
-                      - NotRunning
-                      - PreGame
-                      - InGame
-                      - PostGame
-                  player_count:
-                    type: integer
+                $ref: '#/components/schemas/ServerControlStatus'
   /server/control/start:
     post:
       summary: Starts the Factorio multiplayer server.
@@ -40,14 +26,7 @@ paths:
         content:
           application/json:
             schema:
-              title: ServerControlStartPostRequest
-              type: object
-              required:
-                - savefile
-              properties:
-                savefile:
-                  type: string
-                  description: Name of the savefile to use
+              $ref: '#/components/schemas/ServerControlStartPostRequest'
       responses:
         '202':
           description: Accepted
@@ -66,14 +45,7 @@ paths:
           content:
             application/json:
               schema:
-                title: ServerInstallGetResponse
-                type: object
-                required:
-                  - version
-                properties:
-                  version:
-                    type: string
-                    description: Version of Factorio installed on the server.
+                $ref: '#/components/schemas/ServerInstallGetResponse'
     post:
       summary: Upgrades the Factorio server to the specified version, or install if no version previously installed.
       requestBody:
@@ -81,17 +53,22 @@ paths:
         content:
           application/json:
             schema:
-              title: ServerInstallPostRequest
-              type: object
-              required:
-                - version
-              properties:
-                version:
-                  type: string
-                  description: Version of Factorio to install
-                force_install:
-                  type: boolean
-                  description: If set, force a reinstall if the specified version is already installed
+              $ref: '#/components/schemas/ServerInstallPostRequest'
+      responses:
+        '202':
+          description: Accepted
+  /server/savefile:
+    get:
+      summary: Gets a list of savefiles currently on the server
+      responses:
+        '200':
+          description: A JSON array containing Savefile objects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerSavefileGetResponse'
+    put:
+      summary: Create a savefile on the server
       responses:
         '202':
           description: Accepted
@@ -100,14 +77,11 @@ paths:
       summary: Gets the adminlist the Factorio server is configured to use.
       responses:
         '200':
-          description: A JSON array containing string representing users with admin permissions on the Factorio server
+          description: A JSON array containing strings representing users with admin permissions on the Factorio server
           content:
             application/json:
               schema:
-                title: ServerConfigAdminListGetResponse
-                type: array
-                items:
-                  type: string
+                $ref: '#/components/schemas/ServerConfigAdminList'
     put:
       summary: Pushes an adminlist to the Factorio server for use.
       requestBody:
@@ -115,10 +89,7 @@ paths:
         content:
           application/json:
             schema:
-              title: ServerConfigAdminlistPutRequest
-              type: array
-              items:
-                type: string
+              $ref: '#/components/schemas/ServerConfigAdminList'
       responses:
         '200':
           description: Ok
@@ -131,15 +102,7 @@ paths:
           content:
             application/json:
               schema:
-                title: ServerConfigRconGetResponse
-                type: object
-                properties:
-                  port:
-                    type: integer
-                    description: Port used for RCON connection
-                  password:
-                    type: string
-                    description: Password for RCON connection
+                $ref: '#/components/schemas/ServerConfigRconGetResponse'
     put:
       summary: Pushes an RCON to the Factorio server for use.
       requestBody:
@@ -147,14 +110,7 @@ paths:
         content:
           application/json:
             schema:
-              title: ServerConfigRconPutRequest
-              type: object
-              required:
-                - password
-              properties:
-                password:
-                  type: string
-                  description: Password for RCON connection
+              $ref: '#/components/schemas/ServerConfigRconPutRequest'
       responses:
         '200':
           description: Ok
@@ -167,7 +123,7 @@ paths:
           content:
             application/json:
               schema:
-                title: ServerControlServerSettingsGetResponse
+                $ref: '#/components/schemas/ServerConfigServerSettings'
     put:
       summary: Pushes a server-settings file to the Factorio server for use.
       requestBody:
@@ -175,10 +131,7 @@ paths:
         content:
           application/json:
             schema:
-              title: ServerConfigServerSettingsPutRequest
-              type: array
-              items:
-                type: string
+              $ref: '#/components/schemas/ServerConfigServerSettings'
       responses:
         '200':
           description: Ok
@@ -191,13 +144,95 @@ paths:
           content:
             application/json:
               schema:
-                title: ServerModsGetResponse
-                type: array
-                items:
-                  title: ModObject
-                  type: object
-                  properties:
-                    name:
-                      type: string
-                    version:
-                      type: string
+                $ref: '#/components/schemas/ServerModList'
+
+components:
+  schemas:
+    ServerControlStatus:
+      required:
+        - game_status
+        - player_count
+      properties:
+        game_status:
+          type: string
+          enum:
+            - NotRunning
+            - PreGame
+            - InGame
+            - PostGame
+        player_count:
+          type: integer
+    ServerControlStartPostRequest:
+      required:
+        - savefile
+      properties:
+        savefile:
+          type: string
+          description: Name of the savefile to use
+    ServerInstallGetResponse:
+      required:
+        - version
+      properties:
+        version:
+          type: string
+          description: Version of Factorio installed on the server.
+    ServerInstallPostRequest:
+      required:
+        - version
+      properties:
+        version:
+          type: string
+          description: Version of Factorio to install
+        force_install:
+          type: boolean
+          description: If set, force a reinstall if the specified version is already installed
+    ServerConfigAdminList:
+      type: array
+      items:
+        type: string
+    ServerConfigRconGetResponse:
+      required:
+        - port
+        - password
+      properties:
+        port:
+          type: integer
+          description: Port used for RCON connection
+        password:
+          type: string
+          description: Password for RCON connection
+    ServerConfigRconPutRequest:
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          description: Password for RCON connection
+    ServerConfigServerSettings:
+      type: string
+    ServerModList:
+      type: array
+      items:
+        $ref: '#/components/schemas/ModObject'
+    ModObject:
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+    SavefileObject:
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        last_modified:
+          type: string
+          format: date-time
+    ServerSavefileGetResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/SavefileObject'

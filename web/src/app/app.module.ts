@@ -39,7 +39,7 @@ import { WhiteListComponent } from './server-config/white-list/white-list.compon
     BrowserModule,
     AppRoutingModule,
     HttpClientModule,
-    MgmtServerRestApiModule.forRoot({ rootUrl: '/' }),
+    MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.origin}/api/v0` }),
     FontAwesomeModule,
   ],
   providers: [

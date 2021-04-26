@@ -25,7 +25,7 @@ pub async fn list_savefiles() -> Result<Vec<Save>> {
         }
     }
 
-    todo!()
+    Ok(ret)
 }
 
 fn parse_from_path<P: AsRef<Path>>(path: P) -> Result<Save> {

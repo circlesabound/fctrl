@@ -31,15 +31,17 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .manage(event_broker)
         .manage(agent_client)
         .mount(
-            "/api",
+            "/api/v0",
             routes![
                 routes::server::status,
                 routes::server::start_server,
-                routes::server::stop_server
+                routes::server::stop_server,
+                routes::server::get_savefiles,
             ],
         )
         .mount("/", StaticFiles::from(get_dist_path()))
-        .register("/", catchers![catchers::not_found,])
+        .register("/api/v0", catchers![catchers::not_found,])
+        .register("/", catchers![catchers::fallback_to_index_html,])
         .launch()
         .await;
 
@@ -48,7 +50,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn get_dist_path() -> PathBuf {
+pub fn get_dist_path() -> PathBuf {
     std::env::current_dir()
         .unwrap()
         .join("web")

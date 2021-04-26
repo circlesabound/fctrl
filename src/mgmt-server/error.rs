@@ -1,4 +1,12 @@
-use rocket::{http::Status, response::Responder};
+use std::io::Cursor;
+
+use log::error;
+use rocket::{
+    http::{ContentType, Status},
+    response::Responder,
+    Response,
+};
+use serde::{Deserialize, Serialize};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -6,6 +14,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     AgentCommunicationError,
     AgentDisconnected,
+    AgentInternalError(String),
     AgentTimeout,
 
     // Generic wrappers around external error types
@@ -41,20 +50,38 @@ impl From<tokio_tungstenite::tungstenite::Error> for Error {
 }
 
 impl<'r> Responder<'r, 'static> for Error {
-    fn respond_to(self, request: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
-        match self {
-            Error::AgentCommunicationError |
-            Error::AgentDisconnected |
-            Error::WebSocket(_) => {
-                Err(Status::BadGateway)
-            }
-            Error::AgentTimeout => {
-                Err(Status::GatewayTimeout)
-            }
-            Error::Io(_) |
-            Error::Json(_) => {
-                Err(Status::InternalServerError)
+    fn respond_to(self, _: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
+        let error_obj = ErrorResponse {
+            error: format!("{:?}", self),
+        };
+        let json;
+        match serde_json::to_string(&error_obj) {
+            Ok(s) => json = s,
+            Err(e) => {
+                error!("Error serialising error into JSON: {:?}", e);
+                json = "{{\"error\": \"error serialising error message!\"}}".to_owned();
             }
         }
+
+        let status = match self {
+            Error::AgentCommunicationError | Error::AgentDisconnected | Error::WebSocket(_) => {
+                Status::BadGateway
+            }
+            Error::AgentTimeout => Status::GatewayTimeout,
+            Error::AgentInternalError(_) | Error::Io(_) | Error::Json(_) => {
+                Status::InternalServerError
+            }
+        };
+
+        Response::build()
+            .status(status)
+            .header(ContentType::JSON)
+            .sized_body(json.len(), Cursor::new(json))
+            .ok()
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ErrorResponse {
+    error: String,
 }

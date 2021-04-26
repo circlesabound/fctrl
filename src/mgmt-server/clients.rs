@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use fctrl::schema::{AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, OperationId, ServerStatus};
+use fctrl::schema::{AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, OperationId, Save, ServerStartSaveFile, ServerStatus};
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use log::{debug, error, info, warn};
 
@@ -59,18 +59,68 @@ impl AgentApiClient {
         }
     }
 
-    pub async fn server_status(&self) -> Result<ServerStatus> {
-        let req = AgentRequest::ServerStatus;
-        let (_id, sub) = self.send_request_and_subscribe(req).await?;
+    pub async fn server_start(&self, savefile: ServerStartSaveFile) -> Result<()> {
+        let request = AgentRequest::ServerStart(savefile);
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         pin_mut!(sub);
         match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
             Ok(Some(e)) => {
                 let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
                 match response_with_id.content {
-                    AgentOutMessage::ServerStatus(s) => {
-                        Ok(s)
+                    AgentOutMessage::Ok => Ok(()),
+                    AgentOutMessage::Error(e) => Err(Error::AgentInternalError(e)),
+                    m => {
+                        // wrong message?
+                        warn!(
+                            "Expected AgentOutMessage::Ok or AgentOutMessage::Error, got: {:?}",
+                            m
+                        );
+                        Err(Error::AgentCommunicationError)
                     }
+                }
+            }
+            Ok(None) => Err(Error::AgentDisconnected),
+            Err(_) => Err(Error::AgentTimeout),
+        }
+    }
+
+    pub async fn server_stop(&self) -> Result<()> {
+        let request = AgentRequest::ServerStop;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        pin_mut!(sub);
+        match tokio::time::timeout(Duration::from_millis(1000), sub.next()).await {
+            Ok(Some(e)) => {
+                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                match response_with_id.content {
+                    AgentOutMessage::Ok => Ok(()),
+                    AgentOutMessage::Error(e) => Err(Error::AgentInternalError(e)),
+                    m => {
+                        // wrong message?
+                        warn!(
+                            "Expected AgentOutMessage::Ok or AgentOutMessage::Error, got: {:?}",
+                            m
+                        );
+                        Err(Error::AgentCommunicationError)
+                    }
+                }
+            }
+            Ok(None) => Err(Error::AgentDisconnected),
+            Err(_) => Err(Error::AgentTimeout),
+        }
+    }
+
+    pub async fn server_status(&self) -> Result<ServerStatus> {
+        let request = AgentRequest::ServerStatus;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        pin_mut!(sub);
+        match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
+            Ok(Some(e)) => {
+                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                match response_with_id.content {
+                    AgentOutMessage::ServerStatus(s) => Ok(s),
                     m => {
                         // wrong message?
                         warn!("Expected AgentOutMessage::ServerStatus, got: {:?}", m);
@@ -78,13 +128,31 @@ impl AgentApiClient {
                     }
                 }
             }
-            Ok(None) => {
-                Err(Error::AgentDisconnected)
+            Ok(None) => Err(Error::AgentDisconnected),
+            Err(_) => Err(Error::AgentTimeout),
+        }
+    }
+
+    pub async fn save_list(&self) -> Result<Vec<Save>> {
+        let request = AgentRequest::SaveList;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        pin_mut!(sub);
+        match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
+            Ok(Some(e)) => {
+                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                match response_with_id.content {
+                    AgentOutMessage::SaveList(saves) => Ok(saves),
+                    AgentOutMessage::Error(e) => Err(Error::AgentInternalError(e)),
+                    m => {
+                        // wrong message?
+                        warn!("Got unexpected message: {:?}", m);
+                        Err(Error::AgentCommunicationError)
+                    }
+                }
             }
-            Err(_) => {
-                // timeout
-                Err(Error::AgentTimeout)
-            }
+            Ok(None) => Err(Error::AgentDisconnected),
+            Err(_) => Err(Error::AgentTimeout),
         }
     }
 
