@@ -16,6 +16,7 @@ pub enum Error {
     AgentDisconnected,
     AgentInternalError(String),
     AgentTimeout,
+    BadRequest(String),
 
     // Generic wrappers around external error types
     Io(std::io::Error),
@@ -70,6 +71,9 @@ impl<'r> Responder<'r, 'static> for Error {
             Error::AgentTimeout => Status::GatewayTimeout,
             Error::AgentInternalError(_) | Error::Io(_) | Error::Json(_) => {
                 Status::InternalServerError
+            }
+            Error::BadRequest(_) => {
+                Status::BadRequest
             }
         };
 

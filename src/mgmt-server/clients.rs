@@ -151,6 +151,31 @@ impl AgentApiClient {
         }
     }
 
+    pub async fn save_create(&self, savefile_name: String) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+        if savefile_name.trim().is_empty() {
+            return Err(Error::BadRequest("Empty savefile name".to_owned()));
+        }
+
+        let request = AgentRequest::SaveCreate(savefile_name);
+        let (id, mut sub) = self.send_request_and_subscribe(request).await?;
+
+        let mut sub_pinned = Pin::new(&mut sub);
+        match tokio::time::timeout(Duration::from_millis(500), sub_pinned.next()).await {
+            Ok(Some(e)) => {
+                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                if let OperationStatus::Ack = response_with_id.status {
+                    Ok((id, sub))
+                } else {
+                    // Long running operation should always respond with ack
+                    Err(default_message_handler(response_with_id.content)
+                        .unwrap_or(Error::AgentCommunicationError))
+                }
+            }
+            Ok(None) => Err(Error::AgentDisconnected),
+            Err(_) => Err(Error::AgentTimeout),
+        }
+    }
+
     pub async fn save_list(&self) -> Result<Vec<Save>> {
         let request = AgentRequest::SaveList;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;

@@ -38,6 +38,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::start_server,
                 routes::server::stop_server,
                 routes::server::get_savefiles,
+                routes::server::create_savefile,
             ],
         )
         .mount("/", StaticFiles::from(get_dist_path()))

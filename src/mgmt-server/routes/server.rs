@@ -1,5 +1,5 @@
 use fctrl::schema::{mgmt_server_rest::*, ServerStartSaveFile, ServerStatus};
-use rocket::{Response, get, http::Header, post};
+use rocket::{Response, get, http::Header, post, put};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
 
@@ -69,4 +69,16 @@ pub async fn get_savefiles(
         })
         .collect();
     Ok(Json(ret))
+}
+
+#[put("/server/savefile/<id>")]
+pub async fn create_savefile(
+    agent_client: State<'_, AgentApiClient>,
+    id: String,
+) -> Result<Response<'_>> {
+    let (id, sub) = agent_client.save_create(id).await?;
+    Response::build()
+        .status(Status::Accepted)
+        .header(Header::new("Location", format!("ws://test123/{}", id.0)))
+        .ok()
 }
