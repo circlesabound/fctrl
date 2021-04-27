@@ -89,7 +89,7 @@ where
                                 OperationStatus::Completed | OperationStatus::Failed => {
                                     break;
                                 }
-                                OperationStatus::Ongoing => {
+                                OperationStatus::Ongoing | OperationStatus::Ack => {
                                     // more messages on the way
                                 }
                             }

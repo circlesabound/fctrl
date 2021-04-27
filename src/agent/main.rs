@@ -1,10 +1,6 @@
 #![feature(trait_alias)]
 
-use std::{
-    convert::{TryFrom, TryInto},
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
-};
+use std::{convert::{TryFrom, TryInto}, net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc, time::Duration};
 
 use crate::{
     consts::*,
@@ -387,7 +383,25 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e)
             }
             Ok(json) => {
-                info!("Sending streaming message: {}", json);
+                debug!("Sending streaming message: {}", json);
+                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
+            }
+        }
+    }
+
+    async fn long_running_ack(&self, operation_id: &OperationId) {
+        let with_id = AgentResponseWithId {
+            operation_id: operation_id.clone(),
+            status: OperationStatus::Ack,
+            content: AgentOutMessage::Ok,
+        };
+        let json = serde_json::to_string(&with_id);
+        match json {
+            Err(e) => {
+                error!("Error serialising message: {:?}", e);
+            }
+            Ok(json) => {
+                debug!("Sending ack: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -405,7 +419,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                info!("Sending reply: {}", json);
+                debug!("Sending reply: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -423,7 +437,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                info!("Sending reply_success: {}", json);
+                debug!("Sending reply_success: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -441,7 +455,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                info!("Sending reply_failed: {}", json);
+                debug!("Sending reply_failed: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -453,85 +467,12 @@ impl AgentController {
         force_install: bool,
         operation_id: OperationId,
     ) {
-        let mut vm = self.version_manager.write().await;
-
-        // Assume there is at most one version installed
-        match vm.versions.keys().next() {
-            None => {
-                info!("Installing version {}", version_to_install);
-                self.reply(
-                    AgentOutMessage::Message(format!(
-                        "Starting to install version {}",
-                        version_to_install
-                    )),
-                    &operation_id,
-                )
-                .await;
-                if let Err(e) = vm.install(version_to_install.clone()).await {
-                    self.reply_failed(
-                        AgentOutMessage::Message(format!("Failed to install: {:?}", e)),
-                        operation_id,
-                    )
-                    .await;
-                    return;
-                } else {
-                    info!("Installed version {}", version_to_install);
-                    self.reply_success(AgentOutMessage::Ok, operation_id).await;
-                }
-            }
-            Some(version_from) => {
-                let version_from = version_from.to_string();
-                let is_reinstall = version_from == version_to_install;
-
-                // Only reinstall if forced, otherwise noop
-                if is_reinstall && !force_install {
-                    self.reply_success(AgentOutMessage::Ok, operation_id).await;
-                    return;
-                }
-
-                let opt_stopped_instance;
-                if is_reinstall {
-                    // Stop server first before re-installing
-                    info!("Stopping server for reinstall");
-                    opt_stopped_instance = self.proc_manager.stop_instance().await;
-                    if opt_stopped_instance.is_some() {
-                        self.reply(
-                            AgentOutMessage::Message("Stopped server for reinstall".to_owned()),
-                            &operation_id,
-                        )
-                        .await;
-                    }
-
-                    info!("Reinstalling version {}", version_to_install);
-                    self.reply(
-                        AgentOutMessage::Message(format!(
-                            "Starting to reinstall version {}",
-                            version_to_install
-                        )),
-                        &operation_id,
-                    )
-                    .await;
-                    if let Err(e) = vm.install(version_to_install.clone()).await {
-                        self.reply_failed(
-                            AgentOutMessage::Error(format!("Failed to install: {:?}", e)),
-                            operation_id,
-                        )
-                        .await;
-                        return;
-                    } else {
-                        info!("Reinstalled version {}", version_to_install);
-                        self.reply(
-                            AgentOutMessage::Message(format!(
-                                "Reinstalled version {}",
-                                version_to_install
-                            )),
-                            &operation_id,
-                        )
-                        .await;
-                    }
-                } else {
-                    // Install requested version
-                    info!("Installing version {} for upgrade", version_to_install);
+        if let Ok(mut vm) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.write()).await {
+            self.long_running_ack(&operation_id).await;
+            // Assume there is at most one version installed
+            match vm.versions.keys().next() {
+                None => {
+                    info!("Installing version {}", version_to_install);
                     self.reply(
                         AgentOutMessage::Message(format!(
                             "Starting to install version {}",
@@ -542,112 +483,194 @@ impl AgentController {
                     .await;
                     if let Err(e) = vm.install(version_to_install.clone()).await {
                         self.reply_failed(
-                            AgentOutMessage::Error(format!("Failed to install: {:?}", e)),
+                            AgentOutMessage::Message(format!("Failed to install: {:?}", e)),
                             operation_id,
                         )
                         .await;
                         return;
                     } else {
-                        info!("Installed version {} for upgrade", version_to_install);
+                        info!("Installed version {}", version_to_install);
+                        self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                    }
+                }
+                Some(version_from) => {
+                    let version_from = version_from.to_string();
+                    let is_reinstall = version_from == version_to_install;
+
+                    // Only reinstall if forced, otherwise noop
+                    if is_reinstall && !force_install {
+                        self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                        return;
+                    }
+
+                    let opt_stopped_instance;
+                    if is_reinstall {
+                        // Stop server first before re-installing
+                        info!("Stopping server for reinstall");
+                        opt_stopped_instance = self.proc_manager.stop_instance().await;
+                        if opt_stopped_instance.is_some() {
+                            self.reply(
+                                AgentOutMessage::Message("Stopped server for reinstall".to_owned()),
+                                &operation_id,
+                            )
+                            .await;
+                        }
+
+                        info!("Reinstalling version {}", version_to_install);
                         self.reply(
                             AgentOutMessage::Message(format!(
-                                "Installed version {} for upgrade",
+                                "Starting to reinstall version {}",
                                 version_to_install
                             )),
                             &operation_id,
                         )
                         .await;
-                    }
-
-                    // Stop server if running
-                    info!("Stopping server for upgrade");
-                    opt_stopped_instance = self.proc_manager.stop_instance().await;
-                    if opt_stopped_instance.is_some() {
-                        self.reply(
-                            AgentOutMessage::Message("Stopped server for upgrade".to_owned()),
-                            &operation_id,
-                        )
-                        .await;
-                    }
-                }
-
-                // TODO stage save migrations?
-
-                // If not a reinstall, remove previous version
-                if !is_reinstall {
-                    info!("Removing previous version {} after upgrade", version_from);
-                    if let Err(e) = vm.delete(&version_from).await {
-                        self.reply_failed(AgentOutMessage::Error(format!("Failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e)), operation_id).await;
-                        return;
+                        if let Err(e) = vm.install(version_to_install.clone()).await {
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!("Failed to install: {:?}", e)),
+                                operation_id,
+                            )
+                            .await;
+                            return;
+                        } else {
+                            info!("Reinstalled version {}", version_to_install);
+                            self.reply(
+                                AgentOutMessage::Message(format!(
+                                    "Reinstalled version {}",
+                                    version_to_install
+                                )),
+                                &operation_id,
+                            )
+                            .await;
+                        }
                     } else {
+                        // Install requested version
+                        info!("Installing version {} for upgrade", version_to_install);
                         self.reply(
                             AgentOutMessage::Message(format!(
-                                "Removed previous version {} after upgrading to version {}",
-                                version_from, version_to_install
+                                "Starting to install version {}",
+                                version_to_install
                             )),
                             &operation_id,
                         )
                         .await;
+                        if let Err(e) = vm.install(version_to_install.clone()).await {
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!("Failed to install: {:?}", e)),
+                                operation_id,
+                            )
+                            .await;
+                            return;
+                        } else {
+                            info!("Installed version {} for upgrade", version_to_install);
+                            self.reply(
+                                AgentOutMessage::Message(format!(
+                                    "Installed version {} for upgrade",
+                                    version_to_install
+                                )),
+                                &operation_id,
+                            )
+                            .await;
+                        }
+
+                        // Stop server if running
+                        info!("Stopping server for upgrade");
+                        opt_stopped_instance = self.proc_manager.stop_instance().await;
+                        if opt_stopped_instance.is_some() {
+                            self.reply(
+                                AgentOutMessage::Message("Stopped server for upgrade".to_owned()),
+                                &operation_id,
+                            )
+                            .await;
+                        }
+                    }
+
+                    // TODO stage save migrations?
+
+                    // If not a reinstall, remove previous version
+                    if !is_reinstall {
+                        info!("Removing previous version {} after upgrade", version_from);
+                        if let Err(e) = vm.delete(&version_from).await {
+                            self.reply_failed(AgentOutMessage::Error(format!("Failed to remove previous version {} after upgrading to version {}: {:?}", version_from, version_to_install, e)), operation_id).await;
+                            return;
+                        } else {
+                            self.reply(
+                                AgentOutMessage::Message(format!(
+                                    "Removed previous version {} after upgrading to version {}",
+                                    version_from, version_to_install
+                                )),
+                                &operation_id,
+                            )
+                            .await;
+                        }
+                    }
+
+                    // Restart server if it was previously running
+                    if let Some(previous_instance) = opt_stopped_instance {
+                        info!("Restarting server");
+                        self.reply(
+                            AgentOutMessage::Message("Restarting server after upgrade".to_owned()),
+                            &operation_id,
+                        )
+                        .await;
+                        let version = vm.versions.get(&version_to_install).unwrap(); // safe since we still hold the lock
+                        self.internal_server_start_with_version(
+                            version,
+                            previous_instance.savefile.clone(),
+                            operation_id,
+                            Some(previous_instance),
+                        )
+                        .await;
+                    } else {
+                        self.reply_success(AgentOutMessage::Ok, operation_id).await;
                     }
                 }
-
-                // Restart server if it was previously running
-                if let Some(previous_instance) = opt_stopped_instance {
-                    info!("Restarting server");
-                    self.reply(
-                        AgentOutMessage::Message("Restarting server after upgrade".to_owned()),
-                        &operation_id,
-                    )
-                    .await;
-                    let version = vm.versions.get(&version_to_install).unwrap(); // safe since we still hold the lock
-                    self.internal_server_start_with_version(
-                        version,
-                        previous_instance.savefile.clone(),
-                        operation_id,
-                        Some(previous_instance),
-                    )
-                    .await;
-                } else {
-                    self.reply_success(AgentOutMessage::Ok, operation_id).await;
-                }
             }
+        } else {
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
         }
     }
 
     async fn version_get(&self, operation_id: OperationId) {
-        let vm = self.version_manager.read().await;
-        match vm.versions.values().next() {
-            None => {
-                self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+        if let Ok(vm) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await {
+            match vm.versions.values().next() {
+                None => {
+                    self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                        .await;
+                }
+                Some(v) => {
+                    self.reply_success(
+                        AgentOutMessage::FactorioVersion(v.version.clone().into()),
+                        operation_id,
+                    )
                     .await;
+                }
             }
-            Some(v) => {
-                self.reply_success(
-                    AgentOutMessage::FactorioVersion(v.version.clone().into()),
-                    operation_id,
-                )
-                .await;
-            }
+        } else {
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
         }
     }
 
     async fn server_start(&self, savefile: ServerStartSaveFile, operation_id: OperationId) {
         // assume there is at most one version installed
-        let vm = self.version_manager.read().await;
-        let version;
-        match vm.versions.values().next() {
-            None => {
-                self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
-                    .await;
-                return;
+        if let Ok(vm) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await {
+            let version;
+            match vm.versions.values().next() {
+                None => {
+                    self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                        .await;
+                    return;
+                }
+                Some(v) => {
+                    version = v;
+                }
             }
-            Some(v) => {
-                version = v;
-            }
-        }
 
-        self.internal_server_start_with_version(version, savefile, operation_id, None)
-            .await;
+            self.internal_server_start_with_version(version, savefile, operation_id, None)
+                .await;
+        } else {
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
+        }
     }
 
     async fn internal_server_start_with_version(
@@ -799,68 +822,72 @@ impl AgentController {
 
     async fn save_create(&self, save_name: String, operation_id: OperationId) {
         // assume there is at most one version installed
-        let version_mg = self.version_manager.read().await;
-        let version;
-        match version_mg.versions.values().next() {
-            None => {
-                self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
-                    .await;
-                return;
+        if let Ok(version_mg) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await {
+            self.long_running_ack(&operation_id).await;
+            let version;
+            match version_mg.versions.values().next() {
+                None => {
+                    self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                        .await;
+                    return;
+                }
+                Some(v) => {
+                    version = v;
+                }
             }
-            Some(v) => {
-                version = v;
-            }
-        }
 
-        // Create save dir if not exists
-        let save_dir = &*SAVEFILE_DIR;
-        if let Err(e) = fs::create_dir_all(save_dir).await {
-            error!(
-                "Failed to create save dir at {}: {:?}",
-                save_dir.display(),
-                e
-            );
-            self.reply_failed(
-                AgentOutMessage::Error(format!("Failed to create save dir: {:?}", e)),
-                operation_id,
-            )
-            .await;
-            return;
-        }
-
-        let stream_out = Arc::clone(&self.global_tx);
-        let builder = ServerBuilder::using_installation(version)
-            .with_stdout_handler(move |s| {
-                let msg = AgentStreamingMessage::ServerStdout(s);
-                let _ = stream_out.send(msg);
-            })
-            .creating_savefile(save_name.clone());
-        match self
-            .proc_manager
-            .start_and_wait_for_shortlived_instance(builder)
-            .await
-        {
-            Err(e) => {
+            // Create save dir if not exists
+            let save_dir = &*SAVEFILE_DIR;
+            if let Err(e) = fs::create_dir_all(save_dir).await {
+                error!(
+                    "Failed to create save dir at {}: {:?}",
+                    save_dir.display(),
+                    e
+                );
                 self.reply_failed(
-                    AgentOutMessage::Error(format!("Savefile creation failed: {:?}", e)),
+                    AgentOutMessage::Error(format!("Failed to create save dir: {:?}", e)),
                     operation_id,
                 )
                 .await;
+                return;
             }
-            Ok(si) => {
-                if si.exit_status.success() {
-                    self.reply_success(AgentOutMessage::Ok, operation_id).await;
-                } else {
+
+            let stream_out = Arc::clone(&self.global_tx);
+            let builder = ServerBuilder::using_installation(version)
+                .with_stdout_handler(move |s| {
+                    let msg = AgentStreamingMessage::ServerStdout(s);
+                    let _ = stream_out.send(msg);
+                })
+                .creating_savefile(save_name.clone());
+            match self
+                .proc_manager
+                .start_and_wait_for_shortlived_instance(builder)
+                .await
+            {
+                Err(e) => {
                     self.reply_failed(
-                        AgentOutMessage::Error(format!(
-                            "Savefile creation failed: process exited with non-success code {}",
-                            si.exit_status.to_string()
-                        )),
+                        AgentOutMessage::Error(format!("Savefile creation failed: {:?}", e)),
                         operation_id,
                     )
                     .await;
                 }
+                Ok(si) => {
+                    if si.exit_status.success() {
+                        self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                    } else {
+                        self.reply_failed(
+                            AgentOutMessage::Error(format!(
+                                "Savefile creation failed: process exited with non-success code {}",
+                                si.exit_status.to_string()
+                            )),
+                            operation_id,
+                        )
+                        .await;
+                    }
+                }
             }
+        } else {
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
         }
     }
 
@@ -915,6 +942,7 @@ impl AgentController {
                             version: m.version,
                         })
                         .collect();
+                    self.long_running_ack(&operation_id).await;
                     match m.apply(&s).await {
                         Ok(_) => {
                             self.reply_success(AgentOutMessage::Ok, operation_id).await;

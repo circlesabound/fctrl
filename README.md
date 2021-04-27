@@ -2,6 +2,8 @@
 
 `fctrl` is a tool to manage your Factorio multiplayer server.
 
+***THIS IS A WORK IN PROGRESS***
+
 ## Features
 
 - Fully managed installation and upgrade process of the Factorio headless server software

@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Option } from 'prelude-ts';
 import { SavefileObject, ServerControlStartPostRequest, ServerControlStatus } from '../mgmt-server-rest-api/models';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
-import { faAngleDown, faPlay, faStop } from '@fortawesome/free-solid-svg-icons';
+import { faAngleDown, faPlay, faPlus, faStop } from '@fortawesome/free-solid-svg-icons';
 import { Observable, Subscription, timer } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 
@@ -24,8 +24,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   dropdownArrowIcon = faAngleDown;
   startServerIcon = faPlay;
   stopServerIcon = faStop;
+  createSaveIcon = faPlus;
 
   updateStatusSubscription: Option<Subscription>;
+
+  createSaveName: string;
+  upgradeVersionString: string;
 
   constructor(
     private apiClient: MgmtServerRestApiService,
@@ -39,6 +43,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.stopServerButtonDisabled = false;
 
     this.updateStatusSubscription = Option.none();
+
+    this.createSaveName = '';
+    this.upgradeVersionString = '';
   }
 
   ngOnInit(): void {
@@ -88,6 +95,29 @@ export class DashboardComponent implements OnInit, OnDestroy {
   stopServer(): void {
     this.apiClient.serverControlStopPost().subscribe(() => {
       console.log('stopServer returned');
+    });
+  }
+
+  upgradeInstall(): void {
+    const params = {
+      body: {
+        version: this.upgradeVersionString,
+        force_install: false,
+      }
+    };
+    this.apiClient.serverInstallPost$Response(params).subscribe(response => {
+      const location = response.headers.get('Location');
+      console.log(`got location header value: ${location}`);
+    });
+  }
+
+  createSave(): void {
+    const params = {
+      savefile_id: this.createSaveName,
+    };
+    this.apiClient.serverSavefileSavefileIdPut$Response(params).subscribe(response => {
+      const location = response.headers.get('Location');
+      console.log(`got location header value: ${location}`);
     });
   }
 

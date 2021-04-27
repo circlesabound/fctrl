@@ -23,27 +23,44 @@
         </div>
       </div>
 
-      <div>
-        <button class="button is-success" [disabled]="startServerButtonDisabled" (click)="startServer()">
-          <span class="icon is-small">
-            <fa-icon class="fa-fw" [icon]="startServerIcon"></fa-icon>
-          </span>
-          <span>Start server</span>
-        </button>
+      <button class="button is-success" [disabled]="startServerButtonDisabled" (click)="startServer()">
+        <span class="icon is-small">
+          <fa-icon class="fa-fw" [icon]="startServerIcon"></fa-icon>
+        </span>
+        <span>Start server</span>
+      </button>
 
-        <button class="button is-danger" [disabled]="stopServerButtonDisabled" (click)="stopServer()">
-          <span class="icon is-small">
-            <fa-icon class="fa-fw" [icon]="stopServerIcon"></fa-icon>
-          </span>
-          <span>Stop server</span>
-        </button>
-      </div>
+      <button class="button is-danger" [disabled]="stopServerButtonDisabled" (click)="stopServer()">
+        <span class="icon is-small">
+          <fa-icon class="fa-fw" [icon]="stopServerIcon"></fa-icon>
+        </span>
+        <span>Stop server</span>
+      </button>
 
     </span></div>
   </div>
+
   <div class="tile is-5 is-parent">
     <div class="tile is-child box">
-      <p>Hi</p>
+      <span>
+        <input class="input" type="text" placeholder="Version to install" [(ngModel)]="upgradeVersionString">
+        <button class="button is-success" [disabled]="upgradeVersionString ? false : true" (click)="upgradeInstall()">
+          <span class="fa-fw">
+            <fa-icon class="fa-fw" [icon]="createSaveIcon"></fa-icon>
+          </span>
+          <span>Install version</span>
+        </button>
+      </span>
+
+      <span>
+        <input class="input" type="text" placeholder="New save name" [(ngModel)]="createSaveName">
+        <button class="button is-success" [disabled]="createSaveName ? false : true" (click)="createSave()">
+          <span class="fa-fw">
+            <fa-icon class="fa-fw" [icon]="createSaveIcon"></fa-icon>
+          </span>
+          <span>Create save</span>
+        </button>
+      </span>
     </div>
   </div>
 </div>

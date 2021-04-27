@@ -19,9 +19,9 @@ pub mod factorio_mod_portal_api {
     include!(concat!(env!("OUT_DIR"), "/factorio-mod-portal.rs"));
 }
 
-// *************************
-// * WebSocket API schemas *
-// *************************
+// *******************************************
+// * WebSocket API schemas                   *
+// *******************************************
 
 #[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
 pub struct OperationId(pub String);
@@ -34,30 +34,71 @@ pub struct AgentRequestWithId {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum AgentRequest {
-    // Installation management
+    // *********************************
+    // * Installation management       *
+    // *********************************
+    //
+    //
+    /// Install the requested version, overwriting the existing installation if different version.
+    /// Can specify the force_install flag to force a re-install of the current version.
+    ///
+    /// **This is a long-running operation.**
     VersionInstall {
         version: String,
         force_install: bool,
     },
+    /// Get the currently installed version, if any.
     VersionGet,
 
-    // Server control
+    // *********************************
+    // * Server control                *
+    // *********************************
+    //
+    //
+    /// Start the server using the specific save file.
     ServerStart(ServerStartSaveFile),
+    /// Stop the server.
     ServerStop,
+    /// Get the current status of the server.
     ServerStatus,
 
-    // Save management
+    // *********************************
+    // * Save management               *
+    // *********************************
+    //
+    //
+    /// Create a save file with the requested name.
+    /// This will overwrite any existing save file of that name.
+    ///
+    /// **This is a long-running operation.**
     SaveCreate(String),
+    /// Get a list of the save files present on the server.
     SaveList,
 
-    // Mod management
+    // *********************************
+    // * Mod management                *
+    // *********************************
+    //
+    //
+    /// Get a list of mods installed on the server.
     ModListGet,
+    /// Applies the desired mod list on the server.
+    ///
+    /// **This is a long-running operation.**
     ModListSet(Vec<ModObject>),
+    /// Gets the mod-settings file on the server.
     ModSettingsGet,
+    /// Sets the mod-settings file on the servere.
     ModSettingsSet(Vec<u8>),
 
-    // Configuration
+    // *********************************
+    // * Configuration                 *
+    // *********************************
+    //
+    //
+    /// Gets a list of users with admin privileges on the server.
     ConfigAdminListGet,
+    /// Sets the list of users with admin privileges on the server.
     ConfigAdminListSet {
         admins: Vec<String>,
     },
@@ -75,7 +116,9 @@ pub enum AgentRequest {
         json: String,
     },
 
-    // In-game
+    // *********************************
+    // * In-game                       *
+    // *********************************
     RconCommand(String),
 }
 
@@ -88,9 +131,20 @@ pub struct AgentResponseWithId {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum OperationStatus {
-    Completed,
-    Failed,
+    /// Indicates a long running operation, and that there will be future responses on the
+    /// same operation id.
+    Ack,
+
+    /// Indicates some measure of progress on a long running operation.
     Ongoing,
+
+    /// Indicates that the operation, whether long-running or short-running, has completed
+    /// successfully, and no futher responses on the same operation id are expected.
+    Completed,
+
+    /// Indicates that the operation, whether long-running or short-running, has failed,
+    /// and no futher responses on the same operation id are expected.
+    Failed,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -101,6 +155,7 @@ pub enum AgentOutMessage {
     Ok,
 
     // Structured operation responses
+    ConflictingOperation,
     ConfigAdminList(Vec<String>),
     ConfigRcon { port: u16, password: String },
     ConfigSecrets(Option<SecretsObject>),

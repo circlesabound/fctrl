@@ -37,7 +37,11 @@ impl EventBroker {
         }
     }
 
-    pub async fn subscribe<F>(&self, topic_name: TopicName, filter: F) -> impl Stream<Item = Event>
+    pub async fn subscribe<F>(
+        &self,
+        topic_name: TopicName,
+        filter: F,
+    ) -> impl Stream<Item = Event> + Unpin
     where
         F: Fn(&str) -> bool + Clone,
     {
@@ -50,7 +54,7 @@ impl EventBroker {
             rx = self.create_topic_with_receiver(topic_name.clone()).await;
         }
 
-        BroadcastStream::new(rx).filter_map(move |r| {
+        Box::pin(BroadcastStream::new(rx).filter_map(move |r| {
             let filter = filter.clone();
             let topic_name = topic_name.clone();
             async move {
@@ -68,7 +72,7 @@ impl EventBroker {
                     }
                 }
             }
-        })
+        }))
     }
 
     async fn create_topic_with_receiver(

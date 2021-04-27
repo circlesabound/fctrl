@@ -1,5 +1,5 @@
 use fctrl::schema::{mgmt_server_rest::*, ServerStartSaveFile, ServerStatus};
-use rocket::{get, post};
+use rocket::{Response, get, http::Header, post};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
 
@@ -7,9 +7,7 @@ use crate::clients::AgentApiClient;
 use crate::error::Result;
 
 #[get("/server/control")]
-pub async fn status(
-    agent_client: State<'_, AgentApiClient>,
-) -> Result<Json<ServerControlStatus>> {
+pub async fn status(agent_client: State<'_, AgentApiClient>) -> Result<Json<ServerControlStatus>> {
     let ss = agent_client.server_status().await?;
     let mut num_players = 0;
     let game_status = match ss {
@@ -43,14 +41,32 @@ pub async fn stop_server(agent_client: State<'_, AgentApiClient>) -> Result<Stat
     Ok(Status::Accepted)
 }
 
+#[post("/server/install", data = "<body>")]
+pub async fn upgrade_install(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<ServerInstallPostRequest>,
+) -> Result<Response<'_>> {
+    let body = body.into_inner();
+    let (id, sub) = agent_client
+        .version_install(body.version, body.force_install.unwrap_or(false))
+        .await?;
+    Response::build()
+        .status(Status::Accepted)
+        .header(Header::new("Location", format!("ws://test123/{}", id.0)))
+        .ok()
+}
+
 #[get("/server/savefile")]
 pub async fn get_savefiles(
     agent_client: State<'_, AgentApiClient>,
 ) -> Result<Json<Vec<SavefileObject>>> {
     let s = agent_client.save_list().await?;
-    let ret = s.into_iter().map(|s| SavefileObject {
-        name: s.name,
-        last_modified: Some(s.last_modified.to_string()),
-    }).collect();
+    let ret = s
+        .into_iter()
+        .map(|s| SavefileObject {
+            name: s.name,
+            last_modified: Some(s.last_modified.to_string()),
+        })
+        .collect();
     Ok(Json(ret))
 }

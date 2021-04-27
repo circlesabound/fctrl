@@ -75,7 +75,7 @@ impl AgentTestFixture {
                     let json = line.trim();
                     if let Ok(reply) = serde_json::from_str::<AgentResponseWithId>(json) {
                         match &reply.status {
-                            OperationStatus::Ongoing => continue,
+                            OperationStatus::Ongoing | OperationStatus::Ack => continue,
                             OperationStatus::Completed | OperationStatus::Failed => {
                                 return Ok(reply)
                             }

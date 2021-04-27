@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicU8, Ordering},
         Arc,
@@ -7,7 +8,10 @@ use std::{
     time::Duration,
 };
 
-use fctrl::schema::{AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, OperationId, Save, ServerStartSaveFile, ServerStatus};
+use fctrl::schema::{
+    AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
+    OperationId, OperationStatus, Save, ServerStartSaveFile, ServerStatus,
+};
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use log::{debug, error, info, warn};
 
@@ -59,29 +63,51 @@ impl AgentApiClient {
         }
     }
 
+    pub async fn version_install(
+        &self,
+        version: String,
+        force_install: bool,
+    ) -> Result<(OperationId, impl Stream<Item = Event>)> {
+        let request = AgentRequest::VersionInstall {
+            version,
+            force_install,
+        };
+        let (id, mut sub) = self.send_request_and_subscribe(request).await?;
+
+        let mut sub_pinned = Pin::new(&mut sub);
+        match tokio::time::timeout(Duration::from_millis(500), sub_pinned.next()).await {
+            Ok(Some(e)) => {
+                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                if let OperationStatus::Ack = response_with_id.status {
+                    Ok((id, sub))
+                } else {
+                    // Long running operation should always respond with ack
+                    Err(default_message_handler(response_with_id.content)
+                        .unwrap_or(Error::AgentCommunicationError))
+                }
+            }
+            Ok(None) => Err(Error::AgentDisconnected),
+            Err(_) => Err(Error::AgentTimeout),
+        }
+    }
+
     pub async fn server_start(&self, savefile: ServerStartSaveFile) -> Result<()> {
         let request = AgentRequest::ServerStart(savefile);
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         pin_mut!(sub);
-        match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-            Ok(Some(e)) => {
-                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                match response_with_id.content {
-                    AgentOutMessage::Ok => Ok(()),
-                    AgentOutMessage::Error(e) => Err(Error::AgentInternalError(e)),
-                    m => {
-                        // wrong message?
-                        warn!(
-                            "Expected AgentOutMessage::Ok or AgentOutMessage::Error, got: {:?}",
-                            m
-                        );
-                        Err(Error::AgentCommunicationError)
+        loop {
+            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
+                Ok(Some(e)) => {
+                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                    match response_with_id.content {
+                        AgentOutMessage::Ok => return Ok(()),
+                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
                     }
                 }
+                Ok(None) => return Err(Error::AgentDisconnected),
+                Err(_) => return Err(Error::AgentTimeout),
             }
-            Ok(None) => Err(Error::AgentDisconnected),
-            Err(_) => Err(Error::AgentTimeout),
         }
     }
 
@@ -90,24 +116,18 @@ impl AgentApiClient {
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         pin_mut!(sub);
-        match tokio::time::timeout(Duration::from_millis(1000), sub.next()).await {
-            Ok(Some(e)) => {
-                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                match response_with_id.content {
-                    AgentOutMessage::Ok => Ok(()),
-                    AgentOutMessage::Error(e) => Err(Error::AgentInternalError(e)),
-                    m => {
-                        // wrong message?
-                        warn!(
-                            "Expected AgentOutMessage::Ok or AgentOutMessage::Error, got: {:?}",
-                            m
-                        );
-                        Err(Error::AgentCommunicationError)
+        loop {
+            match tokio::time::timeout(Duration::from_millis(1000), sub.next()).await {
+                Ok(Some(e)) => {
+                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                    match response_with_id.content {
+                        AgentOutMessage::Ok => return Ok(()),
+                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
                     }
                 }
+                Ok(None) => return Err(Error::AgentDisconnected),
+                Err(_) => return Err(Error::AgentTimeout),
             }
-            Ok(None) => Err(Error::AgentDisconnected),
-            Err(_) => Err(Error::AgentTimeout),
         }
     }
 
@@ -116,20 +136,18 @@ impl AgentApiClient {
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         pin_mut!(sub);
-        match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-            Ok(Some(e)) => {
-                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                match response_with_id.content {
-                    AgentOutMessage::ServerStatus(s) => Ok(s),
-                    m => {
-                        // wrong message?
-                        warn!("Expected AgentOutMessage::ServerStatus, got: {:?}", m);
-                        Err(Error::AgentCommunicationError)
+        loop {
+            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
+                Ok(Some(e)) => {
+                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                    match response_with_id.content {
+                        AgentOutMessage::ServerStatus(s) => return Ok(s),
+                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
                     }
                 }
+                Ok(None) => return Err(Error::AgentDisconnected),
+                Err(_) => return Err(Error::AgentTimeout),
             }
-            Ok(None) => Err(Error::AgentDisconnected),
-            Err(_) => Err(Error::AgentTimeout),
         }
     }
 
@@ -138,28 +156,25 @@ impl AgentApiClient {
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         pin_mut!(sub);
-        match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-            Ok(Some(e)) => {
-                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                match response_with_id.content {
-                    AgentOutMessage::SaveList(saves) => Ok(saves),
-                    AgentOutMessage::Error(e) => Err(Error::AgentInternalError(e)),
-                    m => {
-                        // wrong message?
-                        warn!("Got unexpected message: {:?}", m);
-                        Err(Error::AgentCommunicationError)
+        loop {
+            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
+                Ok(Some(e)) => {
+                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                    match response_with_id.content {
+                        AgentOutMessage::SaveList(saves) => return Ok(saves),
+                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
                     }
                 }
+                Ok(None) => return Err(Error::AgentDisconnected),
+                Err(_) => return Err(Error::AgentTimeout),
             }
-            Ok(None) => Err(Error::AgentDisconnected),
-            Err(_) => Err(Error::AgentTimeout),
         }
     }
 
     async fn send_request_and_subscribe(
         &self,
         request: AgentRequest,
-    ) -> Result<(OperationId, impl Stream<Item = Event>)> {
+    ) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
         if !self.ws_connected.load(Ordering::Relaxed) {
             return Err(Error::AgentDisconnected);
         }
@@ -188,6 +203,37 @@ impl AgentApiClient {
         self.event_broker.publish(event).await;
 
         Ok((id, subscriber))
+    }
+}
+
+/// "Default" handler for incoming messages from agent, to handle errors
+fn default_message_handler(agent_message: AgentOutMessage) -> Option<Error> {
+    match agent_message {
+        AgentOutMessage::ConfigAdminList(_)
+        | AgentOutMessage::ConfigRcon { .. }
+        | AgentOutMessage::ConfigSecrets(_)
+        | AgentOutMessage::ConfigServerSettings(_)
+        | AgentOutMessage::FactorioVersion(_)
+        | AgentOutMessage::ModsList(_)
+        | AgentOutMessage::ModSettings(_)
+        | AgentOutMessage::RconResponse(_)
+        | AgentOutMessage::SaveList(_)
+        | AgentOutMessage::ServerStatus(_)
+        | AgentOutMessage::Ok => None,
+        AgentOutMessage::Message(_) => {
+            // swallow the message for now
+            None
+        }
+        AgentOutMessage::Error(e) => Some(Error::AgentInternalError(e)),
+        AgentOutMessage::ConflictingOperation => {
+            Some(Error::AgentInternalError("Invalid operation at this time".to_owned()))
+        }
+        AgentOutMessage::MissingSecrets => {
+            Some(Error::AgentInternalError("Missing secrets".to_owned()))
+        }
+        AgentOutMessage::NotInstalled => Some(Error::AgentInternalError(
+            "Factorio not installed".to_owned(),
+        )),
     }
 }
 

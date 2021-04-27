@@ -1,4 +1,6 @@
+import { HttpClientModule } from '@angular/common/http';
 import { NgModule } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { BrowserModule, Title } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
@@ -9,7 +11,6 @@ import { ModsComponent } from './mods/mods.component';
 import { LogsComponent } from './logs/logs.component';
 import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
 import { MgmtServerRestApiModule } from './mgmt-server-rest-api/mgmt-server-rest-api.module';
-import { HttpClientModule } from '@angular/common/http';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { ModListComponent } from './mods/mod-list/mod-list.component';
 import { ModSettingsComponent } from './mods/mod-settings/mod-settings.component';
@@ -38,6 +39,7 @@ import { WhiteListComponent } from './server-config/white-list/white-list.compon
   imports: [
     BrowserModule,
     AppRoutingModule,
+    FormsModule,
     HttpClientModule,
     MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.origin}/api/v0` }),
     FontAwesomeModule,
