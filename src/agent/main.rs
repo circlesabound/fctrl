@@ -1,6 +1,11 @@
 #![feature(trait_alias)]
 
-use std::{convert::{TryFrom, TryInto}, net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc, time::Duration};
+use std::{
+    convert::{TryFrom, TryInto},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
 use crate::{
     consts::*,
@@ -467,7 +472,9 @@ impl AgentController {
         force_install: bool,
         operation_id: OperationId,
     ) {
-        if let Ok(mut vm) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.write()).await {
+        if let Ok(mut vm) =
+            tokio::time::timeout(Duration::from_millis(250), self.version_manager.write()).await
+        {
             self.long_running_ack(&operation_id).await;
             // Assume there is at most one version installed
             match vm.versions.keys().next() {
@@ -627,12 +634,15 @@ impl AgentController {
                 }
             }
         } else {
-            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id)
+                .await;
         }
     }
 
     async fn version_get(&self, operation_id: OperationId) {
-        if let Ok(vm) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await {
+        if let Ok(vm) =
+            tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await
+        {
             match vm.versions.values().next() {
                 None => {
                     self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
@@ -647,13 +657,16 @@ impl AgentController {
                 }
             }
         } else {
-            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id)
+                .await;
         }
     }
 
     async fn server_start(&self, savefile: ServerStartSaveFile, operation_id: OperationId) {
         // assume there is at most one version installed
-        if let Ok(vm) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await {
+        if let Ok(vm) =
+            tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await
+        {
             let version;
             match vm.versions.values().next() {
                 None => {
@@ -669,7 +682,8 @@ impl AgentController {
             self.internal_server_start_with_version(version, savefile, operation_id, None)
                 .await;
         } else {
-            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id)
+                .await;
         }
     }
 
@@ -822,7 +836,9 @@ impl AgentController {
 
     async fn save_create(&self, save_name: String, operation_id: OperationId) {
         // assume there is at most one version installed
-        if let Ok(version_mg) = tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await {
+        if let Ok(version_mg) =
+            tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await
+        {
             self.long_running_ack(&operation_id).await;
             let version;
             match version_mg.versions.values().next() {
@@ -887,7 +903,8 @@ impl AgentController {
                 }
             }
         } else {
-            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id).await;
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id)
+                .await;
         }
     }
 

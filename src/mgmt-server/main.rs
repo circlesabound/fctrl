@@ -5,7 +5,6 @@ use std::{path::PathBuf, sync::Arc};
 use log::{error, info};
 use rocket::{catchers, routes};
 use rocket_contrib::serve::StaticFiles;
-use tokio::fs;
 
 use crate::{clients::AgentApiClient, events::broker::EventBroker};
 
@@ -15,6 +14,7 @@ mod consts;
 mod error;
 mod events;
 mod routes;
+mod ws;
 
 #[rocket::main]
 async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +26,6 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Creating agent client with address {}", agent_addr);
     let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
 
-    // test123().await;
     let _ = rocket::build()
         .manage(event_broker)
         .manage(agent_client)
@@ -60,26 +59,47 @@ pub fn get_dist_path() -> PathBuf {
         .join("web")
 }
 
-async fn _test123() -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all(&*consts::DB_DIR).await?;
-    info!("Opening db");
-    let db = rocksdb::DB::open_default(consts::DB_DIR.join("testdb"))?;
-    info!("Writing {{'key','hello this is value'}} to db");
-    db.put(b"key", b"hello this is value")?;
-    match db.get(b"key") {
-        Ok(Some(value)) => {
-            info!(
-                "Retrieved written value from the db: {}",
-                String::from_utf8(value).unwrap()
-            );
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tokio::fs;
+
+    #[tokio::test]
+    async fn test_rocksdb() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        fs::create_dir_all(&*consts::DB_DIR).await?;
+
+        info!("Opening db");
+        let db_path = consts::DB_DIR.join("testdb");
+        let secondary_path = consts::DB_DIR.join("testdb_secondary");
+        let db = rocksdb::DB::open_default(&db_path)?;
+
+        info!("Opening secondary");
+        let mut opts = rocksdb::Options::default();
+        opts.set_max_open_files(-1);
+        let db_r = rocksdb::DB::open_as_secondary(&opts, &db_path, &secondary_path)?;
+
+        info!("Writing {{'key','hello this is value'}} to db");
+        db.put(b"key", b"hello this is value")?;
+
+        info!("Reading from secondary");
+        db_r.try_catch_up_with_primary()?;
+
+        match db_r.get(b"key") {
+            Ok(Some(value)) => {
+                info!(
+                    "Retrieved written value from the db: {}",
+                    String::from_utf8(value).unwrap()
+                );
+            }
+            Ok(None) => {
+                error!("Retrieved empty value from db");
+            }
+            Err(e) => {
+                error!("Error retrieving value from db: {:?}", e)
+            }
         }
-        Ok(None) => {
-            error!("Retrieved empty value from db");
-        }
-        Err(e) => {
-            error!("Error retrieving value from db: {:?}", e)
-        }
+        db.delete(b"key")?;
+        Ok(())
     }
-    db.delete(b"key")?;
-    Ok(())
 }

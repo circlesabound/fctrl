@@ -151,7 +151,10 @@ impl AgentApiClient {
         }
     }
 
-    pub async fn save_create(&self, savefile_name: String) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+    pub async fn save_create(
+        &self,
+        savefile_name: String,
+    ) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
         if savefile_name.trim().is_empty() {
             return Err(Error::BadRequest("Empty savefile name".to_owned()));
         }
@@ -250,9 +253,9 @@ fn default_message_handler(agent_message: AgentOutMessage) -> Option<Error> {
             None
         }
         AgentOutMessage::Error(e) => Some(Error::AgentInternalError(e)),
-        AgentOutMessage::ConflictingOperation => {
-            Some(Error::AgentInternalError("Invalid operation at this time".to_owned()))
-        }
+        AgentOutMessage::ConflictingOperation => Some(Error::AgentInternalError(
+            "Invalid operation at this time".to_owned(),
+        )),
         AgentOutMessage::MissingSecrets => {
             Some(Error::AgentInternalError("Missing secrets".to_owned()))
         }

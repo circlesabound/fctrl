@@ -72,9 +72,7 @@ impl<'r> Responder<'r, 'static> for Error {
             Error::AgentInternalError(_) | Error::Io(_) | Error::Json(_) => {
                 Status::InternalServerError
             }
-            Error::BadRequest(_) => {
-                Status::BadRequest
-            }
+            Error::BadRequest(_) => Status::BadRequest,
         };
 
         Response::build()
