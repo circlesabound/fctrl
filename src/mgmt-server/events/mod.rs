@@ -11,5 +11,5 @@ pub struct Event {
 #[derive(Clone, Debug, Eq, derive_more::From, Hash, derive_more::Into, PartialEq)]
 pub struct TopicName(pub String);
 
-pub const OPERATION_TOPIC_NAME: &'static str = "operation";
-pub const STDOUT_TOPIC_NAME: &'static str = "stdout";
+pub const OPERATION_TOPIC_NAME: &str = "operation";
+pub const STDOUT_TOPIC_NAME: &str = "stdout";

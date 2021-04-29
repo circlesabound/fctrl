@@ -1,6 +1,6 @@
 use std::collections::{hash_map::Entry, HashMap};
 
-use futures::{Stream, StreamExt};
+use futures::{future, Stream, StreamExt};
 use log::warn;
 use tokio::sync::{broadcast, RwLock};
 use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
@@ -54,25 +54,30 @@ impl EventBroker {
             rx = self.create_topic_with_receiver(topic_name.clone()).await;
         }
 
-        Box::pin(BroadcastStream::new(rx).filter_map(move |r| {
-            let filter = filter.clone();
-            let topic_name = topic_name.clone();
-            async move {
-                match r {
-                    Ok(event) => {
-                        if let Some(v) = event.tags.get(&topic_name) {
-                            filter(v).then_some(event)
-                        } else {
-                            None
+        Box::pin(
+            BroadcastStream::new(rx)
+                .filter_map(move |r| {
+                    let filter = filter.clone();
+                    let topic_name = topic_name.clone();
+                    async move {
+                        match r {
+                            Ok(event) => {
+                                if let Some(v) = event.tags.get(&topic_name) {
+                                    filter(v).then_some(event)
+                                } else {
+                                    None
+                                }
+                            }
+                            Err(BroadcastStreamRecvError::Lagged(skipped)) => {
+                                warn!("Subscriber lagged, skipped {} messages", skipped);
+                                None
+                            }
                         }
                     }
-                    Err(BroadcastStreamRecvError::Lagged(skipped)) => {
-                        warn!("Subscriber lagged, skipped {} messages", skipped);
-                        None
-                    }
-                }
-            }
-        }))
+                })
+                .map(future::ready)
+                .buffered(20),
+        )
     }
 
     async fn create_topic_with_receiver(

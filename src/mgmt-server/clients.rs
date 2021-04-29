@@ -102,7 +102,7 @@ impl AgentApiClient {
                     let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
                     match response_with_id.content {
                         AgentOutMessage::Ok => return Ok(()),
-                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
+                        m => default_message_handler(m).map_or(Ok(()), Err)?,
                     }
                 }
                 Ok(None) => return Err(Error::AgentDisconnected),
@@ -122,7 +122,7 @@ impl AgentApiClient {
                     let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
                     match response_with_id.content {
                         AgentOutMessage::Ok => return Ok(()),
-                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
+                        m => default_message_handler(m).map_or(Ok(()), Err)?,
                     }
                 }
                 Ok(None) => return Err(Error::AgentDisconnected),
@@ -142,7 +142,7 @@ impl AgentApiClient {
                     let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
                     match response_with_id.content {
                         AgentOutMessage::ServerStatus(s) => return Ok(s),
-                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
+                        m => default_message_handler(m).map_or(Ok(()), Err)?,
                     }
                 }
                 Ok(None) => return Err(Error::AgentDisconnected),
@@ -190,7 +190,7 @@ impl AgentApiClient {
                     let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
                     match response_with_id.content {
                         AgentOutMessage::SaveList(saves) => return Ok(saves),
-                        m => default_message_handler(m).map_or(Ok(()), |e| Err(e))?,
+                        m => default_message_handler(m).map_or(Ok(()), Err)?,
                     }
                 }
                 Ok(None) => return Err(Error::AgentDisconnected),
@@ -265,7 +265,7 @@ fn default_message_handler(agent_message: AgentOutMessage) -> Option<Error> {
     }
 }
 
-const OUTGOING_TOPIC_NAME: &'static str = "_AGENT_OUTGOING";
+const OUTGOING_TOPIC_NAME: &str = "_AGENT_OUTGOING";
 
 /// Create a WebSocket connection and set it up to pipe incoming / outgoing to the event broker, using pub/sub.
 /// This way we can easily re-create the connection at any time.
