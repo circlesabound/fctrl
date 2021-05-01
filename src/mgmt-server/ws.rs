@@ -1,14 +1,14 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 
-use futures::Stream;
-use log::{info, warn};
+use futures::{channel::mpsc, future, pin_mut, SinkExt, Stream, StreamExt};
+use log::{debug, info, warn};
 use rocket::http;
 use serde::Serialize;
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{oneshot, RwLock, RwLockWriteGuard},
+    sync::{oneshot, Mutex, RwLock, RwLockWriteGuard},
 };
-use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::error::Result;
 
@@ -35,6 +35,7 @@ impl WebSocketServer {
                     },
                     accept_res = tcp_listener.accept() => {
                         if let Ok((tcp, addr)) = accept_res {
+                            debug!("WebSocketServer received connection request from {}", addr);
                             server_clone.route(tcp).await;
                         }
                         todo!()
@@ -48,7 +49,7 @@ impl WebSocketServer {
 
     pub async fn stream_at<S, I>(&self, path: String, stream: S, unconnected_timeout: Duration)
     where
-        S: Stream<Item = I>, // TODO a proper item type
+        S: Stream<Item = I> + Unpin + Send, // TODO a proper item type
         I: Serialize,
     {
         let (tx, rx) = oneshot::channel();
@@ -61,8 +62,51 @@ impl WebSocketServer {
         let timed_out = tokio::time::timeout(unconnected_timeout, async move {
             if let Ok(ws) = rx.await {
                 info!("WebSocket peer connected");
-                // TODO stream, handle disconnenct, ping, etc
-                todo!()
+                let (mut ws_tx, mut ws_rx) = ws.split();
+
+                // Abstract ws_tx with a channel to avoid locking
+                let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded();
+                tokio::spawn(async move {
+                    while let Some(msg) = outgoing_rx.next().await {
+                        let _ = ws_tx.send(msg).await;
+                    }
+
+                    info!("Closing websocket connection");
+                });
+
+                // Forward messages from stream to outgoing channel
+                let outgoing_tx_clone = outgoing_tx.clone();
+                pin_mut!(stream);
+                let forward_fut = stream.for_each(|i| {
+                    let json = serde_json::to_string(&i)
+                        .unwrap_or_else(|_| "error: failed json serialisation".to_owned());
+                    let msg = Message::Text(json);
+                    let _ = outgoing_tx_clone.unbounded_send(msg);
+                    future::ready(())
+                });
+
+                // Handle incoming messages
+                let handle_incoming_task = tokio::spawn(async move {
+                    while let Some(Ok(msg)) = ws_rx.next().await {
+                        match msg {
+                            Message::Text(_) | Message::Binary(_) | Message::Pong(_) => {
+                                // ignore
+                            }
+                            Message::Ping(_) => {
+                                // respond with pong
+                                let _ = outgoing_tx.unbounded_send(Message::Pong(b"pong".to_vec()));
+                            }
+                            Message::Close(_) => {
+                                info!("Got close message");
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                // Wait until the forwarded stream is done, or client closes connection
+                // Eiher way, we are done, close the connection
+                future::select(forward_fut, handle_incoming_task).await;
             }
         })
         .await
