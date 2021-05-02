@@ -1,6 +1,6 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
 
-use futures::{channel::mpsc, future, pin_mut, SinkExt, Stream, StreamExt};
+use futures::{Future, FutureExt, SinkExt, Stream, StreamExt, channel::mpsc, future, pin_mut};
 use log::{debug, info, warn};
 use rocket::http;
 use tokio::{
@@ -58,74 +58,89 @@ impl WebSocketServer {
             mg.insert(path.clone(), tx);
         }
 
-        let timed_out = tokio::time::timeout(unconnected_timeout, async move {
-            if let Ok(ws) = rx.await {
-                info!("WebSocket peer connected");
-                let (mut ws_tx, mut ws_rx) = ws.split();
+        match tokio::time::timeout(unconnected_timeout, rx).await {
+            Ok(res) => {
+                if let Ok(ws) = res {
+                    debug!("WebSocket peer connected");
+                    let (mut ws_tx, mut ws_rx) = ws.split();
 
-                // Abstract ws_tx with a channel to avoid locking
-                let (mut outgoing_tx, mut outgoing_rx) = mpsc::unbounded();
-                tokio::spawn(async move {
-                    while let Some(msg) = outgoing_rx.next().await {
-                        let _ = ws_tx.send(msg).await;
-                    }
+                    // 1 hour for inactivity timeout, even if client is connected
+                    let (mut activity_tx, mut activity_rx) = mpsc::unbounded();
+                    let path = path.clone();
+                    let inactivity_task = tokio::spawn(async move {
+                        let inactivity_timeout = Duration::from_secs(60 * 60);
+                        while let Ok(_) =
+                            tokio::time::timeout(inactivity_timeout, activity_rx.next()).await
+                        {
+                        }
+                        debug!("WebSocket stream at {} timing out from inactivity", path);
+                    });
 
-                    info!("Closing websocket connection");
-                    let _ = ws_tx.send(Message::Close(None)).await;
-                    let _ = ws_tx.close().await;
-                });
+                    // Abstract ws_tx with a channel to avoid locking
+                    let (mut outgoing_tx, mut outgoing_rx) = mpsc::unbounded();
+                    tokio::spawn(async move {
+                        while let Some(msg) = outgoing_rx.next().await {
+                            let _ = activity_tx.send(()).await;
+                            debug!("Sending into ws_tx: {}", msg);
+                            let _ = ws_tx.send(msg).await;
+                        }
 
-                // Forward messages from stream to outgoing channel
-                let outgoing_tx_clone = outgoing_tx.clone();
-                pin_mut!(stream);
-                let forward_fut = stream.for_each(|e| {
-                    let msg = Message::Text(e.content);
-                    let _ = outgoing_tx_clone.unbounded_send(msg);
-                    future::ready(())
-                });
+                        debug!("Closing websocket connection");
+                        let _ = ws_tx.send(Message::Close(None)).await;
+                        let _ = ws_tx.close().await;
+                    });
 
-                // Handle incoming messages
-                let outgoing_tx_clone = outgoing_tx.clone();
-                let handle_incoming_task = tokio::spawn(async move {
-                    while let Some(Ok(msg)) = ws_rx.next().await {
-                        match msg {
-                            Message::Text(_) | Message::Binary(_) | Message::Pong(_) => {
-                                // ignore
-                            }
-                            Message::Ping(_) => {
-                                // respond with pong
-                                let _ = outgoing_tx_clone
-                                    .unbounded_send(Message::Pong(b"pong".to_vec()));
-                            }
-                            Message::Close(_) => {
-                                info!("Got close message");
-                                break;
+                    // Forward messages from stream to outgoing channel
+                    let outgoing_tx_clone = outgoing_tx.clone();
+                    pin_mut!(stream);
+                    let forward_fut = stream.for_each(|e| {
+                        let msg = Message::Text(e.content);
+                        let _ = outgoing_tx_clone.unbounded_send(msg);
+                        future::ready(())
+                    });
+
+                    // Handle incoming messages
+                    let handle_incoming_task = tokio::spawn(async move {
+                        while let Some(Ok(msg)) = ws_rx.next().await {
+                            match msg {
+                                Message::Text(_) | Message::Binary(_) | Message::Pong(_) => {
+                                    // ignore
+                                }
+                                Message::Ping(_) => {
+                                    // tungstenite library handles pings already
+                                }
+                                Message::Close(_) => {
+                                    info!("Got close message");
+                                    break;
+                                }
                             }
                         }
-                    }
-                });
+                    });
 
-                // Wait until the forwarded stream is done, or client closes connection.
-                // Eiher way, we are done, close the outgoing channel to close the connection.
-                future::select(forward_fut, handle_incoming_task).await;
-                let _ = outgoing_tx.close().await;
+                    // Wait until the forwarded stream is done, client closes connection, or timeout from inactivity.
+                    // Eiher way, we are done, close the outgoing channel to close the connection.
+                    let futures: Vec<Pin<Box<dyn Future<Output = ()> + Send>>> = vec![
+                        Box::pin(forward_fut.then(|_| future::ready(()))),
+                        Box::pin(handle_incoming_task.then(|_| future::ready(()))),
+                        Box::pin(inactivity_task.then(|_| future::ready(()))),
+                    ];
+                    future::select_all(futures).await;
+                    let _ = outgoing_tx.close().await;
+                }
             }
-        })
-        .await
-        .is_err();
-
-        if timed_out {
-            // no-one connected, timed out
-            // remove the entry
-            let mut mg = self.dynamic_streams_waiting.lock().await;
-            mg.remove(&path);
-            info!(
-                "websocket stream '{}' timed out waiting for connection",
-                path
-            );
-        } else {
-            info!("cleaning up stream '{}'", path);
+            Err(_) => {
+                // no-one connected, timed out
+                // remove the entry
+                let mut mg = self.dynamic_streams_waiting.lock().await;
+                mg.remove(&path);
+                info!(
+                    "websocket stream '{}' timed out waiting for connection",
+                    path
+                );
+            }
         }
+
+        info!("Done with stream at: '{}'", path);
     }
 
     async fn route(&self, tcp: TcpStream) {

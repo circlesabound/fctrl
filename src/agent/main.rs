@@ -410,7 +410,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                trace!("Sending ack: {}", json);
+                debug!("Sending ack: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -428,7 +428,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                trace!("Sending reply: {}", json);
+                debug!("Sending reply: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -446,7 +446,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                trace!("Sending reply_success: {}", json);
+                debug!("Sending reply_success: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -464,7 +464,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                trace!("Sending reply_failed: {}", json);
+                debug!("Sending reply_failed: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }

@@ -12,7 +12,7 @@ use fctrl::schema::{
     AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
     OperationId, OperationStatus, Save, ServerStartSaveFile, ServerStatus,
 };
-use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
+use futures::{Future, SinkExt, Stream, StreamExt, future, pin_mut};
 use log::{debug, error, info, trace, warn};
 
 use tokio::sync::Mutex;
@@ -73,23 +73,9 @@ impl AgentApiClient {
             version,
             force_install,
         };
-        let (id, mut sub) = self.send_request_and_subscribe(request).await?;
+        let (id, sub) = self.send_request_and_subscribe(request).await?;
 
-        let mut sub_pinned = Pin::new(&mut sub);
-        match tokio::time::timeout(Duration::from_millis(500), sub_pinned.next()).await {
-            Ok(Some(e)) => {
-                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                if let OperationStatus::Ack = response_with_id.status {
-                    Ok((id, sub))
-                } else {
-                    // Long running operation should always respond with ack
-                    Err(default_message_handler(response_with_id.content)
-                        .unwrap_or(Error::AgentCommunicationError))
-                }
-            }
-            Ok(None) => Err(Error::AgentDisconnected),
-            Err(_) => Err(Error::AgentTimeout),
-        }
+        ack_or_timeout(id, sub, Duration::from_millis(500)).await
     }
 
     pub async fn server_start(&self, savefile: ServerStartSaveFile) -> Result<()> {
@@ -161,23 +147,9 @@ impl AgentApiClient {
         }
 
         let request = AgentRequest::SaveCreate(savefile_name);
-        let (id, mut sub) = self.send_request_and_subscribe(request).await?;
+        let (id, sub) = self.send_request_and_subscribe(request).await?;
 
-        let mut sub_pinned = Pin::new(&mut sub);
-        match tokio::time::timeout(Duration::from_millis(500), sub_pinned.next()).await {
-            Ok(Some(e)) => {
-                let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                if let OperationStatus::Ack = response_with_id.status {
-                    Ok((id, sub))
-                } else {
-                    // Long running operation should always respond with ack
-                    Err(default_message_handler(response_with_id.content)
-                        .unwrap_or(Error::AgentCommunicationError))
-                }
-            }
-            Ok(None) => Err(Error::AgentDisconnected),
-            Err(_) => Err(Error::AgentTimeout),
-        }
+        ack_or_timeout(id, sub, Duration::from_millis(500)).await
     }
 
     pub async fn save_list(&self) -> Result<Vec<Save>> {
@@ -385,4 +357,50 @@ fn tag_incoming_message(s: String) -> Option<Event> {
         warn!("Got text message of unsupported format: {}", s);
         None
     }
+}
+
+async fn ack_or_timeout(
+    operation_id: OperationId,
+    mut sub: impl Stream<Item = Event> + Unpin,
+    timeout: Duration,
+) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+    let mut sub_pinned = Pin::new(&mut sub);
+    match tokio::time::timeout(timeout, sub_pinned.next()).await {
+        Ok(Some(e)) => {
+            let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+            if let OperationStatus::Ack = response_with_id.status {
+                Ok((operation_id, fuse_agent_response_stream(sub)))
+            } else {
+                // Long running operation should always respond with ack
+                Err(default_message_handler(response_with_id.content)
+                    .unwrap_or(Error::AgentCommunicationError))
+            }
+        }
+        Ok(None) => Err(Error::AgentDisconnected),
+        Err(_) => Err(Error::AgentTimeout),
+    }
+}
+
+/// Fuse (close) the stream after a AgentResponseWithId has status Completed or Failed.
+/// TODO this doesn't work properly - can't signal to close the stream from inside the combinator
+fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item = Event> {
+    s.scan(true, |more_responses, e| {
+        if !*more_responses {
+            future::ready(None)
+        } else {
+            match serde_json::from_str::<AgentResponseWithId>(&e.content) {
+                Ok(r) => match r.status {
+                    OperationStatus::Ack | OperationStatus::Ongoing => (),
+                    OperationStatus::Completed | OperationStatus::Failed => {
+                        *more_responses = false;
+                    }
+                },
+                Err(_) => {
+                    warn!("Failed to deserialise AgentResponseWithId");
+                    // ignore
+                }
+            }
+            future::ready(Some(e))
+        }
+    })
 }
