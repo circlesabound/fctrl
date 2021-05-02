@@ -24,7 +24,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use server::{
     mods::{Mod, ModManager},
     settings::Secrets,
@@ -157,7 +157,7 @@ struct AgentController {
     proc_manager: Arc<ProcessManager>,
     version_manager: Arc<RwLock<VersionManager>>,
     global_tx: Arc<broadcast::Sender<AgentStreamingMessage>>,
-    ws_rx: SplitStream<WebSocketStream<TcpStream>>,
+    ws_rx: Option<SplitStream<WebSocketStream<TcpStream>>>,
     ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
     _send_global_outgoing_msgs_task: JoinHandle<()>,
     _sigint_task: JoinHandle<()>,
@@ -188,7 +188,7 @@ impl AgentController {
                         error!("Error serialising message: {:?}", e)
                     }
                     Ok(json) => {
-                        info!("Sending streaming message: {}", json);
+                        debug!("Sending streaming message: {}", json);
                         AgentController::_send_message(
                             Arc::clone(&ws_tx_clone),
                             Message::Text(json),
@@ -212,7 +212,7 @@ impl AgentController {
             proc_manager,
             version_manager,
             global_tx: global_bus_tx,
-            ws_rx,
+            ws_rx: Some(ws_rx),
             ws_tx,
             _send_global_outgoing_msgs_task,
             _sigint_task,
@@ -220,125 +220,19 @@ impl AgentController {
     }
 
     async fn message_loop(mut self) -> tungstenite::Result<()> {
-        while let Some(msg) = self.ws_rx.next().await {
+        let mut ws_rx = self.ws_rx.take().unwrap();
+        let controller = Arc::new(self);
+        while let Some(msg) = ws_rx.next().await {
             match msg {
-                Ok(Message::Text(json)) => {
-                    if let Ok(msg) = serde_json::from_str::<AgentRequestWithId>(&json) {
-                        info!("Got incoming message from {}: {}", self.peer_addr, json);
-                        let operation_id = msg.operation_id;
-                        match msg.message {
-                            // ***********************
-                            // Installation management
-                            // ***********************
-                            AgentRequest::VersionInstall {
-                                version,
-                                force_install,
-                            } => {
-                                self.version_install(version, force_install, operation_id)
-                                    .await
-                            }
-
-                            AgentRequest::VersionGet => {
-                                self.version_get(operation_id).await;
-                            }
-
-                            // **************
-                            // Server control
-                            // **************
-                            AgentRequest::ServerStart(savefile) => {
-                                self.server_start(savefile, operation_id).await
-                            }
-
-                            AgentRequest::ServerStop => self.server_stop(operation_id).await,
-
-                            AgentRequest::ServerStatus => self.server_status(operation_id).await,
-
-                            // *******************
-                            // Savefile management
-                            // *******************
-                            AgentRequest::SaveCreate(save_name) => {
-                                self.save_create(save_name, operation_id).await
-                            }
-
-                            AgentRequest::SaveList => {
-                                self.save_list(operation_id).await;
-                            }
-
-                            // **************
-                            // Mod management
-                            // **************
-                            AgentRequest::ModListGet => {
-                                self.mod_list_get(operation_id).await;
-                            }
-
-                            AgentRequest::ModListSet(mod_list) => {
-                                self.mod_list_set(mod_list, operation_id).await;
-                            }
-
-                            AgentRequest::ModSettingsGet => {
-                                self.mod_settings_get(operation_id).await;
-                            }
-
-                            AgentRequest::ModSettingsSet(bytes) => {
-                                self.mod_settings_set(bytes, operation_id).await;
-                            }
-
-                            // *************
-                            // Configuration
-                            // *************
-                            AgentRequest::ConfigAdminListGet => {
-                                self.config_admin_list_get(operation_id).await;
-                            }
-
-                            AgentRequest::ConfigAdminListSet { admins } => {
-                                self.config_admin_list_set(admins, operation_id).await;
-                            }
-
-                            AgentRequest::ConfigRconGet => {
-                                self.config_rcon_get(operation_id).await;
-                            }
-
-                            AgentRequest::ConfigRconSet { password } => {
-                                self.config_rcon_set(password, operation_id).await;
-                            }
-
-                            AgentRequest::ConfigSecretsGet => {
-                                self.config_secrets_get(operation_id).await;
-                            }
-
-                            AgentRequest::ConfigSecretsSet { username, token } => {
-                                self.config_secrets_set(username, token, operation_id).await;
-                            }
-
-                            AgentRequest::ConfigServerSettingsGet => {
-                                self.config_server_settings_get(operation_id).await;
-                            }
-
-                            AgentRequest::ConfigServerSettingsSet { json } => {
-                                self.config_server_settings_set(json, operation_id).await;
-                            }
-
-                            // *******
-                            // In-game
-                            // *******
-                            AgentRequest::RconCommand(cmd) => {
-                                self.rcon_command(cmd, operation_id).await
-                            }
-                        }
+                Ok(msg) => {
+                    // handle close message here, to avoid passing values back and forth between tasks
+                    if let Message::Close(_) = msg {
+                        info!("Got close message from {}", controller.peer_addr);
+                        break;
+                    } else {
+                        let controller = Arc::clone(&controller);
+                        tokio::spawn(async move { controller.handle_message(msg).await });
                     }
-                }
-                Ok(Message::Binary(_)) => {
-                    warn!("got binary message??");
-                }
-                Ok(Message::Ping(_)) => {
-                    self.pong().await;
-                }
-                Ok(Message::Close(_)) => {
-                    info!("Got close message from {}", self.peer_addr);
-                    break;
-                }
-                Ok(_) => {
-                    warn!("got other message");
                 }
                 Err(e) => {
                     error!("error with incoming message: {:?}", e);
@@ -351,21 +245,131 @@ impl AgentController {
             }
         }
 
-        info!("Cleaning up for peer {}", self.peer_addr);
-        self._send_global_outgoing_msgs_task.abort();
-        self._sigint_task.abort();
+        info!("Cleaning up for peer {}", controller.peer_addr);
+        controller._send_global_outgoing_msgs_task.abort();
+        controller._sigint_task.abort();
         Ok(())
     }
 
-    async fn pong(&self) {
-        if let Err(_e) = self
-            .ws_tx
-            .lock()
-            .await
-            .send(Message::Pong("Pong".to_owned().into_bytes()))
-            .await
-        {
-            error!("Failed to send pong response to ping");
+    async fn handle_message(&self, msg: Message) {
+        match msg {
+            Message::Text(json) => {
+                if let Ok(msg) = serde_json::from_str::<AgentRequestWithId>(&json) {
+                    debug!("Got incoming message from {}: {}", self.peer_addr, json);
+                    let operation_id = msg.operation_id;
+                    match msg.message {
+                        // ***********************
+                        // Installation management
+                        // ***********************
+                        AgentRequest::VersionInstall {
+                            version,
+                            force_install,
+                        } => {
+                            self.version_install(version, force_install, operation_id)
+                                .await
+                        }
+
+                        AgentRequest::VersionGet => {
+                            self.version_get(operation_id).await;
+                        }
+
+                        // **************
+                        // Server control
+                        // **************
+                        AgentRequest::ServerStart(savefile) => {
+                            self.server_start(savefile, operation_id).await
+                        }
+
+                        AgentRequest::ServerStop => self.server_stop(operation_id).await,
+
+                        AgentRequest::ServerStatus => self.server_status(operation_id).await,
+
+                        // *******************
+                        // Savefile management
+                        // *******************
+                        AgentRequest::SaveCreate(save_name) => {
+                            self.save_create(save_name, operation_id).await
+                        }
+
+                        AgentRequest::SaveList => {
+                            self.save_list(operation_id).await;
+                        }
+
+                        // **************
+                        // Mod management
+                        // **************
+                        AgentRequest::ModListGet => {
+                            self.mod_list_get(operation_id).await;
+                        }
+
+                        AgentRequest::ModListSet(mod_list) => {
+                            self.mod_list_set(mod_list, operation_id).await;
+                        }
+
+                        AgentRequest::ModSettingsGet => {
+                            self.mod_settings_get(operation_id).await;
+                        }
+
+                        AgentRequest::ModSettingsSet(bytes) => {
+                            self.mod_settings_set(bytes, operation_id).await;
+                        }
+
+                        // *************
+                        // Configuration
+                        // *************
+                        AgentRequest::ConfigAdminListGet => {
+                            self.config_admin_list_get(operation_id).await;
+                        }
+
+                        AgentRequest::ConfigAdminListSet { admins } => {
+                            self.config_admin_list_set(admins, operation_id).await;
+                        }
+
+                        AgentRequest::ConfigRconGet => {
+                            self.config_rcon_get(operation_id).await;
+                        }
+
+                        AgentRequest::ConfigRconSet { password } => {
+                            self.config_rcon_set(password, operation_id).await;
+                        }
+
+                        AgentRequest::ConfigSecretsGet => {
+                            self.config_secrets_get(operation_id).await;
+                        }
+
+                        AgentRequest::ConfigSecretsSet { username, token } => {
+                            self.config_secrets_set(username, token, operation_id).await;
+                        }
+
+                        AgentRequest::ConfigServerSettingsGet => {
+                            self.config_server_settings_get(operation_id).await;
+                        }
+
+                        AgentRequest::ConfigServerSettingsSet { json } => {
+                            self.config_server_settings_set(json, operation_id).await;
+                        }
+
+                        // *******
+                        // In-game
+                        // *******
+                        AgentRequest::RconCommand(cmd) => {
+                            self.rcon_command(cmd, operation_id).await
+                        }
+                    }
+                }
+            }
+            Message::Binary(_) => {
+                // binary messages not supported
+            }
+            Message::Ping(_) => {
+                // tungstenite library handles pings already
+            }
+            Message::Close(_) => {
+                // this should have been handled already
+            }
+            _ => {
+                // other message
+            }
         }
     }
 
@@ -388,7 +392,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e)
             }
             Ok(json) => {
-                debug!("Sending streaming message: {}", json);
+                trace!("Sending streaming message: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -406,7 +410,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                debug!("Sending ack: {}", json);
+                trace!("Sending ack: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -424,7 +428,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                debug!("Sending reply: {}", json);
+                trace!("Sending reply: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -442,7 +446,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                debug!("Sending reply_success: {}", json);
+                trace!("Sending reply_success: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
@@ -460,7 +464,7 @@ impl AgentController {
                 error!("Error serialising message: {:?}", e);
             }
             Ok(json) => {
-                debug!("Sending reply_failed: {}", json);
+                trace!("Sending reply_failed: {}", json);
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }

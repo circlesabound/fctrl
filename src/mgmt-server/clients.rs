@@ -13,7 +13,7 @@ use fctrl::schema::{
     OperationId, OperationStatus, Save, ServerStartSaveFile, ServerStatus,
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 
 use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::Message;
@@ -39,20 +39,21 @@ impl AgentApiClient {
         let ws_connected_clone = Arc::clone(&ws_connected);
         tokio::spawn(async move {
             loop {
-                info!("Attempting to connect websocket");
+                info!("Attempting to establish WebSocket connection with agent");
                 match connect(ws_addr_clone.clone(), Arc::clone(&event_broker_clone)).await {
                     Ok(dc_fut) => {
                         ws_connected_clone.store(true, Ordering::Relaxed);
                         dc_fut.await;
-                        warn!("Websocket disconnected, will attempt to reconnect");
+                        warn!("Agent WebSocket disconnected, will attempt to reconnect");
                         ws_connected_clone.store(false, Ordering::Relaxed);
                     }
                     Err(e) => {
-                        error!("Failed to connect to websocket: {:?}", e);
+                        error!("Failed to connect to agent websocket: {:?}", e);
                     }
                 }
 
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                // Delay 3 seconds before reconnecting
+                tokio::time::sleep(Duration::from_secs(3)).await;
             }
         });
 
@@ -271,6 +272,7 @@ const OUTGOING_TOPIC_NAME: &str = "_AGENT_OUTGOING";
 /// This way we can easily re-create the connection at any time.
 pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Result<impl Future> {
     let (ws_stream, ..) = tokio_tungstenite::connect_async(&ws_addr).await?;
+    info!("Agent WebSocket connected");
     let (ws_write, mut ws_read) = ws_stream.split();
 
     let outgoing_stream = event_broker
@@ -285,16 +287,16 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
     let consecutive_missed_pings = Arc::new(AtomicU8::new(0));
     let consecutive_missed_pings_1 = Arc::clone(&consecutive_missed_pings);
     let keep_alive_task = tokio::spawn(async move {
-        while consecutive_missed_pings_1.load(Ordering::Relaxed) < 3 {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+        while consecutive_missed_pings_1.load(Ordering::Acquire) < 3 {
+            tokio::time::sleep(Duration::from_secs(15)).await;
             let ping = Message::Ping(b"ping".to_vec());
             if let Err(e) = ws_write_1.lock().await.send(ping).await {
                 error!("Failed to send ping: {:?}", e);
             } else {
-                debug!("Sending keep-alive ping");
+                trace!("Sending keep-alive ping");
             }
 
-            consecutive_missed_pings_1.fetch_add(1, Ordering::Relaxed);
+            consecutive_missed_pings_1.fetch_add(1, Ordering::AcqRel);
         }
         warn!("Failed or missing 3 keep-alive pings, assuming dead connection.");
     });
@@ -324,19 +326,15 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
                             }
                         }
                         Message::Binary(_) => {
-                            warn!("Got binary message, not supported");
+                            // binary message not supported or used
                         }
-                        Message::Ping(ping) => {
-                            info!("Agent sent ping, responding with pong");
-                            let pong = Message::Pong(ping);
-                            if let Err(e) = ws_write.lock().await.send(pong).await {
-                                error!("Failed to respond with pong: {:?}", e);
-                            }
+                        Message::Ping(_) => {
+                            // tungstenite library handles pings already
                         }
                         Message::Pong(_) => {
                             // Reset the keepalive
-                            debug!("Received pong response, resetting keepalive");
-                            consecutive_missed_pings.fetch_min(0, Ordering::Relaxed);
+                            trace!("Received pong response, resetting keepalive");
+                            consecutive_missed_pings.fetch_min(0, Ordering::Release);
                         }
                         Message::Close(_) => {
                             warn!("Agent requested to close the websocket connection");
