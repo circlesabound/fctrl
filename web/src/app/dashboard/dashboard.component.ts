@@ -4,6 +4,7 @@ import { SavefileObject, ServerControlStartPostRequest, ServerControlStatus } fr
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { faAngleDown, faPlay, faPlus, faStop } from '@fortawesome/free-solid-svg-icons';
 import { Observable, Subscription, timer } from 'rxjs';
+import { webSocket } from 'rxjs/webSocket';
 import { switchMap, tap } from 'rxjs/operators';
 
 @Component({
@@ -108,6 +109,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.apiClient.serverInstallPost$Response(params).subscribe(response => {
       const location = response.headers.get('Location');
       console.log(`got location header value: ${location}`);
+
+      if (location !== null) {
+        const ws = webSocket(location);
+        ws.subscribe(
+          msg => {
+            console.log(`ws got message: ${JSON.stringify(msg)}`);
+          },
+          err => {
+            console.log(`ws error: ${err}`);
+          },
+          () => {
+            console.log(`closing connection with ${location}`);
+          },
+        );
+      }
     });
   }
 
@@ -118,6 +134,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.apiClient.serverSavefileSavefileIdPut$Response(params).subscribe(response => {
       const location = response.headers.get('Location');
       console.log(`got location header value: ${location}`);
+
+      if (location !== null) {
+        const ws = webSocket(location);
+        ws.subscribe(
+          msg => {
+            console.log(`ws got message: ${JSON.stringify(msg)}`);
+          },
+          err => {
+            console.log(`ws error: ${err}`);
+          },
+          () => {
+            console.log(`closing connection with ${location}`);
+          },
+        );
+      }
     });
   }
 

@@ -1,10 +1,12 @@
+use std::{sync::Arc, time::Duration};
+
 use fctrl::schema::{mgmt_server_rest::*, ServerStartSaveFile, ServerStatus};
-use rocket::{get, http::Header, post, put, Response};
+use rocket::{get, post, put};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
 
-use crate::clients::AgentApiClient;
-use crate::error::Result;
+use crate::{clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer};
+use crate::{error::Result, routes::WsStreamingResponder};
 
 #[get("/server/control")]
 pub async fn status(agent_client: State<'_, AgentApiClient>) -> Result<Json<ServerControlStatus>> {
@@ -42,18 +44,26 @@ pub async fn stop_server(agent_client: State<'_, AgentApiClient>) -> Result<Stat
 }
 
 #[post("/server/install", data = "<body>")]
-pub async fn upgrade_install(
-    agent_client: State<'_, AgentApiClient>,
+pub async fn upgrade_install<'a>(
+    host: HostHeader<'a>,
+    agent_client: State<'a, AgentApiClient>,
+    ws: State<'a, Arc<WebSocketServer>>,
     body: Json<ServerInstallPostRequest>,
-) -> Result<Response<'_>> {
+) -> Result<WsStreamingResponder> {
     let body = body.into_inner();
     let (id, sub) = agent_client
         .version_install(body.version, body.force_install.unwrap_or(false))
         .await?;
-    Response::build()
-        .status(Status::Accepted)
-        .header(Header::new("Location", format!("ws://test123/{}", id.0)))
-        .ok()
+
+    let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
+
+    let ws = Arc::clone(&ws);
+    let path = resp.path.clone();
+    tokio::spawn(async move {
+        ws.stream_at(path, sub, Duration::from_secs(300)).await;
+    });
+
+    Ok(resp)
 }
 
 #[get("/server/savefile")]
@@ -72,13 +82,21 @@ pub async fn get_savefiles(
 }
 
 #[put("/server/savefile/<id>")]
-pub async fn create_savefile(
-    agent_client: State<'_, AgentApiClient>,
+pub async fn create_savefile<'a>(
+    host: HostHeader<'a>,
+    agent_client: State<'a, AgentApiClient>,
+    ws: State<'a, Arc<WebSocketServer>>,
     id: String,
-) -> Result<Response<'_>> {
+) -> Result<WsStreamingResponder> {
     let (id, sub) = agent_client.save_create(id).await?;
-    Response::build()
-        .status(Status::Accepted)
-        .header(Header::new("Location", format!("ws://test123/{}", id.0)))
-        .ok()
+
+    let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
+
+    let ws = Arc::clone(&ws);
+    let path = resp.path.clone();
+    tokio::spawn(async move {
+        ws.stream_at(path, sub, Duration::from_secs(300)).await;
+    });
+
+    Ok(resp)
 }

@@ -12,6 +12,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stream"
+version = "0.3.0"
+source = "git+https://github.com/SergioBenitez/async-stream.git?rev=c46ada9#c46ada948e0d4800393836f57eb2a3db516beb1e"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.0"
+source = "git+https://github.com/SergioBenitez/async-stream.git?rev=c46ada9#c46ada948e0d4800393836f57eb2a3db516beb1e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1330,8 +1349,9 @@ dependencies = [
 [[package]]
 name = "rocket"
 version = "0.5.0-dev"
-source = "git+https://github.com/SergioBenitez/Rocket?rev=dd0c03#dd0c036461524c8a8a74a018af312eea56afae9e"
+source = "git+https://github.com/SergioBenitez/Rocket?rev=fe23eaebd1bad066afcc2d2470f3a87aff2f53c4#fe23eaebd1bad066afcc2d2470f3a87aff2f53c4"
 dependencies = [
+ "async-stream",
  "async-trait",
  "atomic",
  "atty",
@@ -1365,7 +1385,7 @@ dependencies = [
 [[package]]
 name = "rocket_codegen"
 version = "0.5.0-dev"
-source = "git+https://github.com/SergioBenitez/Rocket?rev=dd0c03#dd0c036461524c8a8a74a018af312eea56afae9e"
+source = "git+https://github.com/SergioBenitez/Rocket?rev=fe23eaebd1bad066afcc2d2470f3a87aff2f53c4#fe23eaebd1bad066afcc2d2470f3a87aff2f53c4"
 dependencies = [
  "devise",
  "glob",
@@ -1378,7 +1398,7 @@ dependencies = [
 [[package]]
 name = "rocket_contrib"
 version = "0.5.0-dev"
-source = "git+https://github.com/SergioBenitez/Rocket?rev=dd0c03#dd0c036461524c8a8a74a018af312eea56afae9e"
+source = "git+https://github.com/SergioBenitez/Rocket?rev=fe23eaebd1bad066afcc2d2470f3a87aff2f53c4#fe23eaebd1bad066afcc2d2470f3a87aff2f53c4"
 dependencies = [
  "log",
  "rocket",
@@ -1390,7 +1410,7 @@ dependencies = [
 [[package]]
 name = "rocket_http"
 version = "0.5.0-dev"
-source = "git+https://github.com/SergioBenitez/Rocket?rev=dd0c03#dd0c036461524c8a8a74a018af312eea56afae9e"
+source = "git+https://github.com/SergioBenitez/Rocket?rev=fe23eaebd1bad066afcc2d2470f3a87aff2f53c4#fe23eaebd1bad066afcc2d2470f3a87aff2f53c4"
 dependencies = [
  "cookie",
  "either",

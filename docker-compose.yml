@@ -24,10 +24,13 @@ services:
         target: /app/db
     environment:
       - AGENT_ADDR=ws://agent:${AGENT_WS_PORT}
+      - MGMT_SERVER_WS_ADDRESS=${MGMT_SERVER_BIND}
+      - MGMT_SERVER_WS_PORT
       - ROCKET_ADDRESS=${MGMT_SERVER_BIND}
-      - ROCKET_LOG_LEVEL=normal
+      - ROCKET_LOG_LEVEL=critical
       - ROCKET_PORT=${MGMT_SERVER_PORT}
       - RUST_LOG=${LOG_LEVEL}
     ports:
       - '${MGMT_SERVER_BIND}:${MGMT_SERVER_PORT}:${MGMT_SERVER_PORT}/tcp'
+      - '${MGMT_SERVER_WS_PORT}:${MGMT_SERVER_WS_PORT}/tcp'
     stop_signal: SIGINT

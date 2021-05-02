@@ -3,18 +3,18 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use futures::{channel::mpsc, future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, warn};
 use rocket::http;
-use serde::Serialize;
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{oneshot, Mutex, RwLock, RwLockWriteGuard},
+    sync::{oneshot, Mutex, MutexGuard},
 };
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
-use crate::error::Result;
+use crate::{error::Result, events::Event};
 
 pub struct WebSocketServer {
+    pub port: u16,
     dynamic_streams_waiting:
-        Arc<RwLock<HashMap<String, oneshot::Sender<WebSocketStream<TcpStream>>>>>,
+        Arc<Mutex<HashMap<String, oneshot::Sender<WebSocketStream<TcpStream>>>>>,
 }
 
 impl WebSocketServer {
@@ -22,7 +22,8 @@ impl WebSocketServer {
         let tcp_listener = TcpListener::bind(bind_addr).await?;
 
         let server = Arc::new(WebSocketServer {
-            dynamic_streams_waiting: Arc::new(RwLock::new(HashMap::new())),
+            port: bind_addr.port(),
+            dynamic_streams_waiting: Arc::new(Mutex::new(HashMap::new())),
         });
 
         let server_clone = Arc::clone(&server);
@@ -38,7 +39,6 @@ impl WebSocketServer {
                             debug!("WebSocketServer received connection request from {}", addr);
                             server_clone.route(tcp).await;
                         }
-                        todo!()
                     },
                 }
             }
@@ -47,16 +47,15 @@ impl WebSocketServer {
         Ok(server)
     }
 
-    pub async fn stream_at<S, I>(&self, path: String, stream: S, unconnected_timeout: Duration)
+    pub async fn stream_at<S>(&self, path: String, stream: S, unconnected_timeout: Duration)
     where
-        S: Stream<Item = I> + Unpin + Send, // TODO a proper item type
-        I: Serialize,
+        S: Stream<Item = Event> + Unpin + Send,
     {
         let (tx, rx) = oneshot::channel();
 
         {
-            let mut write_guard = self.dynamic_streams_waiting.write().await;
-            write_guard.insert(path.clone(), tx);
+            let mut mg = self.dynamic_streams_waiting.lock().await;
+            mg.insert(path.clone(), tx);
         }
 
         let timed_out = tokio::time::timeout(unconnected_timeout, async move {
@@ -65,27 +64,28 @@ impl WebSocketServer {
                 let (mut ws_tx, mut ws_rx) = ws.split();
 
                 // Abstract ws_tx with a channel to avoid locking
-                let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded();
+                let (mut outgoing_tx, mut outgoing_rx) = mpsc::unbounded();
                 tokio::spawn(async move {
                     while let Some(msg) = outgoing_rx.next().await {
                         let _ = ws_tx.send(msg).await;
                     }
 
                     info!("Closing websocket connection");
+                    let _ = ws_tx.send(Message::Close(None)).await;
+                    let _ = ws_tx.close().await;
                 });
 
                 // Forward messages from stream to outgoing channel
                 let outgoing_tx_clone = outgoing_tx.clone();
                 pin_mut!(stream);
-                let forward_fut = stream.for_each(|i| {
-                    let json = serde_json::to_string(&i)
-                        .unwrap_or_else(|_| "error: failed json serialisation".to_owned());
-                    let msg = Message::Text(json);
+                let forward_fut = stream.for_each(|e| {
+                    let msg = Message::Text(e.content);
                     let _ = outgoing_tx_clone.unbounded_send(msg);
                     future::ready(())
                 });
 
                 // Handle incoming messages
+                let outgoing_tx_clone = outgoing_tx.clone();
                 let handle_incoming_task = tokio::spawn(async move {
                     while let Some(Ok(msg)) = ws_rx.next().await {
                         match msg {
@@ -94,7 +94,8 @@ impl WebSocketServer {
                             }
                             Message::Ping(_) => {
                                 // respond with pong
-                                let _ = outgoing_tx.unbounded_send(Message::Pong(b"pong".to_vec()));
+                                let _ = outgoing_tx_clone
+                                    .unbounded_send(Message::Pong(b"pong".to_vec()));
                             }
                             Message::Close(_) => {
                                 info!("Got close message");
@@ -104,9 +105,10 @@ impl WebSocketServer {
                     }
                 });
 
-                // Wait until the forwarded stream is done, or client closes connection
-                // Eiher way, we are done, close the connection
+                // Wait until the forwarded stream is done, or client closes connection.
+                // Eiher way, we are done, close the outgoing channel to close the connection.
                 future::select(forward_fut, handle_incoming_task).await;
+                let _ = outgoing_tx.close().await;
             }
         })
         .await
@@ -115,26 +117,29 @@ impl WebSocketServer {
         if timed_out {
             // no-one connected, timed out
             // remove the entry
-            let mut write_guard = self.dynamic_streams_waiting.write().await;
-            write_guard.remove(&path);
+            let mut mg = self.dynamic_streams_waiting.lock().await;
+            mg.remove(&path);
             info!(
-                "dynamic websocket stream '{}' timed out waiting for connection",
+                "websocket stream '{}' timed out waiting for connection",
                 path
             );
+        } else {
+            info!("cleaning up stream '{}'", path);
         }
     }
 
     async fn route(&self, tcp: TcpStream) {
-        let write_guard = self.dynamic_streams_waiting.write().await;
+        let mg = self.dynamic_streams_waiting.lock().await;
         let (tx, rx) = oneshot::channel();
         let callback = DynamicStreamAcceptCallback {
-            write_guard,
+            mutex_guard: mg,
             tx_ws_tx: tx,
         };
         match tokio_tungstenite::accept_hdr_async(tcp, callback).await {
             Ok(ws) => {
                 let ws_tx = rx.await.unwrap(); // Safe to unwrap here
-                                               // Send the websocket to the closure defined in stream_at()
+
+                // Send the websocket to the closure defined in stream_at()
                 let _ = ws_tx.send(ws);
             }
             Err(e) => {
@@ -145,7 +150,7 @@ impl WebSocketServer {
 }
 
 struct DynamicStreamAcceptCallback<'a> {
-    write_guard: RwLockWriteGuard<'a, HashMap<String, oneshot::Sender<WebSocketStream<TcpStream>>>>,
+    mutex_guard: MutexGuard<'a, HashMap<String, oneshot::Sender<WebSocketStream<TcpStream>>>>,
     tx_ws_tx: oneshot::Sender<oneshot::Sender<WebSocketStream<TcpStream>>>,
 }
 
@@ -161,7 +166,8 @@ impl<'a> tokio_tungstenite::tungstenite::handshake::server::Callback
         tokio_tungstenite::tungstenite::handshake::server::ErrorResponse,
     > {
         let path = request.uri().path();
-        if let Some(ws_tx) = self.write_guard.remove(path) {
+        debug!("checking route for path: {}", path);
+        if let Some(ws_tx) = self.mutex_guard.remove(path) {
             // Pass the websocket sender out of this callback, back to the route() function
             let _ = self.tx_ws_tx.send(ws_tx);
             Ok(response)
@@ -191,7 +197,10 @@ mod tests {
         let external_timed_out = tokio::time::timeout(Duration::from_millis(500), async move {
             s.stream_at(
                 "test".to_owned(),
-                stream::repeat(1),
+                stream::repeat(Event {
+                    tags: HashMap::new(),
+                    content: "asdf".to_owned(),
+                }),
                 Duration::from_millis(200),
             )
             .await;

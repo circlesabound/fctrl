@@ -1,18 +1,19 @@
 #![feature(bool_to_option, decl_macro)]
 
-use std::{path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use log::{error, info};
 use rocket::{catchers, routes};
 use rocket_contrib::serve::StaticFiles;
 
-use crate::{clients::AgentApiClient, events::broker::EventBroker};
+use crate::{clients::AgentApiClient, events::broker::EventBroker, ws::WebSocketServer};
 
 mod catchers;
 mod clients;
 mod consts;
 mod error;
 mod events;
+mod guards;
 mod routes;
 mod ws;
 
@@ -26,9 +27,16 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Creating agent client with address {}", agent_addr);
     let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
 
+    let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
+    let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
+    let ws_bind = SocketAddr::new(ws_addr, ws_port);
+    info!("Opening ws server at {}", ws_bind);
+    let ws = WebSocketServer::new(ws_bind).await?;
+
     let _ = rocket::build()
         .manage(event_broker)
         .manage(agent_client)
+        .manage(ws)
         .mount(
             "/api/v0",
             routes![
