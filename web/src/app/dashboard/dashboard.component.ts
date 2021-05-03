@@ -6,6 +6,7 @@ import { faAngleDown, faPlay, faPlus, faStop } from '@fortawesome/free-solid-svg
 import { Observable, Subscription, timer } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 import { switchMap, tap } from 'rxjs/operators';
+import { OperationStatus, ResponseWithId } from '../schemas';
 
 @Component({
   selector: 'app-dashboard',
@@ -113,8 +114,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       if (location !== null) {
         const ws = webSocket(location);
         ws.subscribe(
-          msg => {
+          msgUntyped => {
+            const msg = msgUntyped as ResponseWithId;
             console.log(`ws got message: ${JSON.stringify(msg)}`);
+            if (msg.status === OperationStatus.Completed || msg.status === OperationStatus.Failed) {
+              console.log('got complete or failed, closing ws');
+              ws.complete();
+            }
           },
           err => {
             console.log(`ws error: ${err}`);
