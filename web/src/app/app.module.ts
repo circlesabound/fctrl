@@ -19,6 +19,7 @@ import { SecretsComponent } from './server-config/secrets/secrets.component';
 import { ServerSettingsComponent } from './server-config/server-settings/server-settings.component';
 import { BanListComponent } from './server-config/ban-list/ban-list.component';
 import { WhiteListComponent } from './server-config/white-list/white-list.component';
+import { NotificationsComponent } from './notifications/notifications.component';
 
 @NgModule({
   declarations: [
@@ -35,6 +36,7 @@ import { WhiteListComponent } from './server-config/white-list/white-list.compon
     ServerSettingsComponent,
     BanListComponent,
     WhiteListComponent,
+    NotificationsComponent,
   ],
   imports: [
     BrowserModule,

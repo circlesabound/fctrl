@@ -3,6 +3,7 @@ import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { faChartBar, faCogs, faTerminal, faWrench } from '@fortawesome/free-solid-svg-icons';
 import { filter, map, mergeMap } from 'rxjs/operators';
+import { OperationService } from './operation.service';
 
 @Component({
   selector: 'app-root',
@@ -20,7 +21,9 @@ export class AppComponent implements OnInit {
   constructor(
     private router: Router,
     private activatedRoute: ActivatedRoute,
-    private title: Title) { }
+    private title: Title,
+    private operationService: OperationService,
+  ) { }
 
   ngOnInit(): void {
     this.router.events.pipe(

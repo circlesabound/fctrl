@@ -1,0 +1,22 @@
+<div class="navbar-item has-dropdown" [ngClass]="{'is-active': notificationsExpanded}">
+  <a class="navbar-link" (click)="notificationsExpanded = !notificationsExpanded">
+    Notifications
+  </a>
+
+  <div class="navbar-dropdown is-right">
+    <a class="navbar-item" (click)="operationService.clear_notifications()">Clear</a>
+    <hr class="navbar-divider">
+    <div class="navbar-item" *ngFor='let notification of operationService.notifications'>
+      <article class="media">
+        <figure class="media-left">
+          TBA
+        </figure>
+        <div class="media-content">
+          <div class="content">
+            <p>{{notification}}</p>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</div>

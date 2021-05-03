@@ -7,6 +7,7 @@ import { Observable, Subscription, timer } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 import { switchMap, tap } from 'rxjs/operators';
 import { OperationStatus, ResponseWithId } from '../schemas';
+import { OperationService } from '../operation.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -35,6 +36,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   constructor(
     private apiClient: MgmtServerRestApiService,
+    private operationService: OperationService,
   ) {
     this.status = Option.none();
     this.savefiles = [];
@@ -112,21 +114,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
       console.log(`got location header value: ${location}`);
 
       if (location !== null) {
-        const ws = webSocket(location);
-        ws.subscribe(
-          msgUntyped => {
-            const msg = msgUntyped as ResponseWithId;
-            console.log(`ws got message: ${JSON.stringify(msg)}`);
-            if (msg.status === OperationStatus.Completed || msg.status === OperationStatus.Failed) {
-              console.log('got complete or failed, closing ws');
-              ws.complete();
-            }
-          },
-          err => {
-            console.log(`ws error: ${err}`);
+        this.operationService.subscribe(
+          location,
+          `Install Factorio ${params.body.version}`,
+          () => {
+            // tba
           },
           () => {
-            console.log(`closing connection with ${location}`);
+            // tba
           },
         );
       }
@@ -142,16 +137,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
       console.log(`got location header value: ${location}`);
 
       if (location !== null) {
-        const ws = webSocket(location);
-        ws.subscribe(
-          msg => {
-            console.log(`ws got message: ${JSON.stringify(msg)}`);
-          },
-          err => {
-            console.log(`ws error: ${err}`);
+        this.operationService.subscribe(
+          location,
+          `Create save "${params.savefile_id}"`,
+          () => {
+            // tba
           },
           () => {
-            console.log(`closing connection with ${location}`);
+            // tba
           },
         );
       }
