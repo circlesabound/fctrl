@@ -189,6 +189,28 @@ paths:
       responses:
         '202':
           description: Request accepted, check the Location header for a websocket address to connect and monitor progress of the operation.
+  /server/mods/settings:
+    get:
+      summary: Gets the mod-settings.dat file used by the Factorio server.
+      responses:
+        '200':
+          description: The contents of the mod-settings.dat file, converted to a JSON format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModSettingsObject'
+    put:
+      summary: Pushes a mod-settings.dat file to the Factorio server for use
+      requestBody:
+        required: true
+        description: A mod-settings.dat file, converted to a JSON format
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModSettingsObject'
+      responses:
+        '200':
+          description: Ok
 
 components:
   schemas:
@@ -263,7 +285,7 @@ components:
           nullable: true
           type: string
     ServerConfigServerSettings:
-      type: string
+      type: object
     ServerModList:
       type: array
       items:
@@ -290,3 +312,6 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/SavefileObject'
+    ModSettingsObject:
+      description: A mod-settings.dat file, converted into a JSON format
+      type: object

@@ -348,7 +348,10 @@ dependencies = [
 [[package]]
 name = "factorio-mod-settings-parser"
 version = "0.1.0"
-source = "git+https://github.com/circlesabound/factorio-mod-settings-parser?rev=ed5d644#ed5d644d9dbf86337a40779dba312bf529ece33f"
+source = "git+https://github.com/circlesabound/factorio-mod-settings-parser?rev=a9fecd6#a9fecd61ba6851430e1b324c336278d95c8e31d8"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "fctrl"

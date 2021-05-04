@@ -20,6 +20,7 @@ pub enum Error {
 
     // Specific errors
     ModSettingsNotInitialised,
+    ModSettingsParseError(factorio_mod_settings_parser::Error),
     SecretsNotInitialised,
 
     // Generic wrappers around external error types
@@ -33,6 +34,12 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+impl From<factorio_mod_settings_parser::Error> for Error {
+    fn from(e: factorio_mod_settings_parser::Error) -> Self {
+        Error::ModSettingsParseError(e)
     }
 }
 
@@ -73,7 +80,7 @@ impl<'r> Responder<'r, 'static> for Error {
                 Status::BadGateway
             }
             Error::AgentTimeout => Status::GatewayTimeout,
-            Error::AgentInternalError(_) | Error::Io(_) | Error::Json(_) => {
+            Error::AgentInternalError(_) | Error::Io(_) | Error::Json(_) | Error::ModSettingsParseError(_) => {
                 Status::InternalServerError
             }
             Error::BadRequest(_) => Status::BadRequest,

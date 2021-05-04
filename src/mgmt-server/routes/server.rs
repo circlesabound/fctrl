@@ -1,10 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::{convert::{TryFrom, TryInto}, sync::Arc, time::Duration};
 
-use fctrl::schema::{
-    mgmt_server_rest::*, FactorioVersion, RconConfig, SecretsObject, ServerStartSaveFile,
-    ServerStatus,
-};
-use rocket::{get, post, put};
+use factorio_mod_settings_parser::ModSettings;
+use fctrl::schema::{FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerStartSaveFile, ServerStatus, mgmt_server_rest::*};
+use rocket::{get, post, put, response::content};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
 
@@ -168,17 +166,17 @@ pub async fn put_secrets(
 }
 
 #[get("/server/config/server-settings")]
-pub async fn get_server_settings(agent_client: State<'_, AgentApiClient>) -> Result<Json<String>> {
+pub async fn get_server_settings(agent_client: State<'_, AgentApiClient>) -> Result<content::Json<String>> {
     let json_str = agent_client.config_server_settings_get().await?;
-    Ok(Json(json_str))
+    Ok(content::Json(json_str))
 }
 
 #[put("/server/config/server-settings", data = "<body>")]
 pub async fn put_server_settings(
     agent_client: State<'_, AgentApiClient>,
-    body: Json<String>,
+    body: String,
 ) -> Result<()> {
-    agent_client.config_server_settings_set(body.into_inner()).await
+    agent_client.config_server_settings_set(body).await
 }
 
 #[get("/server/mods/list")]
@@ -209,4 +207,25 @@ pub async fn apply_mods_list(
         }
     }).collect();
     agent_client.mod_list_set(mod_list).await
+}
+
+#[get("/server/mods/settings")]
+pub async fn get_mod_settings(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<content::Json<String>> {
+    let bytes = agent_client.mod_settings_get().await?;
+    let ms = ModSettings::try_from(bytes.0.as_ref())?;
+    let json_str = serde_json::to_string(&ms)?;
+
+    Ok(content::Json(json_str))
+}
+
+#[put("/server/mods/settings", data = "<body>")]
+pub async fn put_mod_settings(
+    agent_client: State<'_, AgentApiClient>,
+    body: String,
+) -> Result<()> {
+    let ms: ModSettings = serde_json::from_str(&body)?;
+    let bytes = ms.try_into()?;
+    agent_client.mod_settings_set(ModSettingsBytes(bytes)).await
 }
