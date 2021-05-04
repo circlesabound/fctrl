@@ -1010,7 +1010,7 @@ impl AgentController {
                     match s.try_into() {
                         Ok(bytes) => {
                             self.reply_success(
-                                AgentOutMessage::ModSettings(Some(bytes)),
+                                AgentOutMessage::ModSettings(Some(ModSettingsBytes(bytes))),
                                 operation_id,
                             )
                             .await;
@@ -1042,11 +1042,11 @@ impl AgentController {
         }
     }
 
-    async fn mod_settings_set(&self, bytes: Vec<u8>, operation_id: OperationId) {
+    async fn mod_settings_set(&self, bytes: ModSettingsBytes, operation_id: OperationId) {
         match ModManager::read_or_apply_default().await {
             Ok(mut m) => {
                 // Validate by attempting to parse
-                match ModSettings::try_from(bytes.as_ref()) {
+                match ModSettings::try_from(bytes.0.as_ref()) {
                     Ok(ms) => {
                         m.settings = Some(ms);
                         if let Err(e) = m.apply_metadata_only().await {
@@ -1122,10 +1122,10 @@ impl AgentController {
         match LaunchSettings::read_or_apply_default().await {
             Ok(ls) => {
                 self.reply_success(
-                    AgentOutMessage::ConfigRcon {
+                    AgentOutMessage::ConfigRcon(RconConfig {
                         password: ls.rcon_password,
                         port: ls.rcon_bind.port(),
-                    },
+                    }),
                     operation_id,
                 )
                 .await;
@@ -1176,6 +1176,7 @@ impl AgentController {
                 self.reply_success(
                     AgentOutMessage::ConfigSecrets(Some(SecretsObject {
                         username: s.username,
+                        token: None,
                     })),
                     operation_id,
                 )

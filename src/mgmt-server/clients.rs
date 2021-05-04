@@ -8,8 +8,12 @@ use std::{
     time::Duration,
 };
 
-use fctrl::schema::{AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, FactorioVersion, OperationId, OperationStatus, Save, ServerStartSaveFile, ServerStatus};
-use futures::{Future, SinkExt, Stream, StreamExt, future, pin_mut};
+use fctrl::schema::{
+    AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
+    FactorioVersion, ModObject, ModSettingsBytes, OperationId, OperationStatus, RconConfig, Save,
+    SecretsObject, ServerStartSaveFile, ServerStatus,
+};
+use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use log::{debug, error, info, trace, warn};
 
 use tokio::sync::Mutex;
@@ -72,87 +76,51 @@ impl AgentApiClient {
         };
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
-        ack_or_timeout(id, sub, Duration::from_millis(500)).await
+        ack_or_timeout(sub, Duration::from_millis(500), id).await
     }
 
     pub async fn version_get(&self) -> Result<FactorioVersion> {
         let request = AgentRequest::VersionGet;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        pin_mut!(sub);
-        loop {
-            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-                Ok(Some(e)) => {
-                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                    match response_with_id.content {
-                        AgentOutMessage::FactorioVersion(v) => return Ok(v),
-                        m => default_message_handler(m).map_or(Ok(()), Err)?,
-                    }
-                }
-                Ok(None) => return Err(Error::AgentDisconnected),
-                Err(_) => return Err(Error::AgentTimeout),
-            }
-        }
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::FactorioVersion(v) => Ok(v),
+            m => Err(default_message_handler(m)),
+        })
+        .await
     }
 
     pub async fn server_start(&self, savefile: ServerStartSaveFile) -> Result<()> {
         let request = AgentRequest::ServerStart(savefile);
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        pin_mut!(sub);
-        loop {
-            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-                Ok(Some(e)) => {
-                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                    match response_with_id.content {
-                        AgentOutMessage::Ok => return Ok(()),
-                        m => default_message_handler(m).map_or(Ok(()), Err)?,
-                    }
-                }
-                Ok(None) => return Err(Error::AgentDisconnected),
-                Err(_) => return Err(Error::AgentTimeout),
-            }
-        }
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
     }
 
     pub async fn server_stop(&self) -> Result<()> {
         let request = AgentRequest::ServerStop;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        pin_mut!(sub);
-        loop {
-            match tokio::time::timeout(Duration::from_millis(1000), sub.next()).await {
-                Ok(Some(e)) => {
-                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                    match response_with_id.content {
-                        AgentOutMessage::Ok => return Ok(()),
-                        m => default_message_handler(m).map_or(Ok(()), Err)?,
-                    }
-                }
-                Ok(None) => return Err(Error::AgentDisconnected),
-                Err(_) => return Err(Error::AgentTimeout),
-            }
-        }
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
     }
 
     pub async fn server_status(&self) -> Result<ServerStatus> {
         let request = AgentRequest::ServerStatus;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        pin_mut!(sub);
-        loop {
-            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-                Ok(Some(e)) => {
-                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                    match response_with_id.content {
-                        AgentOutMessage::ServerStatus(s) => return Ok(s),
-                        m => default_message_handler(m).map_or(Ok(()), Err)?,
-                    }
-                }
-                Ok(None) => return Err(Error::AgentDisconnected),
-                Err(_) => return Err(Error::AgentTimeout),
-            }
-        }
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ServerStatus(s) => Ok(s),
+            m => Err(default_message_handler(m)),
+        })
+        .await
     }
 
     pub async fn save_create(
@@ -166,27 +134,161 @@ impl AgentApiClient {
         let request = AgentRequest::SaveCreate(savefile_name);
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
-        ack_or_timeout(id, sub, Duration::from_millis(500)).await
+        ack_or_timeout(sub, Duration::from_millis(500), id).await
     }
 
     pub async fn save_list(&self) -> Result<Vec<Save>> {
         let request = AgentRequest::SaveList;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        pin_mut!(sub);
-        loop {
-            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
-                Ok(Some(e)) => {
-                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
-                    match response_with_id.content {
-                        AgentOutMessage::SaveList(saves) => return Ok(saves),
-                        m => default_message_handler(m).map_or(Ok(()), Err)?,
-                    }
-                }
-                Ok(None) => return Err(Error::AgentDisconnected),
-                Err(_) => return Err(Error::AgentTimeout),
-            }
-        }
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::SaveList(saves) => Ok(saves),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn mod_list_get(&self) -> Result<Vec<ModObject>> {
+        let request = AgentRequest::ModListGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ModsList(mods) => Ok(mods),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn mod_list_set(&self, mods: Vec<ModObject>) -> Result<()> {
+        let request = AgentRequest::ModListSet(mods);
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn mod_settings_get(&self) -> Result<ModSettingsBytes> {
+        let request = AgentRequest::ModSettingsGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ModSettings(Some(mod_settings)) => Ok(mod_settings),
+            AgentOutMessage::ModSettings(None) => Err(Error::ModSettingsNotInitialised),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn mod_settings_set(&self, mod_settings: ModSettingsBytes) -> Result<()> {
+        let request = AgentRequest::ModSettingsSet(mod_settings);
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_adminlist_get(&self) -> Result<Vec<String>> {
+        let request = AgentRequest::ConfigAdminListGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ConfigAdminList(admin_list) => Ok(admin_list),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_adminlist_set(&self, admin_list: Vec<String>) -> Result<()> {
+        let request = AgentRequest::ConfigAdminListSet { admins: admin_list };
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_rcon_get(&self) -> Result<RconConfig> {
+        let request = AgentRequest::ConfigRconGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ConfigRcon(rcon_config) => Ok(rcon_config),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_rcon_set(&self, rcon_config: RconConfig) -> Result<()> {
+        // ignore port because it is read only
+        let request = AgentRequest::ConfigRconSet {
+            password: rcon_config.password,
+        };
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_secrets_get(&self) -> Result<SecretsObject> {
+        let request = AgentRequest::ConfigSecretsGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ConfigSecrets(Some(secrets)) => Ok(SecretsObject {
+                username: secrets.username,
+                token: None,
+            }),
+            AgentOutMessage::ConfigSecrets(None) => Err(Error::SecretsNotInitialised),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_secrets_set(&self, secrets: SecretsObject) -> Result<()> {
+        let request = AgentRequest::ConfigSecretsSet {
+            username: secrets.username,
+            token: secrets.token.unwrap_or_default(),
+        };
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_server_settings_get(&self) -> Result<String> {
+        let request = AgentRequest::ConfigServerSettingsGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ConfigServerSettings(json) => Ok(json),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_server_settings_set(&self, json: String) -> Result<()> {
+        let request = AgentRequest::ConfigServerSettingsSet { json };
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
     }
 
     async fn send_request_and_subscribe(
@@ -225,33 +327,28 @@ impl AgentApiClient {
 }
 
 /// "Default" handler for incoming messages from agent, to handle errors
-fn default_message_handler(agent_message: AgentOutMessage) -> Option<Error> {
+fn default_message_handler(agent_message: AgentOutMessage) -> Error {
     match agent_message {
         AgentOutMessage::ConfigAdminList(_)
         | AgentOutMessage::ConfigRcon { .. }
         | AgentOutMessage::ConfigSecrets(_)
         | AgentOutMessage::ConfigServerSettings(_)
         | AgentOutMessage::FactorioVersion(_)
+        | AgentOutMessage::Message(_)
         | AgentOutMessage::ModsList(_)
         | AgentOutMessage::ModSettings(_)
         | AgentOutMessage::RconResponse(_)
         | AgentOutMessage::SaveList(_)
         | AgentOutMessage::ServerStatus(_)
-        | AgentOutMessage::Ok => None,
-        AgentOutMessage::Message(_) => {
-            // swallow the message for now
-            None
+        | AgentOutMessage::Ok => Error::AgentCommunicationError,
+        AgentOutMessage::Error(e) => Error::AgentInternalError(e),
+        AgentOutMessage::ConflictingOperation => {
+            Error::AgentInternalError("Invalid operation at this time".to_owned())
         }
-        AgentOutMessage::Error(e) => Some(Error::AgentInternalError(e)),
-        AgentOutMessage::ConflictingOperation => Some(Error::AgentInternalError(
-            "Invalid operation at this time".to_owned(),
-        )),
-        AgentOutMessage::MissingSecrets => {
-            Some(Error::AgentInternalError("Missing secrets".to_owned()))
+        AgentOutMessage::MissingSecrets => Error::AgentInternalError("Missing secrets".to_owned()),
+        AgentOutMessage::NotInstalled => {
+            Error::AgentInternalError("Factorio not installed".to_owned())
         }
-        AgentOutMessage::NotInstalled => Some(Error::AgentInternalError(
-            "Factorio not installed".to_owned(),
-        )),
     }
 }
 
@@ -376,21 +473,40 @@ fn tag_incoming_message(s: String) -> Option<Event> {
     }
 }
 
-async fn ack_or_timeout(
-    operation_id: OperationId,
-    mut sub: impl Stream<Item = Event> + Unpin,
+async fn response_or_timeout<HandlerFn, T>(
+    sub: impl Stream<Item = Event> + Unpin,
     timeout: Duration,
+    response_handler: HandlerFn,
+) -> Result<T>
+where
+    T: Sized,
+    HandlerFn: FnOnce(AgentResponseWithId) -> Result<T> + Sized,
+{
+    pin_mut!(sub);
+    match tokio::time::timeout(timeout, sub.next()).await {
+        Ok(Some(e)) => {
+            let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+            response_handler(response_with_id)
+        }
+        Ok(None) => Err(Error::AgentDisconnected),
+        Err(_) => Err(Error::AgentTimeout),
+    }
+}
+
+async fn ack_or_timeout(
+    mut sub: impl Stream<Item = Event> + Unpin,
+    no_ack_timeout: Duration,
+    operation_id: OperationId,
 ) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
     let mut sub_pinned = Pin::new(&mut sub);
-    match tokio::time::timeout(timeout, sub_pinned.next()).await {
+    match tokio::time::timeout(no_ack_timeout, sub_pinned.next()).await {
         Ok(Some(e)) => {
             let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
             if let OperationStatus::Ack = response_with_id.status {
                 Ok((operation_id, fuse_agent_response_stream(sub)))
             } else {
                 // Long running operation should always respond with ack
-                Err(default_message_handler(response_with_id.content)
-                    .unwrap_or(Error::AgentCommunicationError))
+                Err(default_message_handler(response_with_id.content))
             }
         }
         Ok(None) => Err(Error::AgentDisconnected),

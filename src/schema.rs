@@ -89,7 +89,7 @@ pub enum AgentRequest {
     /// Gets the mod-settings file on the server.
     ModSettingsGet,
     /// Sets the mod-settings file on the servere.
-    ModSettingsSet(Vec<u8>),
+    ModSettingsSet(ModSettingsBytes),
 
     // *********************************
     // * Configuration                 *
@@ -157,12 +157,12 @@ pub enum AgentOutMessage {
     // Structured operation responses
     ConflictingOperation,
     ConfigAdminList(Vec<String>),
-    ConfigRcon { port: u16, password: String },
+    ConfigRcon(RconConfig),
     ConfigSecrets(Option<SecretsObject>),
     ConfigServerSettings(String),
     FactorioVersion(FactorioVersion),
     ModsList(Vec<ModObject>),
-    ModSettings(Option<Vec<u8>>),
+    ModSettings(Option<ModSettingsBytes>),
     MissingSecrets,
     NotInstalled,
     RconResponse(String),
@@ -193,6 +193,9 @@ pub struct Save {
     pub last_modified: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
+pub struct ModSettingsBytes(pub Vec<u8>);
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ModObject {
     pub name: String,
@@ -200,8 +203,15 @@ pub struct ModObject {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RconConfig {
+    pub port: u16,
+    pub password: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SecretsObject {
     pub username: String,
+    pub token: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

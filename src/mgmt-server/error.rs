@@ -18,6 +18,10 @@ pub enum Error {
     AgentTimeout,
     BadRequest(String),
 
+    // Specific errors
+    ModSettingsNotInitialised,
+    SecretsNotInitialised,
+
     // Generic wrappers around external error types
     Io(std::io::Error),
     Json(serde_json::error::Error),
@@ -73,6 +77,7 @@ impl<'r> Responder<'r, 'static> for Error {
                 Status::InternalServerError
             }
             Error::BadRequest(_) => Status::BadRequest,
+            Error::ModSettingsNotInitialised | Error::SecretsNotInitialised => Status::NoContent,
         };
 
         Response::build()

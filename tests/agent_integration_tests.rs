@@ -196,8 +196,8 @@ async fn can_set_then_get_rcon_config() {
     assert_eq!(response.status, OperationStatus::Completed);
     assert!(matches!(
         response.content,
-        AgentOutMessage::ConfigRcon {
-            port: 27015, password } if password == new_password
+        AgentOutMessage::ConfigRcon(RconConfig {
+            port: 27015, password }) if password == new_password
     ));
 
     drop(f);

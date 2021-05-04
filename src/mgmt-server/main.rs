@@ -47,6 +47,16 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::get_install,
                 routes::server::get_savefiles,
                 routes::server::create_savefile,
+                routes::server::get_adminlist,
+                routes::server::put_adminlist,
+                routes::server::get_rcon_config,
+                routes::server::put_rcon_config,
+                routes::server::get_secrets,
+                routes::server::put_secrets,
+                routes::server::get_server_settings,
+                routes::server::put_server_settings,
+                routes::server::get_mods_list,
+                routes::server::apply_mods_list,
             ],
         )
         .mount("/", StaticFiles::from(get_dist_path()))

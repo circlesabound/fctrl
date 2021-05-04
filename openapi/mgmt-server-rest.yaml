@@ -20,7 +20,7 @@ paths:
                 $ref: '#/components/schemas/ServerControlStatus'
   /server/control/start:
     post:
-      summary: Starts the Factorio multiplayer server.
+      summary: Sends a request to start the Factorio multiplayer server.
       requestBody:
         required: true
         content:
@@ -32,7 +32,7 @@ paths:
           description: Accepted
   /server/control/stop:
     post:
-      summary: Stops the Factorio multiplayer server.
+      summary: Sends a request to stop the Factorio multiplayer server.
       responses:
         '202':
           description: Accepted
@@ -56,7 +56,7 @@ paths:
               $ref: '#/components/schemas/ServerInstallPostRequest'
       responses:
         '202':
-          description: Accepted
+          description: Request accepted, check the Location header for a websocket address to connect and monitor progress of the operation.
   /server/savefile:
     get:
       summary: Gets a list of savefiles currently on the server
@@ -79,7 +79,7 @@ paths:
             type: string
       responses:
         '202':
-          description: Accepted
+          description: Request accepted, check the Location header for a websocket address to connect and monitor progress of the operation.
   /server/config/adminlist:
     get:
       summary: Gets the adminlist the Factorio server is configured to use.
@@ -122,9 +122,32 @@ paths:
       responses:
         '200':
           description: Ok
+  /server/config/secrets:
+    get:
+      summary: Gets the Factorio.com account credentials stored on the server, required for public server listing and downloading mods.
+      responses:
+        '200':
+          description: A JSON object representing the secrets stored on the server. The token field returned will always be null.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfigSecrets'
+        '204':
+          description: This response indicates that secrets have not been provided and stored on the server.
+    put:
+      summary: Pushes Factorio.com account credentials to the server, for use with public server listing and downloading mods.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerConfigSecrets'
+      responses:
+        '200':
+          description: Ok
   /server/config/server-settings:
     get:
-      summary: Gets the server-settings file used by the Factorio server.
+      summary: Gets the server-settings.json file used by the Factorio server.
       responses:
         '200':
           description: The server-settings JSON file
@@ -132,6 +155,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerConfigServerSettings'
+        '204':
+          description: This response indicates that the server-settings JSON file is not initialised on the server. To remediate, either start the server once to automatically generate it, or manually push one to the server.
     put:
       summary: Pushes a server-settings file to the Factorio server for use.
       requestBody:
@@ -143,7 +168,7 @@ paths:
       responses:
         '200':
           description: Ok
-  /server/mods:
+  /server/mods/list:
     get:
       summary: Gets a list of mods installed on the Factorio server.
       responses:
@@ -153,6 +178,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerModList'
+    post:
+      summary: Applies a list of mods to the Factorio server. This is done in a declarative approach, and will start a long-running operation to install and uninstall mods as necessary to match the desired configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerModList'
+      responses:
+        '202':
+          description: Request accepted, check the Location header for a websocket address to connect and monitor progress of the operation.
 
 components:
   schemas:
@@ -216,6 +252,16 @@ components:
         password:
           type: string
           description: Password for RCON connection
+    ServerConfigSecrets:
+      required:
+        - username
+        - token
+      properties:
+        username:
+          type: string
+        token:
+          nullable: true
+          type: string
     ServerConfigServerSettings:
       type: string
     ServerModList:

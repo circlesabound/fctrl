@@ -1,6 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use fctrl::schema::{FactorioVersion, ServerStartSaveFile, ServerStatus, mgmt_server_rest::*};
+use fctrl::schema::{
+    mgmt_server_rest::*, FactorioVersion, RconConfig, SecretsObject, ServerStartSaveFile,
+    ServerStatus,
+};
 use rocket::{get, post, put};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
@@ -44,11 +47,11 @@ pub async fn stop_server(agent_client: State<'_, AgentApiClient>) -> Result<Stat
 }
 
 #[get("/server/install")]
-pub async fn get_install(agent_client: State<'_, AgentApiClient>) -> Result<Json<ServerInstallGetResponse>> {
+pub async fn get_install(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<Json<ServerInstallGetResponse>> {
     let version = agent_client.version_get().await?;
-    Ok(Json(ServerInstallGetResponse {
-        version: version.0,
-    }))
+    Ok(Json(ServerInstallGetResponse { version: version.0 }))
 }
 
 #[post("/server/install", data = "<body>")]
@@ -60,7 +63,10 @@ pub async fn upgrade_install<'a>(
 ) -> Result<WsStreamingResponder> {
     let body = body.into_inner();
     let (id, sub) = agent_client
-        .version_install(FactorioVersion(body.version), body.force_install.unwrap_or(false))
+        .version_install(
+            FactorioVersion(body.version),
+            body.force_install.unwrap_or(false),
+        )
         .await?;
 
     let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
@@ -107,4 +113,100 @@ pub async fn create_savefile<'a>(
     });
 
     Ok(resp)
+}
+
+#[get("/server/config/adminlist")]
+pub async fn get_adminlist(agent_client: State<'_, AgentApiClient>) -> Result<Json<Vec<String>>> {
+    let al = agent_client.config_adminlist_get().await?;
+    Ok(Json(al))
+}
+
+#[put("/server/config/adminlist", data = "<body>")]
+pub async fn put_adminlist(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<Vec<String>>,
+) -> Result<()> {
+    agent_client.config_adminlist_set(body.into_inner()).await
+}
+
+#[get("/server/config/rcon")]
+pub async fn get_rcon_config(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<Json<ServerConfigRconGetResponse>> {
+    let rcon_config = agent_client.config_rcon_get().await?;
+    let resp = ServerConfigRconGetResponse {
+        port: rcon_config.port as i32,
+        password: rcon_config.password,
+    };
+    Ok(Json(resp))
+}
+
+#[put("/server/config/rcon", data = "<body>")]
+pub async fn put_rcon_config(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<RconConfig>,
+) -> Result<()> {
+    agent_client.config_rcon_set(body.into_inner()).await
+}
+
+#[get("/server/config/secrets")]
+pub async fn get_secrets(agent_client: State<'_, AgentApiClient>) -> Result<Json<ServerConfigSecrets>> {
+    let secrets = agent_client.config_secrets_get().await?;
+    let resp = ServerConfigSecrets {
+        username: secrets.username,
+        token: None,
+    };
+    Ok(Json(resp))
+}
+
+#[put("/server/config/secrets", data = "<body>")]
+pub async fn put_secrets(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<SecretsObject>,
+) -> Result<()> {
+    agent_client.config_secrets_set(body.into_inner()).await
+}
+
+#[get("/server/config/server-settings")]
+pub async fn get_server_settings(agent_client: State<'_, AgentApiClient>) -> Result<Json<String>> {
+    let json_str = agent_client.config_server_settings_get().await?;
+    Ok(Json(json_str))
+}
+
+#[put("/server/config/server-settings", data = "<body>")]
+pub async fn put_server_settings(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<String>,
+) -> Result<()> {
+    agent_client.config_server_settings_set(body.into_inner()).await
+}
+
+#[get("/server/mods/list")]
+pub async fn get_mods_list(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<Json<Vec<ModObject>>> {
+    let mod_list = agent_client.mod_list_get().await?;
+    // Need to convert into the codegen type
+    let resp = mod_list.into_iter().map(|mo| {
+        ModObject {
+            name: mo.name,
+            version: mo.version,
+        }
+    }).collect();
+    Ok(Json(resp))
+}
+
+#[post("/server/mods/list", data = "<body>")]
+pub async fn apply_mods_list(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<Vec<ModObject>>,
+) -> Result<()> {
+    // Convert from the codegen type
+    let mod_list = body.into_inner().into_iter().map(|mo| {
+        fctrl::schema::ModObject {
+            name: mo.name,
+            version: mo.version,
+        }
+    }).collect();
+    agent_client.mod_list_set(mod_list).await
 }

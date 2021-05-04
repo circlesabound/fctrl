@@ -185,7 +185,7 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
                     .ok()
                     .map(|bytes| AgentRequestWithId {
                         operation_id,
-                        message: AgentRequest::ModSettingsSet(bytes),
+                        message: AgentRequest::ModSettingsSet(bytes.into()),
                     })
             })
             .flatten(),
