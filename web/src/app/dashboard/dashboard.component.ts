@@ -3,10 +3,7 @@ import { Option } from 'prelude-ts';
 import { SavefileObject, ServerControlStartPostRequest, ServerControlStatus } from '../mgmt-server-rest-api/models';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { faAngleDown, faPlay, faPlus, faStop } from '@fortawesome/free-solid-svg-icons';
-import { Observable, Subscription, timer } from 'rxjs';
-import { webSocket } from 'rxjs/webSocket';
-import { switchMap, tap } from 'rxjs/operators';
-import { OperationStatus, ResponseWithId } from '../schemas';
+import { Subscription, timer } from 'rxjs';
 import { OperationService } from '../operation.service';
 
 @Component({

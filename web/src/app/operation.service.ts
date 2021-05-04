@@ -20,13 +20,13 @@ export class OperationService {
     ws.subscribe(
       msgUntyped => {
         const msg = msgUntyped as ResponseWithId;
-        this.add_notification(`"${friendlyName}": ${JSON.stringify(msg.content)}`);
+        this.addNotification(`"${friendlyName}": ${JSON.stringify(msg.content)}`);
         if (msg.status === OperationStatus.Completed || msg.status === OperationStatus.Failed) {
           ws.complete();
         }
       },
       err => {
-        this.add_notification(`"${friendlyName}" failed: WebSocket Error: ${err}`);
+        this.addNotification(`"${friendlyName}" failed: WebSocket Error: ${err}`);
         console.error(`ws error: ${err}`);
         ws.complete();
       },
@@ -36,11 +36,11 @@ export class OperationService {
     );
   }
 
-  add_notification(message: string): void {
+  addNotification(message: string): void {
     this.notifications.push(message);
   }
 
-  clear_notifications(): void {
+  clearNotifications(): void {
     this.notifications = [];
   }
 }

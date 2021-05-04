@@ -40,10 +40,11 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .mount(
             "/api/v0",
             routes![
-                routes::server::upgrade_install,
                 routes::server::status,
                 routes::server::start_server,
                 routes::server::stop_server,
+                routes::server::upgrade_install,
+                routes::server::get_install,
                 routes::server::get_savefiles,
                 routes::server::create_savefile,
             ],

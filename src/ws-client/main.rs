@@ -124,7 +124,7 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
             AgentRequestWithId {
                 operation_id,
                 message: AgentRequest::VersionInstall {
-                    version: v.to_string(),
+                    version: FactorioVersion(v.to_string()),
                     force_install,
                 },
             }

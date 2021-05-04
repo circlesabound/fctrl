@@ -8,10 +8,7 @@ use std::{
     time::Duration,
 };
 
-use fctrl::schema::{
-    AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
-    OperationId, OperationStatus, Save, ServerStartSaveFile, ServerStatus,
-};
+use fctrl::schema::{AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, FactorioVersion, OperationId, OperationStatus, Save, ServerStartSaveFile, ServerStatus};
 use futures::{Future, SinkExt, Stream, StreamExt, future, pin_mut};
 use log::{debug, error, info, trace, warn};
 
@@ -66,7 +63,7 @@ impl AgentApiClient {
 
     pub async fn version_install(
         &self,
-        version: String,
+        version: FactorioVersion,
         force_install: bool,
     ) -> Result<(OperationId, impl Stream<Item = Event>)> {
         let request = AgentRequest::VersionInstall {
@@ -76,6 +73,26 @@ impl AgentApiClient {
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
         ack_or_timeout(id, sub, Duration::from_millis(500)).await
+    }
+
+    pub async fn version_get(&self) -> Result<FactorioVersion> {
+        let request = AgentRequest::VersionGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        pin_mut!(sub);
+        loop {
+            match tokio::time::timeout(Duration::from_millis(500), sub.next()).await {
+                Ok(Some(e)) => {
+                    let response_with_id = serde_json::from_str::<AgentResponseWithId>(&e.content)?;
+                    match response_with_id.content {
+                        AgentOutMessage::FactorioVersion(v) => return Ok(v),
+                        m => default_message_handler(m).map_or(Ok(()), Err)?,
+                    }
+                }
+                Ok(None) => return Err(Error::AgentDisconnected),
+                Err(_) => return Err(Error::AgentTimeout),
+            }
+        }
     }
 
     pub async fn server_start(&self, savefile: ServerStartSaveFile) -> Result<()> {

@@ -44,7 +44,7 @@ pub enum AgentRequest {
     ///
     /// **This is a long-running operation.**
     VersionInstall {
-        version: String,
+        version: FactorioVersion,
         force_install: bool,
     },
     /// Get the currently installed version, if any.
@@ -185,7 +185,7 @@ pub enum ServerStatus {
 }
 
 #[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
-pub struct FactorioVersion(String);
+pub struct FactorioVersion(pub String);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Save {

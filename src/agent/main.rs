@@ -472,13 +472,14 @@ impl AgentController {
 
     async fn version_install(
         &self,
-        version_to_install: String,
+        version_to_install: FactorioVersion,
         force_install: bool,
         operation_id: OperationId,
     ) {
         if let Ok(mut vm) =
             tokio::time::timeout(Duration::from_millis(250), self.version_manager.write()).await
         {
+            let version_to_install = version_to_install.0;
             self.long_running_ack(&operation_id).await;
             // Assume there is at most one version installed
             match vm.versions.keys().next() {

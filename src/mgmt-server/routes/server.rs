@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use fctrl::schema::{mgmt_server_rest::*, ServerStartSaveFile, ServerStatus};
+use fctrl::schema::{FactorioVersion, ServerStartSaveFile, ServerStatus, mgmt_server_rest::*};
 use rocket::{get, post, put};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
@@ -43,6 +43,14 @@ pub async fn stop_server(agent_client: State<'_, AgentApiClient>) -> Result<Stat
     Ok(Status::Accepted)
 }
 
+#[get("/server/install")]
+pub async fn get_install(agent_client: State<'_, AgentApiClient>) -> Result<Json<ServerInstallGetResponse>> {
+    let version = agent_client.version_get().await?;
+    Ok(Json(ServerInstallGetResponse {
+        version: version.0,
+    }))
+}
+
 #[post("/server/install", data = "<body>")]
 pub async fn upgrade_install<'a>(
     host: HostHeader<'a>,
@@ -52,7 +60,7 @@ pub async fn upgrade_install<'a>(
 ) -> Result<WsStreamingResponder> {
     let body = body.into_inner();
     let (id, sub) = agent_client
-        .version_install(body.version, body.force_install.unwrap_or(false))
+        .version_install(FactorioVersion(body.version), body.force_install.unwrap_or(false))
         .await?;
 
     let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
