@@ -195,10 +195,12 @@ pub async fn get_mods_list(
 }
 
 #[post("/server/mods/list", data = "<body>")]
-pub async fn apply_mods_list(
-    agent_client: State<'_, AgentApiClient>,
+pub async fn apply_mods_list<'a>(
+    host: HostHeader<'a>,
+    agent_client: State<'a, AgentApiClient>,
+    ws: State<'a, Arc<WebSocketServer>>,
     body: Json<Vec<ModObject>>,
-) -> Result<()> {
+) -> Result<WsStreamingResponder> {
     // Convert from the codegen type
     let mod_list = body.into_inner().into_iter().map(|mo| {
         fctrl::schema::ModObject {
@@ -206,7 +208,18 @@ pub async fn apply_mods_list(
             version: mo.version,
         }
     }).collect();
-    agent_client.mod_list_set(mod_list).await
+
+    let (id, sub) = agent_client.mod_list_set(mod_list).await?;
+
+    let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
+
+    let ws = Arc::clone(&ws);
+    let path = resp.path.clone();
+    tokio::spawn(async move {
+        ws.stream_at(path, sub, Duration::from_secs(300)).await;
+    });
+
+    Ok(resp)
 }
 
 #[get("/server/mods/settings")]

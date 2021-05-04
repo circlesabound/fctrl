@@ -159,15 +159,11 @@ impl AgentApiClient {
         .await
     }
 
-    pub async fn mod_list_set(&self, mods: Vec<ModObject>) -> Result<()> {
+    pub async fn mod_list_set(&self, mods: Vec<ModObject>) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
         let request = AgentRequest::ModListSet(mods);
-        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+        let (id, sub) = self.send_request_and_subscribe(request).await?;
 
-        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
-            AgentOutMessage::Ok => Ok(()),
-            m => Err(default_message_handler(m)),
-        })
-        .await
+        ack_or_timeout(sub, Duration::from_millis(500), id).await
     }
 
     pub async fn mod_settings_get(&self) -> Result<ModSettingsBytes> {
