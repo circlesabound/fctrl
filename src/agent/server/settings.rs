@@ -15,6 +15,7 @@ pub struct LaunchSettings {
     pub server_bind: SocketAddr,
     pub rcon_bind: SocketAddr,
     pub rcon_password: String,
+    pub use_whitelist: bool,
 }
 
 impl LaunchSettings {
@@ -98,6 +99,7 @@ impl Default for LaunchSettings {
             server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), server_port),
             rcon_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), rcon_port),
             rcon_password: "rcon".to_owned(),
+            use_whitelist: false,
         }
     }
 }
@@ -176,7 +178,7 @@ impl AdminList {
                     }
                 },
                 Err(e) => {
-                    error!("Error reading server settings: {:?}", e);
+                    error!("Error reading admin list: {:?}", e);
                     Err(e.into())
                 }
             }
@@ -232,6 +234,159 @@ impl AdminList {
     }
 }
 
+pub struct BanList {
+    pub list: Vec<String>,
+    pub path: PathBuf,
+}
+
+impl BanList {
+    pub async fn read() -> Result<Option<BanList>> {
+        let path = &*BAN_LIST_PATH;
+        if !path.is_file() {
+            Ok(None)
+        } else {
+            match fs::read_to_string(path).await {
+                Ok(s) => match serde_json::from_str(&s) {
+                    Ok(list) => Ok(Some(BanList {
+                        list,
+                        path: path.clone(),
+                    })),
+                    Err(e) => {
+                        error!("Error parsing ban list: {:?}", e);
+                        Err(e.into())
+                    }
+                },
+                Err(e) => {
+                    error!("Error reading ban list: {:?}", e);
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    pub async fn read_or_apply_default() -> Result<BanList> {
+        match BanList::read().await? {
+            Some(banlist) => Ok(banlist),
+            None => {
+                info!("Generating ban list using defaults");
+                let banlist = BanList {
+                    list: vec![],
+                    path: BAN_LIST_PATH.clone(),
+                };
+                if let Err(e) = banlist.write().await {
+                    // this is okay
+                    warn!("Failed to write default ban list to file: {:?}", e);
+                }
+                Ok(banlist)
+            }
+        }
+    }
+
+    pub async fn set(list: Vec<String>) -> Result<()> {
+        let bl = BanList {
+            list,
+            path: BAN_LIST_PATH.clone(),
+        };
+        bl.write().await
+    }
+
+    pub async fn write(&self) -> Result<()> {
+        if let Err(e) = fs::create_dir_all(self.path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid ban list path")
+        })?)
+        .await
+        {
+            error!("Error creating directory structure for ban list: {:?}", e);
+            return Err(e.into());
+        }
+
+        if let Err(e) = fs::write(&self.path, serde_json::to_string_pretty(&self.list)?).await {
+            error!("Error writing ban list to {}: {:?}", self.path.display(), e);
+            Err(e.into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+pub struct WhiteList {
+    pub list: Vec<String>,
+    pub path: PathBuf,
+}
+
+impl WhiteList {
+    pub async fn read() -> Result<Option<WhiteList>> {
+        let path = &*WHITE_LIST_PATH;
+        if !path.is_file() {
+            Ok(None)
+        } else {
+            match fs::read_to_string(path).await {
+                Ok(s) => match serde_json::from_str(&s) {
+                    Ok(list) => Ok(Some(WhiteList {
+                        list,
+                        path: path.clone(),
+                    })),
+                    Err(e) => {
+                        error!("Error parsing white list: {:?}", e);
+                        Err(e.into())
+                    }
+                },
+                Err(e) => {
+                    error!("Error reading white list: {:?}", e);
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    pub async fn read_or_apply_default() -> Result<WhiteList> {
+        match WhiteList::read().await? {
+            Some(whitelist) => Ok(whitelist),
+            None => {
+                info!("Generating white list using defaults");
+                let whitelist = WhiteList {
+                    list: vec![],
+                    path: WHITE_LIST_PATH.clone(),
+                };
+                if let Err(e) = whitelist.write().await {
+                    // this is okay
+                    warn!("Failed to write default white list to file: {:?}", e);
+                }
+                Ok(whitelist)
+            }
+        }
+    }
+
+    pub async fn set(list: Vec<String>) -> Result<()> {
+        let wl = WhiteList {
+            list,
+            path: WHITE_LIST_PATH.clone(),
+        };
+        wl.write().await
+    }
+
+    pub async fn write(&self) -> Result<()> {
+        if let Err(e) = fs::create_dir_all(self.path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid white list path")
+        })?)
+        .await
+        {
+            error!("Error creating directory structure for white list: {:?}", e);
+            return Err(e.into());
+        }
+
+        if let Err(e) = fs::write(&self.path, serde_json::to_string_pretty(&self.list)?).await {
+            error!(
+                "Error writing white list to {}: {:?}",
+                self.path.display(),
+                e
+            );
+            Err(e.into())
+        } else {
+            Ok(())
+        }
+    }
+}
 pub struct ServerSettings {
     pub json: String,
     pub path: PathBuf,
@@ -331,8 +486,10 @@ impl ServerSettings {
 lazy_static! {
     static ref LAUNCH_SETTINGS_PATH: PathBuf = CONFIG_DIR.join("launch-settings.toml");
     static ref ADMIN_LIST_PATH: PathBuf = CONFIG_DIR.join("server-adminlist.json");
+    static ref BAN_LIST_PATH: PathBuf = CONFIG_DIR.join("server-banlist.json");
     static ref SERVER_SETTINGS_PATH: PathBuf = CONFIG_DIR.join("server-settings.json");
     static ref SECRETS_PATH: PathBuf = CONFIG_DIR.join("secrets.toml");
+    static ref WHITE_LIST_PATH: PathBuf = CONFIG_DIR.join("server-whitelist.json");
 }
 
 #[cfg(test)]
@@ -348,6 +505,7 @@ mod tests {
             server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 12345),
             rcon_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 54321),
             rcon_password: "password123".to_owned(),
+            use_whitelist: false,
         };
         let string_from_ls = toml::to_string(&ls)?;
 
@@ -355,6 +513,7 @@ mod tests {
 server_bind = "0.0.0.0:12345"
 rcon_bind = "127.0.0.1:54321"
 rcon_password = "password123"
+use_whitelist = false
 "#
         .to_owned();
         let ls_from_string = toml::from_str(&string)?;

@@ -20,6 +20,7 @@ import { ServerSettingsComponent } from './server-config/server-settings/server-
 import { BanListComponent } from './server-config/ban-list/ban-list.component';
 import { WhiteListComponent } from './server-config/white-list/white-list.component';
 import { NotificationsComponent } from './notifications/notifications.component';
+import { EditableListComponent } from './editable-list/editable-list.component';
 
 @NgModule({
   declarations: [
@@ -37,6 +38,7 @@ import { NotificationsComponent } from './notifications/notifications.component'
     BanListComponent,
     WhiteListComponent,
     NotificationsComponent,
+    EditableListComponent,
   ],
   imports: [
     BrowserModule,

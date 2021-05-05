@@ -11,7 +11,7 @@ use std::{
 use fctrl::schema::{
     AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
     FactorioVersion, ModObject, ModSettingsBytes, OperationId, OperationStatus, RconConfig, Save,
-    SecretsObject, ServerStartSaveFile, ServerStatus,
+    SecretsObject, ServerStartSaveFile, ServerStatus, WhitelistObject,
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use log::{debug, error, info, trace, warn};
@@ -94,7 +94,7 @@ impl AgentApiClient {
         let request = AgentRequest::ServerStart(savefile);
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+        response_or_timeout(sub, Duration::from_millis(2000), |r| match r.content {
             AgentOutMessage::Ok => Ok(()),
             m => Err(default_message_handler(m)),
         })
@@ -105,7 +105,7 @@ impl AgentApiClient {
         let request = AgentRequest::ServerStop;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
-        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+        response_or_timeout(sub, Duration::from_millis(2000), |r| match r.content {
             AgentOutMessage::Ok => Ok(()),
             m => Err(default_message_handler(m)),
         })
@@ -159,7 +159,10 @@ impl AgentApiClient {
         .await
     }
 
-    pub async fn mod_list_set(&self, mods: Vec<ModObject>) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+    pub async fn mod_list_set(
+        &self,
+        mods: Vec<ModObject>,
+    ) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
         let request = AgentRequest::ModListSet(mods);
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
@@ -200,8 +203,30 @@ impl AgentApiClient {
         .await
     }
 
-    pub async fn config_adminlist_set(&self, admin_list: Vec<String>) -> Result<()> {
-        let request = AgentRequest::ConfigAdminListSet { admins: admin_list };
+    pub async fn config_adminlist_set(&self, admins: Vec<String>) -> Result<()> {
+        let request = AgentRequest::ConfigAdminListSet { admins };
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_banlist_get(&self) -> Result<Vec<String>> {
+        let request = AgentRequest::ConfigBanListGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ConfigBanList(ban_list) => Ok(ban_list),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_banlist_set(&self, users: Vec<String>) -> Result<()> {
+        let request = AgentRequest::ConfigBanListSet { users };
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
@@ -287,6 +312,28 @@ impl AgentApiClient {
         .await
     }
 
+    pub async fn config_whitelist_get(&self) -> Result<WhitelistObject> {
+        let request = AgentRequest::ConfigWhiteListGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ConfigWhiteList(wl) => Ok(wl),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn config_whitelist_set(&self, enabled: bool, users: Vec<String>) -> Result<()> {
+        let request = AgentRequest::ConfigWhiteListSet { enabled, users };
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
     async fn send_request_and_subscribe(
         &self,
         request: AgentRequest,
@@ -326,9 +373,11 @@ impl AgentApiClient {
 fn default_message_handler(agent_message: AgentOutMessage) -> Error {
     match agent_message {
         AgentOutMessage::ConfigAdminList(_)
+        | AgentOutMessage::ConfigBanList(_)
         | AgentOutMessage::ConfigRcon { .. }
         | AgentOutMessage::ConfigSecrets(_)
         | AgentOutMessage::ConfigServerSettings(_)
+        | AgentOutMessage::ConfigWhiteList(_)
         | AgentOutMessage::FactorioVersion(_)
         | AgentOutMessage::Message(_)
         | AgentOutMessage::ModsList(_)

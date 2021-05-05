@@ -27,7 +27,7 @@ use futures_util::{
 use log::{debug, error, info, trace, warn};
 use server::{
     mods::{Mod, ModManager},
-    settings::Secrets,
+    settings::{BanList, Secrets, WhiteList},
 };
 use tokio::{
     fs,
@@ -325,6 +325,14 @@ impl AgentController {
                             self.config_admin_list_set(admins, operation_id).await;
                         }
 
+                        AgentRequest::ConfigBanListGet => {
+                            self.config_ban_list_get(operation_id).await;
+                        }
+
+                        AgentRequest::ConfigBanListSet { users } => {
+                            self.config_ban_list_set(users, operation_id).await;
+                        }
+
                         AgentRequest::ConfigRconGet => {
                             self.config_rcon_get(operation_id).await;
                         }
@@ -347,6 +355,15 @@ impl AgentController {
 
                         AgentRequest::ConfigServerSettingsSet { json } => {
                             self.config_server_settings_set(json, operation_id).await;
+                        }
+
+                        AgentRequest::ConfigWhiteListGet => {
+                            self.config_white_list_get(operation_id).await;
+                        }
+
+                        AgentRequest::ConfigWhiteListSet { enabled, users } => {
+                            self.config_white_list_set(enabled, users, operation_id)
+                                .await;
                         }
 
                         // *******
@@ -787,13 +804,51 @@ impl AgentController {
             }
         }
 
+        // Ban list
+        let ban_list;
+        match BanList::read_or_apply_default().await {
+            Ok(bl) => ban_list = bl,
+            Err(_e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error("Failed to read or initialise ban list file".to_owned()),
+                    operation_id,
+                )
+                .await;
+                return;
+            }
+        }
+
+        // White list
+        let white_list;
+        match WhiteList::read_or_apply_default().await {
+            Ok(wl) => white_list = wl,
+            Err(_e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(
+                        "Failed to read or initialise white list file".to_owned(),
+                    ),
+                    operation_id,
+                )
+                .await;
+                return;
+            }
+        }
+
         let stream_out = Arc::clone(&self.global_tx);
         let mut builder = ServerBuilder::using_installation(version)
             .with_stdout_handler(move |s| {
                 let msg = AgentStreamingMessage::ServerStdout(s);
                 let _ = stream_out.send(msg);
             })
-            .hosting_savefile(savefile, mods, admin_list, launch_settings, server_settings);
+            .hosting_savefile(
+                savefile,
+                mods,
+                admin_list,
+                ban_list,
+                white_list,
+                launch_settings,
+                server_settings,
+            );
 
         if let Some(previous_instance) = opt_restart_instance {
             builder.replay_optional_args(previous_instance);
@@ -1118,6 +1173,40 @@ impl AgentController {
         }
     }
 
+    async fn config_ban_list_get(&self, operation_id: OperationId) {
+        match BanList::read_or_apply_default().await {
+            Ok(bl) => {
+                self.reply_success(AgentOutMessage::ConfigBanList(bl.list), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!(
+                        "Failed to read or initialise ban list file: {:?}",
+                        e
+                    )),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_ban_list_set(&self, list: Vec<String>, operation_id: OperationId) {
+        match BanList::set(list).await {
+            Ok(_) => {
+                self.reply_success(AgentOutMessage::Ok, operation_id).await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to set ban list: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
     async fn config_rcon_get(&self, operation_id: OperationId) {
         match LaunchSettings::read_or_apply_default().await {
             Ok(ls) => {
@@ -1253,6 +1342,89 @@ impl AgentController {
             Err(e) => {
                 self.reply_failed(
                     AgentOutMessage::Error(format!("Failed to set server settings: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_white_list_get(&self, operation_id: OperationId) {
+        match LaunchSettings::read_or_apply_default().await {
+            Ok(ls) => match WhiteList::read_or_apply_default().await {
+                Ok(wl) => {
+                    self.reply_success(
+                        AgentOutMessage::ConfigWhiteList(WhitelistObject {
+                            enabled: ls.use_whitelist,
+                            users: wl.list,
+                        }),
+                        operation_id,
+                    )
+                    .await;
+                }
+                Err(e) => {
+                    self.reply_failed(
+                        AgentOutMessage::Error(format!(
+                            "Failed to read or initialise white list file: {:?}",
+                            e
+                        )),
+                        operation_id,
+                    )
+                    .await;
+                }
+            },
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!(
+                        "Failed to read or initialise launch settings file: {:?}",
+                        e
+                    )),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn config_white_list_set(
+        &self,
+        enabled: bool,
+        list: Vec<String>,
+        operation_id: OperationId,
+    ) {
+        match LaunchSettings::read_or_apply_default().await {
+            Ok(mut ls) => {
+                ls.use_whitelist = enabled;
+                if let Err(e) = ls.write().await {
+                    self.reply_failed(
+                        AgentOutMessage::Error(format!("Failed to set launch settings: {:?}", e)),
+                        operation_id,
+                    )
+                    .await;
+                } else {
+                    match WhiteList::set(list).await {
+                        Ok(_) => {
+                            self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                        }
+                        Err(e) => {
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!(
+                                    "Failed to set white list: {:?}",
+                                    e
+                                )),
+                                operation_id,
+                            )
+                            .await;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!(
+                        "Failed to read or initialise launch settings file: {:?}",
+                        e
+                    )),
                     operation_id,
                 )
                 .await;

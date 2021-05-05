@@ -101,6 +101,48 @@ paths:
       responses:
         '200':
           description: Ok
+  /server/config/banlist:
+    get:
+      summary: Gets the ban list the Factorio server is configured to use.
+      responses:
+        '200':
+          description: A JSON array containing strings representing users that are not permitted to join the Factorio server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfigBanList'
+    put:
+      summary: Pushes a ban list to the Factorio server for use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerConfigBanList'
+      responses:
+        '200':
+          description: Ok
+  /server/config/whitelist:
+    get:
+      summary: Gets the user whitelist for the Factorio server
+      responses:
+        '200':
+          description: A JSON object containing a boolean indicating whether the whitelist is to be used, as well as an array of users allowed on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfigWhiteList'
+    put:
+      summary: Pushes a user whitelist to the Factorio server for use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerConfigWhiteList'
+      responses:
+        '200':
+          description: Ok
   /server/config/rcon:
     get:
       summary: Gets the RCON configuration used by the Factorio server.
@@ -256,6 +298,22 @@ components:
       type: array
       items:
         type: string
+    ServerConfigBanList:
+      type: array
+      items:
+        type: string
+    ServerConfigWhiteList:
+      required:
+        - enabled
+        - users
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the whitelist is to be used or not
+        users:
+          type: array
+          items:
+            type: string
     ServerConfigRconGetResponse:
       required:
         - port

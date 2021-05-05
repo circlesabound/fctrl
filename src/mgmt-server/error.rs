@@ -80,9 +80,10 @@ impl<'r> Responder<'r, 'static> for Error {
                 Status::BadGateway
             }
             Error::AgentTimeout => Status::GatewayTimeout,
-            Error::AgentInternalError(_) | Error::Io(_) | Error::Json(_) | Error::ModSettingsParseError(_) => {
-                Status::InternalServerError
-            }
+            Error::AgentInternalError(_)
+            | Error::Io(_)
+            | Error::Json(_)
+            | Error::ModSettingsParseError(_) => Status::InternalServerError,
             Error::BadRequest(_) => Status::BadRequest,
             Error::ModSettingsNotInitialised | Error::SecretsNotInitialised => Status::NoContent,
         };

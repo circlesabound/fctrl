@@ -102,6 +102,10 @@ pub enum AgentRequest {
     ConfigAdminListSet {
         admins: Vec<String>,
     },
+    ConfigBanListGet,
+    ConfigBanListSet {
+        users: Vec<String>,
+    },
     ConfigRconGet,
     ConfigRconSet {
         password: String,
@@ -114,6 +118,11 @@ pub enum AgentRequest {
     ConfigServerSettingsGet,
     ConfigServerSettingsSet {
         json: String,
+    },
+    ConfigWhiteListGet,
+    ConfigWhiteListSet {
+        enabled: bool,
+        users: Vec<String>,
     },
 
     // *********************************
@@ -157,6 +166,8 @@ pub enum AgentOutMessage {
     // Structured operation responses
     ConflictingOperation,
     ConfigAdminList(Vec<String>),
+    ConfigBanList(Vec<String>),
+    ConfigWhiteList(WhitelistObject),
     ConfigRcon(RconConfig),
     ConfigSecrets(Option<SecretsObject>),
     ConfigServerSettings(String),
@@ -212,6 +223,12 @@ pub struct RconConfig {
 pub struct SecretsObject {
     pub username: String,
     pub token: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct WhitelistObject {
+    pub enabled: bool,
+    pub users: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

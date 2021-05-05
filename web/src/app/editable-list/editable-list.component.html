@@ -1,0 +1,28 @@
+<table class="table is-fullwidth">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Name</th>
+    </tr>
+  </thead>
+  <tfoot>
+    <tr>
+      <td>
+        <a><fa-icon class="fa-fw" [icon]="addIcon" (click)="addItem()"></fa-icon></a>
+      </td>
+      <td>
+        <input class="input" type="text" placeholder="Name" [(ngModel)]="addText" (keyup)="inputKeyUp($event)">
+      </td>
+    </tr>
+  </tfoot>
+  <tbody>
+    <tr *ngFor="let listItem of list">
+      <td>
+        <a><fa-icon class="fa-fw" [icon]="removeIcon" (click)="remove(listItem)"></fa-icon></a>
+      </td>
+      <td>
+        <p>{{listItem}}</p>
+      </td>
+    </tr>
+  </tbody>
+</table>

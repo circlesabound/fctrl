@@ -1,7 +1,14 @@
-use std::{convert::{TryFrom, TryInto}, sync::Arc, time::Duration};
+use std::{
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+    time::Duration,
+};
 
 use factorio_mod_settings_parser::ModSettings;
-use fctrl::schema::{FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerStartSaveFile, ServerStatus, mgmt_server_rest::*};
+use fctrl::schema::{
+    mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject,
+    ServerStartSaveFile, ServerStatus,
+};
 use rocket::{get, post, put, response::content};
 use rocket::{http::Status, State};
 use rocket_contrib::json::Json;
@@ -127,6 +134,43 @@ pub async fn put_adminlist(
     agent_client.config_adminlist_set(body.into_inner()).await
 }
 
+#[get("/server/config/banlist")]
+pub async fn get_banlist(agent_client: State<'_, AgentApiClient>) -> Result<Json<Vec<String>>> {
+    let al = agent_client.config_banlist_get().await?;
+    Ok(Json(al))
+}
+
+#[put("/server/config/banlist", data = "<body>")]
+pub async fn put_banlist(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<Vec<String>>,
+) -> Result<()> {
+    agent_client.config_banlist_set(body.into_inner()).await
+}
+
+#[get("/server/config/whitelist")]
+pub async fn get_whitelist(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<Json<ServerConfigWhiteList>> {
+    let wl = agent_client.config_whitelist_get().await?;
+    let resp = ServerConfigWhiteList {
+        enabled: wl.enabled,
+        users: wl.users,
+    };
+    Ok(Json(resp))
+}
+
+#[put("/server/config/whitelist", data = "<body>")]
+pub async fn put_whitelist(
+    agent_client: State<'_, AgentApiClient>,
+    body: Json<ServerConfigWhiteList>,
+) -> Result<()> {
+    let body = body.into_inner();
+    agent_client
+        .config_whitelist_set(body.enabled, body.users)
+        .await
+}
+
 #[get("/server/config/rcon")]
 pub async fn get_rcon_config(
     agent_client: State<'_, AgentApiClient>,
@@ -148,7 +192,9 @@ pub async fn put_rcon_config(
 }
 
 #[get("/server/config/secrets")]
-pub async fn get_secrets(agent_client: State<'_, AgentApiClient>) -> Result<Json<ServerConfigSecrets>> {
+pub async fn get_secrets(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<Json<ServerConfigSecrets>> {
     let secrets = agent_client.config_secrets_get().await?;
     let resp = ServerConfigSecrets {
         username: secrets.username,
@@ -166,7 +212,9 @@ pub async fn put_secrets(
 }
 
 #[get("/server/config/server-settings")]
-pub async fn get_server_settings(agent_client: State<'_, AgentApiClient>) -> Result<content::Json<String>> {
+pub async fn get_server_settings(
+    agent_client: State<'_, AgentApiClient>,
+) -> Result<content::Json<String>> {
     let json_str = agent_client.config_server_settings_get().await?;
     Ok(content::Json(json_str))
 }
@@ -185,12 +233,13 @@ pub async fn get_mods_list(
 ) -> Result<Json<Vec<ModObject>>> {
     let mod_list = agent_client.mod_list_get().await?;
     // Need to convert into the codegen type
-    let resp = mod_list.into_iter().map(|mo| {
-        ModObject {
+    let resp = mod_list
+        .into_iter()
+        .map(|mo| ModObject {
             name: mo.name,
             version: mo.version,
-        }
-    }).collect();
+        })
+        .collect();
     Ok(Json(resp))
 }
 
@@ -202,12 +251,14 @@ pub async fn apply_mods_list<'a>(
     body: Json<Vec<ModObject>>,
 ) -> Result<WsStreamingResponder> {
     // Convert from the codegen type
-    let mod_list = body.into_inner().into_iter().map(|mo| {
-        fctrl::schema::ModObject {
+    let mod_list = body
+        .into_inner()
+        .into_iter()
+        .map(|mo| fctrl::schema::ModObject {
             name: mo.name,
             version: mo.version,
-        }
-    }).collect();
+        })
+        .collect();
 
     let (id, sub) = agent_client.mod_list_set(mod_list).await?;
 
@@ -234,10 +285,7 @@ pub async fn get_mod_settings(
 }
 
 #[put("/server/mods/settings", data = "<body>")]
-pub async fn put_mod_settings(
-    agent_client: State<'_, AgentApiClient>,
-    body: String,
-) -> Result<()> {
+pub async fn put_mod_settings(agent_client: State<'_, AgentApiClient>, body: String) -> Result<()> {
     let ms: ModSettings = serde_json::from_str(&body)?;
     let bytes = ms.try_into()?;
     agent_client.mod_settings_set(ModSettingsBytes(bytes)).await

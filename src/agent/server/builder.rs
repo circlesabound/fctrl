@@ -7,7 +7,7 @@ use fctrl::schema::ServerStartSaveFile;
 
 use super::{
     mods::ModManager,
-    settings::{AdminList, LaunchSettings, ServerSettings},
+    settings::{AdminList, BanList, LaunchSettings, ServerSettings, WhiteList},
     HandlerFn, StartableInstance, StartableShortLivedInstance, StoppedInstance,
 };
 
@@ -61,6 +61,8 @@ impl ServerBuilder {
         savefile: ServerStartSaveFile,
         mods: ModManager,
         admin_list: AdminList,
+        ban_list: BanList,
+        white_list: WhiteList,
         launch_settings: LaunchSettings,
         server_settings: ServerSettings,
     ) -> ServerHostBuilder {
@@ -89,6 +91,21 @@ impl ServerBuilder {
         self.with_cli_args(&[
             &OsString::from("--server-adminlist"),
             admin_list.path.as_os_str(),
+        ]);
+
+        self.with_cli_args(&[
+            &OsString::from("--server-banlist"),
+            ban_list.path.as_os_str(),
+        ]);
+
+        self.with_cli_args(&[
+            &OsString::from("--server-whitelist"),
+            white_list.path.as_os_str(),
+        ]);
+
+        self.with_cli_args(&[
+            "--use-server-whitelist",
+            &launch_settings.use_whitelist.to_string(),
         ]);
 
         self.with_cli_args(&[&OsString::from("--mod-directory"), mods.path.as_os_str()]);
