@@ -24,7 +24,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use server::{
     mods::{Mod, ModManager},
     settings::{BanList, Secrets, WhiteList},

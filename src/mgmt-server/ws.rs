@@ -69,10 +69,10 @@ impl WebSocketServer {
                     let path = path.clone();
                     let inactivity_task = tokio::spawn(async move {
                         let inactivity_timeout = Duration::from_secs(60 * 60);
-                        while let Ok(_) =
-                            tokio::time::timeout(inactivity_timeout, activity_rx.next()).await
-                        {
-                        }
+                        while tokio::time::timeout(inactivity_timeout, activity_rx.next())
+                            .await
+                            .is_ok()
+                        {}
                         debug!("WebSocket stream at {} timing out from inactivity", path);
                     });
 

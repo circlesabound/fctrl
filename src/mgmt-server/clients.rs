@@ -14,7 +14,7 @@ use fctrl::schema::{
     SecretsObject, ServerStartSaveFile, ServerStatus, WhitelistObject,
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
-use log::{debug, error, info, trace, warn};
+use log::{error, info, trace, warn};
 
 use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::Message;

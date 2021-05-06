@@ -2,7 +2,7 @@
 
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
-use log::{error, info};
+use log::info;
 use rocket::{catchers, routes};
 use rocket_contrib::serve::StaticFiles;
 
@@ -88,6 +88,7 @@ pub fn get_dist_path() -> PathBuf {
 mod tests {
     use super::*;
 
+    use log::error;
     use tokio::fs;
 
     #[tokio::test]

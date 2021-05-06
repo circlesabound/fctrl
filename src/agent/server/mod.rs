@@ -9,7 +9,7 @@ use std::{
 };
 
 use lazy_static::lazy_static;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
