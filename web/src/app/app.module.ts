@@ -21,6 +21,7 @@ import { BanListComponent } from './server-config/ban-list/ban-list.component';
 import { WhiteListComponent } from './server-config/white-list/white-list.component';
 import { NotificationsComponent } from './notifications/notifications.component';
 import { EditableListComponent } from './editable-list/editable-list.component';
+import { MonacoEditorModule } from 'ngx-monaco-editor';
 
 @NgModule({
   declarations: [
@@ -47,6 +48,14 @@ import { EditableListComponent } from './editable-list/editable-list.component';
     HttpClientModule,
     MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.origin}/api/v0` }),
     FontAwesomeModule,
+    MonacoEditorModule.forRoot({
+      defaultOptions: {
+        fixedOverflowWidgets: true,
+        minimap: {
+          enabled: false,
+        },
+      }
+    }),
   ],
   providers: [
     Title,
