@@ -65,6 +65,14 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::put_mod_settings,
             ],
         )
+        .mount(
+            "/proxy",
+            routes![
+                routes::proxy::mod_portal_batch_get,
+                routes::proxy::mod_portal_short_get,
+                routes::proxy::mod_portal_full_get,
+            ],
+        )
         .mount("/", StaticFiles::from(get_dist_path()))
         .register("/api/v0", catchers![catchers::not_found,])
         .register("/", catchers![catchers::fallback_to_index_html,])

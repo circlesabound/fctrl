@@ -26,6 +26,7 @@ pub enum Error {
     // Generic wrappers around external error types
     Io(std::io::Error),
     Json(serde_json::error::Error),
+    Reqwest(reqwest::Error),
     WebSocket(tokio_tungstenite::tungstenite::Error),
 }
 
@@ -46,6 +47,12 @@ impl From<factorio_mod_settings_parser::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         Error::Io(e)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Error::Reqwest(e)
     }
 }
 
@@ -83,6 +90,7 @@ impl<'r> Responder<'r, 'static> for Error {
             Error::AgentInternalError(_)
             | Error::Io(_)
             | Error::Json(_)
+            | Error::Reqwest(_)
             | Error::ModSettingsParseError(_) => Status::InternalServerError,
             Error::BadRequest(_) => Status::BadRequest,
             Error::ModSettingsNotInitialised | Error::SecretsNotInitialised => Status::NoContent,

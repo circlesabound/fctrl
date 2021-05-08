@@ -21,9 +21,9 @@
         <input class="input is-static" type="text" [value]="displayPrefetchTitle()" readonly>
       </td>
       <td>
-        <div class="dropdown">
+        <div class="dropdown" [ngClass]="{'is-active': !dropdownHidden}">
           <div class="dropdown-trigger">
-            <button class="button">
+            <button class="button" (click)="dropdownHidden = !dropdownHidden">
               <span>{{getSelectedVersionToAdd()}}</span>
               <span class="icon is-small">
                 <fa-icon class="fa-fw" [icon]="dropdownArrowIcon"></fa-icon>
@@ -42,9 +42,7 @@
     </tr>
   </tfoot>
   <tbody>
-    <tr *ngFor="let modInfo of modInfoList; let i = index">
-      <app-mod-object [(modInfo)]="modInfoList[i]"></app-mod-object>
-    </tr>
+    <tr *ngFor="let modInfo of modInfoList; let i = index" app-mod-object [(modInfo)]="modInfoList[i]"></tr>
   </tbody>
 </table>
 

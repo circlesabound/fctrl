@@ -4,7 +4,8 @@ import { Option } from 'prelude-ts';
 import { ModInfo } from '../mod-info';
 
 @Component({
-  selector: 'app-mod-object',
+  // tslint:disable-next-line: component-selector
+  selector: '[app-mod-object]',
   templateUrl: './mod-object.component.html',
   styleUrls: ['./mod-object.component.sass']
 })
@@ -15,6 +16,8 @@ export class ModObjectComponent implements OnInit {
 
   dropdownArrowIcon = faAngleDown;
   removeIcon = faTimes;
+
+  dropdownHidden = true;
 
   constructor() { }
 

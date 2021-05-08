@@ -60,6 +60,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ModInfoShort'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFound'
   /api/mods/{mod_name}/full:
     get:
       summary: Returns more information of a mod
@@ -77,6 +83,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ModInfoFull'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFound'
 
 components:
   schemas:
@@ -271,3 +283,7 @@ components:
         - title
         - description
         - type
+    NotFound:
+      properties:
+        message:
+          type: string

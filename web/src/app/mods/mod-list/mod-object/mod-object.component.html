@@ -1,30 +1,28 @@
-<tr>
-  <td>
-    <a><fa-icon class="fa-fw" [icon]="removeIcon" (click)="removeSelf()"></fa-icon></a>
-  </td>
-  <td>
-    <p>{{modInfo.name}}</p>
-  </td>
-  <td>
-    <p>{{modInfo.title}}</p>
-  </td>
-  <td>
-    <div class="dropdown">
-      <div class="dropdown-trigger">
-        <button class="button">
-          <span>{{modInfo.selectedVersion}}</span>
-          <span class="icon is-small">
-            <fa-icon class="fa-fw" [icon]="dropdownArrowIcon"></fa-icon>
-          </span>
-        </button>
-      </div>
-      <div class="dropdown-menu" id="dropdown-menu" role="menu">
-        <div class="dropdown-content">
-          <a class="dropdown-item" *ngFor="let version of modInfo.versions" (click)="setSelectedVersion(version)">
-            {{version}}
-          </a>
-        </div>
+<td>
+  <a><fa-icon class="fa-fw" [icon]="removeIcon" (click)="removeSelf()"></fa-icon></a>
+</td>
+<td>
+  <p>{{modInfo.name}}</p>
+</td>
+<td>
+  <p>{{modInfo.title}}</p>
+</td>
+<td>
+  <div class="dropdown" [ngClass]="{'is-active': !dropdownHidden}">
+    <div class="dropdown-trigger">
+      <button class="button" (click)="dropdownHidden = !dropdownHidden">
+        <span>{{modInfo.selectedVersion}}</span>
+        <span class="icon is-small">
+          <fa-icon class="fa-fw" [icon]="dropdownArrowIcon"></fa-icon>
+        </span>
+      </button>
+    </div>
+    <div class="dropdown-menu" id="dropdown-menu" role="menu">
+      <div class="dropdown-content">
+        <a class="dropdown-item" *ngFor="let version of modInfo.versions" (click)="setSelectedVersion(version)">
+          {{version}}
+        </a>
       </div>
     </div>
-  </td>
-</tr>
+  </div>
+</td>

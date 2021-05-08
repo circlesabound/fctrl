@@ -8,6 +8,7 @@ use rocket::{
 
 use crate::{guards::HostHeader, ws::WebSocketServer};
 
+pub mod proxy;
 pub mod server;
 
 pub struct WsStreamingResponder {

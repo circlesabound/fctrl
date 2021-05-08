@@ -1,8 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { faAngleDown, faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
-import { Observable, Subject } from 'rxjs';
-import { debounceTime, delay, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
+import { Observable, of, Subject, throwError } from 'rxjs';
+import { catchError, debounceTime, delay, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
+import { ModInfoShort } from 'src/app/factorio-mod-portal-api/models';
 import { FactorioModPortalApiService } from 'src/app/factorio-mod-portal-api/services';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
 import { ModInfo } from './mod-info';
@@ -18,6 +19,8 @@ export class ModListComponent implements OnInit {
   addModName = '';
   private addModNameSubject = new Subject<string>();
   addModPrefetch: Option<ModInfo> = Option.none();
+
+  dropdownHidden = true;
 
   saveButtonLoading = false;
   showTickIcon = false;
@@ -103,15 +106,28 @@ export class ModListComponent implements OnInit {
     return this.modPortalClient.apiModsModNameGet({
       mod_name: name,
     }).pipe(
+      catchError(err => {
+        console.error(`error with prefetch: ${JSON.stringify(err, null, 2)}`);
+        const ret: ModInfoShort = {
+            name: '',
+            title: '',
+            downloads_count: 0,
+            owner: '',
+            summary: '',
+            releases: [],
+        };
+        return of(ret);
+      }),
+      tap(infoShort => console.log(`infoShort = ${JSON.stringify(infoShort, null, 2)}`)),
       map(infoShort => {
-        console.log(`prefetched mod '${infoShort.name}'`);
         const versions = infoShort.releases.map(r => r.version);
+        const selectedVersion = versions.length === 0 ? '' : versions[versions.length - 1];
         const ret: ModInfo = {
           name: infoShort.name,
           title: infoShort.title,
           summary: infoShort.summary,
           versions,
-          selectedVersion: versions[versions.length - 1],
+          selectedVersion,
         };
         return ret;
       }

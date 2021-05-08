@@ -23,6 +23,7 @@ import { NotificationsComponent } from './notifications/notifications.component'
 import { EditableListComponent } from './editable-list/editable-list.component';
 import { MonacoEditorModule } from 'ngx-monaco-editor';
 import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.component';
+import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-mod-portal-api.module';
 
 @NgModule({
   declarations: [
@@ -49,6 +50,7 @@ import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.compon
     FormsModule,
     HttpClientModule,
     MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.origin}/api/v0` }),
+    FactorioModPortalApiModule.forRoot({ rootUrl: `${window.location.origin}/proxy` }),
     FontAwesomeModule,
     MonacoEditorModule.forRoot({
       defaultOptions: {
