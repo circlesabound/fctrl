@@ -22,6 +22,7 @@ import { WhiteListComponent } from './server-config/white-list/white-list.compon
 import { NotificationsComponent } from './notifications/notifications.component';
 import { EditableListComponent } from './editable-list/editable-list.component';
 import { MonacoEditorModule } from 'ngx-monaco-editor';
+import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.component';
 
 @NgModule({
   declarations: [
@@ -40,6 +41,7 @@ import { MonacoEditorModule } from 'ngx-monaco-editor';
     WhiteListComponent,
     NotificationsComponent,
     EditableListComponent,
+    ModObjectComponent,
   ],
   imports: [
     BrowserModule,
