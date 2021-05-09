@@ -4,7 +4,7 @@ use crate::get_dist_path;
 
 #[catch(404)]
 pub fn not_found(_req: &Request) -> String {
-    format!("404 not found")
+    "404 not found".to_owned()
 }
 
 #[catch(404)]

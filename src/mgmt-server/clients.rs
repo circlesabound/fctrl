@@ -16,7 +16,8 @@ use fctrl::schema::{
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use log::{error, info, trace, warn};
 
-use tokio::sync::Mutex;
+use stream_cancel::Valved;
+use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
@@ -559,26 +560,36 @@ async fn ack_or_timeout(
     }
 }
 
+#[derive(Debug)]
+enum StreamSignal {
+    Close,
+}
+
 /// Fuse (close) the stream after a AgentResponseWithId has status Completed or Failed.
-/// TODO this doesn't work properly - can't signal to close the stream from inside the combinator
 fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item = Event> {
-    s.scan(true, |more_responses, e| {
-        if !*more_responses {
-            future::ready(None)
-        } else {
-            match serde_json::from_str::<AgentResponseWithId>(&e.content) {
-                Ok(r) => match r.status {
-                    OperationStatus::Ack | OperationStatus::Ongoing => (),
-                    OperationStatus::Completed | OperationStatus::Failed => {
-                        *more_responses = false;
+    let (tx, mut rx) = mpsc::channel(1);
+    let (exit, valved) = Valved::new(s);
+
+    tokio::spawn(async move {
+        let _ = rx.recv().await;
+        exit.cancel();
+    });
+
+    let tx = Arc::new(tx);
+    valved.inspect(move |e| {
+        match serde_json::from_str::<AgentResponseWithId>(&e.content) {
+            Ok(r) => match r.status {
+                OperationStatus::Ack | OperationStatus::Ongoing => (),
+                OperationStatus::Completed | OperationStatus::Failed => {
+                    if let Err(e) = tx.try_send(StreamSignal::Close) {
+                        error!("error signalling response stream end: {:?}", e);
                     }
-                },
-                Err(_) => {
-                    warn!("Failed to deserialise AgentResponseWithId");
-                    // ignore
                 }
+            },
+            Err(_) => {
+                warn!("Failed to deserialise AgentResponseWithId");
+                // ignore
             }
-            future::ready(Some(e))
         }
     })
 }

@@ -33,7 +33,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Opening ws server at {}", ws_bind);
     let ws = WebSocketServer::new(ws_bind).await?;
 
-    let _ = rocket::build()
+    rocket::build()
         .manage(event_broker)
         .manage(agent_client)
         .manage(ws)
@@ -77,7 +77,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .register("/api/v0", catchers![catchers::not_found,])
         .register("/", catchers![catchers::fallback_to_index_html,])
         .launch()
-        .await;
+        .await?;
 
     info!("Shutting down");
 

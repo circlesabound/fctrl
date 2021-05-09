@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { faAngleDown, faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
-import { Observable, of, Subject, throwError, timer } from 'rxjs';
-import { catchError, debounceTime, delay, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
+import { Observable, of, Subject, timer } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
 import { ModInfoShort } from 'src/app/factorio-mod-portal-api/models';
 import { FactorioModPortalApiService } from 'src/app/factorio-mod-portal-api/services';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';

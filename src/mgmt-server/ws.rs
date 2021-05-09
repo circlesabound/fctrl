@@ -1,20 +1,21 @@
 use std::{collections::HashMap, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
 
-use futures::{channel::mpsc, future, pin_mut, Future, FutureExt, SinkExt, Stream, StreamExt};
-use log::{debug, info, warn};
+use futures::{future, pin_mut, Future, FutureExt, SinkExt, Stream, StreamExt};
+use log::{debug, error, info, warn};
 use rocket::http;
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{oneshot, Mutex, MutexGuard},
+    sync::{mpsc, oneshot, Mutex, MutexGuard},
 };
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::{error::Result, events::Event};
 
+type DynamicStreamsHashMap = HashMap<String, oneshot::Sender<(String, WebSocketStream<TcpStream>)>>;
+
 pub struct WebSocketServer {
     pub port: u16,
-    dynamic_streams_waiting:
-        Arc<Mutex<HashMap<String, oneshot::Sender<WebSocketStream<TcpStream>>>>>,
+    dynamic_streams_waiting: Arc<Mutex<DynamicStreamsHashMap>>,
 }
 
 impl WebSocketServer {
@@ -47,10 +48,12 @@ impl WebSocketServer {
         Ok(server)
     }
 
-    pub async fn stream_at<S>(&self, path: String, stream: S, unconnected_timeout: Duration)
-    where
-        S: Stream<Item = Event> + Unpin + Send,
-    {
+    pub async fn stream_at(
+        &self,
+        path: String,
+        stream: impl Stream<Item = Event> + Unpin + Send,
+        unconnected_timeout: Duration,
+    ) {
         let (tx, rx) = oneshot::channel();
 
         {
@@ -60,32 +63,50 @@ impl WebSocketServer {
 
         match tokio::time::timeout(unconnected_timeout, rx).await {
             Ok(res) => {
-                if let Ok(ws) = res {
-                    debug!("WebSocket peer connected");
+                if let Ok((remote_addr, ws)) = res {
+                    debug!("WebSocket peer {} connected to path {}", remote_addr, path);
                     let (mut ws_tx, mut ws_rx) = ws.split();
 
                     // 1 hour for inactivity timeout, even if client is connected
-                    let (mut activity_tx, mut activity_rx) = mpsc::unbounded();
-                    let path = path.clone();
+                    let (activity_tx, mut activity_rx) = mpsc::unbounded_channel();
+                    let path_clone = path.clone();
                     let inactivity_task = tokio::spawn(async move {
                         let inactivity_timeout = Duration::from_secs(60 * 60);
-                        while tokio::time::timeout(inactivity_timeout, activity_rx.next())
+                        while tokio::time::timeout(inactivity_timeout, activity_rx.recv())
                             .await
                             .is_ok()
                         {}
-                        debug!("WebSocket stream at {} timing out from inactivity", path);
+                        info!(
+                            "WebSocket stream at {} timing out from inactivity after {} seconds",
+                            path_clone,
+                            inactivity_timeout.as_secs()
+                        );
                     });
 
                     // Abstract ws_tx with a channel to avoid locking
-                    let (mut outgoing_tx, mut outgoing_rx) = mpsc::unbounded();
+                    let path_clone = path.clone();
+                    let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded_channel();
                     tokio::spawn(async move {
-                        while let Some(msg) = outgoing_rx.next().await {
-                            let _ = activity_tx.send(()).await;
-                            debug!("Sending into ws_tx: {}", msg);
-                            let _ = ws_tx.send(msg).await;
+                        while let Some(msg) = outgoing_rx.recv().await {
+                            if let Err(e) = activity_tx.send(ActivitySignal::Activity) {
+                                warn!("Error indicating websocket activity: {:?}", e);
+                            }
+                            debug!(
+                                "Sending message to WebSocket peer {} at path {}: {}",
+                                remote_addr, path_clone, msg
+                            );
+                            if let Err(e) = ws_tx.send(msg).await {
+                                error!(
+                                    "Error sending message to WebSocket peer {} at path {}: {:?}",
+                                    remote_addr, path_clone, e
+                                );
+                            }
                         }
 
-                        debug!("Closing websocket connection");
+                        debug!(
+                            "Closing WebSocket connection to peer {} at path {}",
+                            remote_addr, path_clone
+                        );
                         let _ = ws_tx.send(Message::Close(None)).await;
                         let _ = ws_tx.close().await;
                     });
@@ -95,7 +116,7 @@ impl WebSocketServer {
                     pin_mut!(stream);
                     let forward_fut = stream.for_each(|e| {
                         let msg = Message::Text(e.content);
-                        let _ = outgoing_tx_clone.unbounded_send(msg);
+                        let _ = outgoing_tx_clone.send(msg);
                         future::ready(())
                     });
 
@@ -110,7 +131,6 @@ impl WebSocketServer {
                                     // tungstenite library handles pings already
                                 }
                                 Message::Close(_) => {
-                                    info!("Got close message");
                                     break;
                                 }
                             }
@@ -125,7 +145,6 @@ impl WebSocketServer {
                         Box::pin(inactivity_task.then(|_| future::ready(()))),
                     ];
                     future::select_all(futures).await;
-                    let _ = outgoing_tx.close().await;
                 }
             }
             Err(_) => {
@@ -134,13 +153,11 @@ impl WebSocketServer {
                 let mut mg = self.dynamic_streams_waiting.lock().await;
                 mg.remove(&path);
                 info!(
-                    "websocket stream '{}' timed out waiting for connection",
+                    "WebSocket stream at {} timed out waiting for connection",
                     path
                 );
             }
         }
-
-        info!("Done with stream at: '{}'", path);
     }
 
     async fn route(&self, tcp: TcpStream) {
@@ -150,23 +167,33 @@ impl WebSocketServer {
             mutex_guard: mg,
             tx_ws_tx: tx,
         };
+        let remote = tcp
+            .peer_addr()
+            .map_or("<unknown>".to_owned(), |a| a.to_string());
         match tokio_tungstenite::accept_hdr_async(tcp, callback).await {
             Ok(ws) => {
-                let ws_tx = rx.await.unwrap(); // Safe to unwrap here
-
-                // Send the websocket to the closure defined in stream_at()
-                let _ = ws_tx.send(ws);
+                if let Ok(ws_tx) = rx.await {
+                    // Send the websocket to the closure defined in stream_at()
+                    let _ = ws_tx.send((remote, ws));
+                } else {
+                    warn!("Could not receive WebSocket stream");
+                }
             }
             Err(e) => {
-                warn!("WS connection request not accepted: {:?}", e);
+                warn!("WebSocket connection request not accepted: {:?}", e);
             }
         }
     }
 }
 
+#[derive(Debug)]
+enum ActivitySignal {
+    Activity,
+}
+
 struct DynamicStreamAcceptCallback<'a> {
-    mutex_guard: MutexGuard<'a, HashMap<String, oneshot::Sender<WebSocketStream<TcpStream>>>>,
-    tx_ws_tx: oneshot::Sender<oneshot::Sender<WebSocketStream<TcpStream>>>,
+    mutex_guard: MutexGuard<'a, DynamicStreamsHashMap>,
+    tx_ws_tx: oneshot::Sender<oneshot::Sender<(String, WebSocketStream<TcpStream>)>>,
 }
 
 impl<'a> tokio_tungstenite::tungstenite::handshake::server::Callback

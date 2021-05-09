@@ -516,7 +516,6 @@ impl AgentController {
                             operation_id,
                         )
                         .await;
-                        return;
                     } else {
                         info!("Installed version {}", version_to_install);
                         self.reply_success(AgentOutMessage::Ok, operation_id).await;
