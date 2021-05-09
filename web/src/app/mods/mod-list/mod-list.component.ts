@@ -1,11 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { faAngleDown, faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
-import { Observable, of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError, timer } from 'rxjs';
 import { catchError, debounceTime, delay, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
 import { ModInfoShort } from 'src/app/factorio-mod-portal-api/models';
 import { FactorioModPortalApiService } from 'src/app/factorio-mod-portal-api/services';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
+import { OperationService } from 'src/app/operation.service';
 import { ModInfo } from './mod-info';
 
 @Component({
@@ -32,6 +33,7 @@ export class ModListComponent implements OnInit {
   constructor(
     private apiClient: MgmtServerRestApiService,
     private modPortalClient: FactorioModPortalApiService,
+    private operationService: OperationService,
   ) {}
 
   ngOnInit(): void {
@@ -69,22 +71,34 @@ export class ModListComponent implements OnInit {
   pushModList(): void {
     this.saveButtonLoading = true;
 
-    this.apiClient.serverModsListPost({
+    this.apiClient.serverModsListPost$Response({
       body: this.modInfoList.map(info => {
         return {
           name: info.name,
           version: info.selectedVersion,
         };
       }),
-    }).pipe(
-      tap(() => {
-        console.log('pushModList returned');
-        this.saveButtonLoading = false;
-        this.showTickIcon = true;
-      }),
-      delay(3000),
-    ).subscribe(() => {
-      this.showTickIcon = false;
+    }).subscribe(response => {
+      const location = response.headers.get('Location');
+
+      if (location !== null) {
+        this.operationService.subscribe(
+          location,
+          'Push mod list',
+          async () => {
+            console.log('push mod list succeeded');
+            this.saveButtonLoading = false;
+            this.showTickIcon = true;
+            timer(3000).subscribe(_ => {
+              this.showTickIcon = false;
+            });
+          },
+          async err => {
+            console.log(`push mod list failed: ${err}`);
+            this.saveButtonLoading = false;
+          }
+        );
+      }
     });
   }
 

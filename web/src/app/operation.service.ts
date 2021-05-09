@@ -13,22 +13,24 @@ export class OperationService {
   subscribe(
     wsUrl: string,
     friendlyName: string,
-    successCallback: () => void,
-    errorCallback: (error: string) => void
+    successCallback: () => Promise<void>,
+    errorCallback: (error: string) => Promise<void>,
   ): void {
     const ws = webSocket(wsUrl);
     ws.subscribe(
-      msgUntyped => {
+      async msgUntyped => {
         const msg = msgUntyped as ResponseWithId;
         this.addNotification(`"${friendlyName}": ${JSON.stringify(msg.content)}`);
         if (msg.status === OperationStatus.Completed || msg.status === OperationStatus.Failed) {
           ws.complete();
         }
+        await successCallback();
       },
-      err => {
+      async err => {
         this.addNotification(`"${friendlyName}" failed: WebSocket Error: ${err}`);
         console.error(`ws error: ${err}`);
         ws.complete();
+        await errorCallback(err);
       },
       () => {
         // closing

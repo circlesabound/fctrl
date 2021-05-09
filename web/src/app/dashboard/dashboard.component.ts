@@ -114,10 +114,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.operationService.subscribe(
           location,
           `Install Factorio ${params.body.version}`,
-          () => {
+          async () => {
             // tba
           },
-          () => {
+          async err => {
             // tba
           },
         );
@@ -137,10 +137,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.operationService.subscribe(
           location,
           `Create save "${params.savefile_id}"`,
-          () => {
+          async () => {
             // tba
           },
-          () => {
+          async err => {
             // tba
           },
         );
