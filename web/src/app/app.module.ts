@@ -24,6 +24,7 @@ import { EditableListComponent } from './editable-list/editable-list.component';
 import { MonacoEditorModule } from 'ngx-monaco-editor';
 import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.component';
 import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-mod-portal-api.module';
+import { environment } from 'src/environments/environment';
 
 @NgModule({
   declarations: [
@@ -49,8 +50,8 @@ import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-m
     AppRoutingModule,
     FormsModule,
     HttpClientModule,
-    MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.origin}/api/v0` }),
-    FactorioModPortalApiModule.forRoot({ rootUrl: `${window.location.origin}/proxy` }),
+    MgmtServerRestApiModule.forRoot({ rootUrl: `http://${environment.backendHost}/api/v0` }),
+    FactorioModPortalApiModule.forRoot({ rootUrl: `http://${environment.backendHost}/proxy` }),
     FontAwesomeModule,
     MonacoEditorModule.forRoot({
       defaultOptions: {

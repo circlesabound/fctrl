@@ -1,9 +1,9 @@
 #![feature(bool_to_option, decl_macro)]
 
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use log::info;
-use rocket::{catchers, routes};
+use rocket::{async_trait, catchers, fairing::Fairing, routes};
 use rocket_contrib::serve::StaticFiles;
 
 use crate::{clients::AgentApiClient, events::broker::EventBroker, ws::WebSocketServer};
@@ -34,9 +34,16 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let ws = WebSocketServer::new(ws_bind).await?;
 
     rocket::build()
+        .attach(CORS::new())
         .manage(event_broker)
         .manage(agent_client)
         .manage(ws)
+        .mount(
+            "/",
+            routes![
+                routes::options::options,
+            ]
+        )
         .mount(
             "/api/v0",
             routes![
@@ -84,12 +91,43 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn get_dist_path() -> PathBuf {
+fn get_dist_path() -> PathBuf {
     std::env::current_dir()
         .unwrap()
         .join("web")
         .join("dist")
         .join("web")
+}
+
+struct CORS {}
+
+impl CORS {
+    pub fn new() -> CORS {
+        CORS {}
+    }
+}
+
+#[async_trait]
+impl Fairing for CORS {
+    fn info(&self) -> rocket::fairing::Info {
+        rocket::fairing::Info {
+            name: "Add CORS headers to response",
+            kind: rocket::fairing::Kind::Response,
+        }
+    }
+
+    async fn on_response<'r>(&self, req: &'r rocket::Request<'_>, res: &mut rocket::Response<'r>) {
+        res.set_header(rocket::http::Header::new("Access-Control-Allow-Origin", "*"));
+        res.set_header(rocket::http::Header::new("Access-Control-Allow-Methods", "GET, OPTIONS, POST, PUT"));
+        res.set_header(rocket::http::Header::new("Access-Control-Allow-Headers", "*"));
+        res.set_header(rocket::http::Header::new("Access-Control-Allow-Credentials", "false"));
+        res.set_header(rocket::http::Header::new("Access-Control-Expose-Headers", "Location"));
+
+        if req.method() == rocket::http::Method::Options {
+            res.set_header(rocket::http::ContentType::Plain);
+            res.set_sized_body(0, Cursor::new(""))
+        }
+    }
 }
 
 #[cfg(test)]

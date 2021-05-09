@@ -98,6 +98,8 @@ export class ModListComponent implements OnInit {
             this.saveButtonLoading = false;
           }
         );
+      } else {
+        console.error('Location header was empty');
       }
     });
   }
