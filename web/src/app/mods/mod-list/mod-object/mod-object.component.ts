@@ -12,12 +12,9 @@ import { ModInfo } from '../mod-info';
 export class ModObjectComponent implements OnInit {
   @Input() modInfo!: ModInfo;
   @Output() modInfoChange = new EventEmitter<ModInfo>();
-  @Output() delete = new EventEmitter<ModInfo>();
+  @Output() removeModInfo = new EventEmitter<ModInfo>();
 
-  dropdownArrowIcon = faAngleDown;
   removeIcon = faTimes;
-
-  dropdownHidden = true;
 
   constructor() { }
 
@@ -28,7 +25,7 @@ export class ModObjectComponent implements OnInit {
   }
 
   removeSelf(): void {
-    this.delete.emit(this.modInfo);
+    this.removeModInfo.emit(this.modInfo);
   }
 
   setSelectedVersion(version: string): void {

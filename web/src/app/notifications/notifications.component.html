@@ -1,4 +1,4 @@
-<div class="navbar-item has-dropdown" [ngClass]="{'is-active': notificationsExpanded}">
+<div class="navbar-item has-dropdown" [ngClass]="{'is-active': notificationsExpanded}" (clickOutside)="notificationsExpanded = false">
   <a class="navbar-link" (click)="notificationsExpanded = !notificationsExpanded">
     Notifications
   </a>

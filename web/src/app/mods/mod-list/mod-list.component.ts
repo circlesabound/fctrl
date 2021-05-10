@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { faAngleDown, faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
 import { Observable, of, Subject, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
@@ -21,14 +21,13 @@ export class ModListComponent implements OnInit {
   private addModNameSubject = new Subject<string>();
   addModPrefetch: Option<ModInfo> = Option.none();
 
-  dropdownHidden = true;
-
   saveButtonLoading = false;
   showTickIcon = false;
-  dropdownArrowIcon = faAngleDown;
   addIcon = faPlus;
   saveIcon = faSave;
   tickIcon = faCheck;
+
+  ready = false;
 
   constructor(
     private apiClient: MgmtServerRestApiService,
@@ -60,10 +59,12 @@ export class ModListComponent implements OnInit {
             title: remoteInfo.title ?? '<undefined>',
             summary: remoteInfo.summary ?? '<undefined>',
             selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
-            versions: remoteInfo.releases?.map(r => r.version) ?? [],
+            versions: remoteInfo.releases?.map(r => r.version).sort().reverse() ?? [],
           });
         }
-        this.modInfoList = infoList;
+        this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
+
+        this.ready = true;
       });
     });
   }
@@ -107,9 +108,17 @@ export class ModListComponent implements OnInit {
   addMod(): void {
     this.addModPrefetch.ifSome(info => {
       this.modInfoList.push(info);
+      this.modInfoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
     });
     this.addModPrefetch = Option.none();
     this.addModName = '';
+  }
+
+  removeMod(modToRemove: ModInfo): void {
+    const index = this.modInfoList.indexOf(modToRemove);
+    if (index !== -1) {
+      this.modInfoList.splice(index, 1);
+    }
   }
 
   bufferedPrefetchModToAdd(name: string): void {
@@ -134,10 +143,9 @@ export class ModListComponent implements OnInit {
         };
         return of(ret);
       }),
-      tap(infoShort => console.log(`infoShort = ${JSON.stringify(infoShort, null, 2)}`)),
       map(infoShort => {
-        const versions = infoShort.releases.map(r => r.version);
-        const selectedVersion = versions.length === 0 ? '' : versions[versions.length - 1];
+        const versions = infoShort.releases.map(r => r.version).sort().reverse();
+        const selectedVersion = versions.length === 0 ? '' : versions[0];
         const ret: ModInfo = {
           name: infoShort.name,
           title: infoShort.title,

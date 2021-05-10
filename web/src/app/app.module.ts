@@ -25,6 +25,7 @@ import { MonacoEditorModule } from 'ngx-monaco-editor';
 import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.component';
 import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-mod-portal-api.module';
 import { environment } from 'src/environments/environment';
+import { ClickOutsideModule } from 'ng-click-outside';
 
 @NgModule({
   declarations: [
@@ -61,6 +62,7 @@ import { environment } from 'src/environments/environment';
         },
       }
     }),
+    ClickOutsideModule,
   ],
   providers: [
     Title,
