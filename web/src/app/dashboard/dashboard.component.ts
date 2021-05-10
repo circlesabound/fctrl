@@ -3,8 +3,9 @@ import { Option } from 'prelude-ts';
 import { SavefileObject, ServerControlStartPostRequest, ServerControlStatus } from '../mgmt-server-rest-api/models';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { faAngleDown, faPlay, faPlus, faStop } from '@fortawesome/free-solid-svg-icons';
-import { Subscription, timer } from 'rxjs';
+import { Subject, Subscription, timer } from 'rxjs';
 import { OperationService } from '../operation.service';
+import { StatusControl } from './status-control';
 
 @Component({
   selector: 'app-dashboard',
@@ -12,8 +13,6 @@ import { OperationService } from '../operation.service';
   styleUrls: ['./dashboard.component.sass']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  status: Option<ServerControlStatus>;
-
   savefiles: SavefileObject[];
   selectedSavefile: Option<SavefileObject>;
   savefileDropdownHidden: boolean;
@@ -26,16 +25,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   stopServerIcon = faStop;
   createSaveIcon = faPlus;
 
-  updateStatusSubscription: Option<Subscription>;
-
   createSaveName: string;
   upgradeVersionString: string;
+
+  manualUpdateStatusSubject = new Subject<void>();
+  statusControl = StatusControl.Invalid;
 
   constructor(
     private apiClient: MgmtServerRestApiService,
     private operationService: OperationService,
   ) {
-    this.status = Option.none();
     this.savefiles = [];
     this.selectedSavefile = Option.none();
     this.savefileDropdownHidden = true;
@@ -43,23 +42,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.startServerButtonDisabled = false;
     this.stopServerButtonDisabled = false;
 
-    this.updateStatusSubscription = Option.none();
-
     this.createSaveName = '';
     this.upgradeVersionString = '';
   }
 
   ngOnInit(): void {
     this.updateSavefiles();
-    this.updateStatus();
-
-    this.updateStatusSubscription = Option.some(timer(0, 5000).subscribe(() => {
-      this.updateStatus();
-    }));
   }
 
   ngOnDestroy(): void {
-    this.updateStatusSubscription.map(s => s.unsubscribe());
+    //
   }
 
   displaySavefileOpt(savefile: Option<SavefileObject>): string {
@@ -77,7 +69,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   setSelectedSavefile(savefile: SavefileObject): void {
     this.selectedSavefile = Option.some(savefile);
-    this.updateStartStopButtonState();
+    this.handleStatusControlEvent(this.statusControl);
   }
 
   startServer(): void {
@@ -148,12 +140,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  private updateStatus(): void {
-    console.log('updateStatus');
-    this.apiClient.serverControlGet().subscribe(s => {
-      this.status = Option.some(s);
-      this.updateStartStopButtonState();
-    });
+  handleStatusControlEvent(s: StatusControl): void {
+    if (s === StatusControl.CanStart) {
+      this.startServerButtonDisabled = this.selectedSavefile.isNone();
+      this.stopServerButtonDisabled = true;
+    } else if (s === StatusControl.CanStop) {
+      this.startServerButtonDisabled = true;
+      this.stopServerButtonDisabled = false;
+    } else {
+      this.startServerButtonDisabled = true;
+      this.stopServerButtonDisabled = true;
+    }
+
+    this.statusControl = s;
   }
 
   private updateSavefiles(): void {
@@ -162,17 +161,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.savefiles = response;
       }
     );
-  }
-
-  private updateStartStopButtonState(): void {
-    this.status.map(s => {
-      if (s.game_status === 'NotRunning') {
-        this.startServerButtonDisabled = this.selectedSavefile.isNone();
-        this.stopServerButtonDisabled = true;
-      } else {
-        this.startServerButtonDisabled = true;
-        this.stopServerButtonDisabled = false;
-      }
-    });
   }
 }

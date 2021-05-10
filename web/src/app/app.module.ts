@@ -26,6 +26,7 @@ import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.compon
 import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-mod-portal-api.module';
 import { environment } from 'src/environments/environment';
 import { ClickOutsideModule } from 'ng-click-outside';
+import { StatusComponent } from './dashboard/status/status.component';
 
 @NgModule({
   declarations: [
@@ -45,6 +46,7 @@ import { ClickOutsideModule } from 'ng-click-outside';
     NotificationsComponent,
     EditableListComponent,
     ModObjectComponent,
+    StatusComponent,
   ],
   imports: [
     BrowserModule,
