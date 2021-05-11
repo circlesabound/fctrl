@@ -1,13 +1,22 @@
 <h1 class="title is-1">White List</h1>
 <app-editable-list [(list)]="whiteList"></app-editable-list>
-<label class="checkbox">
-  <input type="checkbox" [(ngModel)]="useWhiteList">
-  Use whitelist
-</label>
-<br>
-<button id="save-button" class="button is-success" (click)="pushWhiteList()" [ngClass]="{'is-loading': saveButtonLoading}">
-  <span class="icon is-small">
-    <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
-  </span>
-  <span>Save</span>
-</button>
+
+<div class="field">
+  <div class="control">
+    <label class="checkbox">
+      <input type="checkbox" [(ngModel)]="useWhiteList">
+      Use whitelist
+    </label>
+  </div>
+</div>
+
+<div class="field">
+  <div class="control">
+    <button id="save-button" class="button is-success" (click)="pushWhiteList()" [ngClass]="{'is-loading': saveButtonLoading}">
+      <span class="icon is-small">
+        <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
+      </span>
+      <span>Save</span>
+    </button>
+  </div>
+</div>

@@ -1,11 +1,17 @@
 <h1 class="title is-1">Server settings</h1>
+
 <div class="editor-container">
   <ngx-monaco-editor [options]="monacoOptions" [(ngModel)]="text" style="height:100%;"></ngx-monaco-editor>
 </div>
 
-<button id="save-button" class="button is-success" (click)="pushServerSettings()" [ngClass]="{'is-loading': saveButtonLoading}">
-  <span class="icon is-small">
-    <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
-  </span>
-  <span>Save</span>
-</button>
+<div class="field">
+  <div class="control">
+    <button id="save-button" class="button is-success" (click)="pushServerSettings()"
+      [ngClass]="{'is-loading': saveButtonLoading}">
+      <span class="icon is-small">
+        <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
+      </span>
+      <span>Save</span>
+    </button>
+  </div>
+</div>

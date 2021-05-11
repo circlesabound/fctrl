@@ -11,6 +11,7 @@ import { AdminListComponent } from './server-config/admin-list/admin-list.compon
 import { ServerSettingsComponent } from './server-config/server-settings/server-settings.component';
 import { BanListComponent } from './server-config/ban-list/ban-list.component';
 import { WhiteListComponent } from './server-config/white-list/white-list.component';
+import { SecretsComponent } from './server-config/secrets/secrets.component';
 
 const routes: Routes = [
   {
@@ -41,6 +42,13 @@ const routes: Routes = [
         component: BanListComponent,
         data: {
           title: 'fctrl | Ban List',
+        },
+      },
+      {
+        path: 'secrets',
+        component: SecretsComponent,
+        data: {
+          title: 'fctrl | Secrets',
         },
       },
       {

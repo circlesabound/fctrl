@@ -1,8 +1,15 @@
 <h1 class="title is-1">Admin List</h1>
+
 <app-editable-list [(list)]="adminList"></app-editable-list>
-<button id="save-button" class="button is-success" (click)="pushAdminList()" [ngClass]="{'is-loading': saveButtonLoading}">
-  <span class="icon is-small">
-    <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
-  </span>
-  <span>Save</span>
-</button>
+
+<div class="field">
+  <div class="control">
+    <button id="save-button" class="button is-success" (click)="pushAdminList()"
+      [ngClass]="{'is-loading': saveButtonLoading}">
+      <span class="icon is-small">
+        <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
+      </span>
+      <span>Save</span>
+    </button>
+  </div>
+</div>

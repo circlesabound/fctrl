@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { faCogs, faUserCheck, faUserShield, faUserTimes } from '@fortawesome/free-solid-svg-icons';
+import { faCogs, faKey, faUserCheck, faUserShield, faUserTimes } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-server-config',
@@ -8,6 +8,7 @@ import { faCogs, faUserCheck, faUserShield, faUserTimes } from '@fortawesome/fre
 })
 export class ServerConfigComponent implements OnInit {
   subnavServerSettingsIcon = faCogs;
+  subnavSecretsIcon = faKey;
   subnavAdminListIcon = faUserShield;
   subnavBanListIcon = faUserTimes;
   subnavWhiteListIcon = faUserCheck;
