@@ -11,6 +11,7 @@ use crate::{clients::AgentApiClient, events::broker::EventBroker, ws::WebSocketS
 mod catchers;
 mod clients;
 mod consts;
+mod db;
 mod error;
 mod events;
 mod guards;
@@ -127,51 +128,5 @@ impl Fairing for CORS {
             res.set_header(rocket::http::ContentType::Plain);
             res.set_sized_body(0, Cursor::new(""))
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use log::error;
-    use tokio::fs;
-
-    #[tokio::test]
-    async fn test_rocksdb() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        fs::create_dir_all(&*consts::DB_DIR).await?;
-
-        info!("Opening db");
-        let db_path = consts::DB_DIR.join("testdb");
-        let secondary_path = consts::DB_DIR.join("testdb_secondary");
-        let db = rocksdb::DB::open_default(&db_path)?;
-
-        info!("Opening secondary");
-        let mut opts = rocksdb::Options::default();
-        opts.set_max_open_files(-1);
-        let db_r = rocksdb::DB::open_as_secondary(&opts, &db_path, &secondary_path)?;
-
-        info!("Writing {{'key','hello this is value'}} to db");
-        db.put(b"key", b"hello this is value")?;
-
-        info!("Reading from secondary");
-        db_r.try_catch_up_with_primary()?;
-
-        match db_r.get(b"key") {
-            Ok(Some(value)) => {
-                info!(
-                    "Retrieved written value from the db: {}",
-                    String::from_utf8(value).unwrap()
-                );
-            }
-            Ok(None) => {
-                error!("Retrieved empty value from db");
-            }
-            Err(e) => {
-                error!("Error retrieving value from db: {:?}", e)
-            }
-        }
-        db.delete(b"key")?;
-        Ok(())
     }
 }

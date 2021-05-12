@@ -17,6 +17,7 @@ pub enum Error {
     AgentInternalError(String),
     AgentTimeout,
     BadRequest(String),
+    Db(String),
 
     // Specific errors
     ModSettingsNotInitialised,
@@ -24,6 +25,7 @@ pub enum Error {
     SecretsNotInitialised,
 
     // Generic wrappers around external error types
+    DbExternal(rocksdb::Error),
     Io(std::io::Error),
     Json(serde_json::error::Error),
     Reqwest(reqwest::Error),
@@ -41,6 +43,13 @@ impl std::fmt::Display for Error {
 impl From<factorio_mod_settings_parser::Error> for Error {
     fn from(e: factorio_mod_settings_parser::Error) -> Self {
         Error::ModSettingsParseError(e)
+    }
+}
+
+
+impl From<rocksdb::Error> for Error {
+    fn from(e: rocksdb::Error) -> Self {
+        Error::DbExternal(e)
     }
 }
 
@@ -88,6 +97,8 @@ impl<'r> Responder<'r, 'static> for Error {
             }
             Error::AgentTimeout => Status::GatewayTimeout,
             Error::AgentInternalError(_)
+            | Error::Db(_)
+            | Error::DbExternal(_)
             | Error::Io(_)
             | Error::Json(_)
             | Error::Reqwest(_)
