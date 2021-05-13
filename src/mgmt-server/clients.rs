@@ -14,17 +14,15 @@ use fctrl::schema::{
     SecretsObject, ServerStartSaveFile, ServerStatus, WhitelistObject,
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
+use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
-
+use regex::Regex;
 use stream_cancel::Valved;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
-use crate::{
-    error::{Error, Result},
-    events::{broker::EventBroker, Event, TopicName, OPERATION_TOPIC_NAME, STDOUT_TOPIC_NAME},
-};
+use crate::{consts, error::{Error, Result}, events::{Event, OPERATION_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_SYSTEMLOG_CATEGORY, TopicName, broker::EventBroker}};
 
 pub struct AgentApiClient {
     event_broker: Arc<EventBroker>,
@@ -499,7 +497,7 @@ fn tag_incoming_message(s: String) -> Option<Event> {
     if let Ok(response_with_id) = serde_json::from_str::<AgentResponseWithId>(&s) {
         let mut tags = HashMap::new();
         tags.insert(
-            TopicName(OPERATION_TOPIC_NAME.to_owned()),
+            TopicName(OPERATION_TOPIC_NAME.to_string()),
             response_with_id.operation_id.into(),
         );
         let event = Event { tags, content: s };
@@ -507,8 +505,10 @@ fn tag_incoming_message(s: String) -> Option<Event> {
     } else if let Ok(streaming_msg) = serde_json::from_str::<AgentStreamingMessage>(&s) {
         let mut tags = HashMap::new();
         match streaming_msg {
-            AgentStreamingMessage::ServerStdout(_) => {
-                tags.insert(TopicName(STDOUT_TOPIC_NAME.to_owned()), String::new());
+            AgentStreamingMessage::ServerStdout(stdout_message) => {
+                let topic = TopicName(STDOUT_TOPIC_NAME.to_string());
+                let tag_value = classify_server_stdout_message(&stdout_message);
+                tags.insert(TopicName(STDOUT_TOPIC_NAME.to_string()), tag_value);
             }
         }
         let event = Event { tags, content: s };
@@ -592,4 +592,35 @@ fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item 
             }
         }
     })
+}
+
+fn classify_server_stdout_message(message: &str) -> String {
+    lazy_static! {
+        static ref CHAT_RE: Regex =
+            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();
+        static ref JOIN_RE: Regex = Regex::new(
+            r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+): joined the game$"
+        )
+        .unwrap();
+        static ref LEAVE_RE: Regex =
+            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$")
+                .unwrap();
+    }
+
+    if let Some(chat_captures) = CHAT_RE.captures(message) {
+        let timestamp = chat_captures.get(1).unwrap().as_str().to_string();
+        let user = chat_captures.get(2).unwrap().as_str().to_string();
+        let msg = chat_captures.get(3).unwrap().as_str().to_string();
+        STDOUT_TOPIC_CHAT_CATEGORY.to_string()
+    } else if let Some(join_captures) = JOIN_RE.captures(message) {
+        let timestamp = join_captures.get(1).unwrap().as_str().to_string();
+        let user = join_captures.get(2).unwrap().as_str().to_string();
+        STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string()
+    } else if let Some(leave_captures) = LEAVE_RE.captures(message) {
+        let timestamp = leave_captures.get(1).unwrap().as_str().to_string();
+        let user = leave_captures.get(2).unwrap().as_str().to_string();
+        STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string()
+    } else {
+        STDOUT_TOPIC_SYSTEMLOG_CATEGORY.to_string()
+    }
 }

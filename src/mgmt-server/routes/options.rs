@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use rocket::{Responder, http::Header, options};
+use rocket::{http::Header, options, Responder};
 
 #[derive(Responder)]
 #[response(status = 204)]

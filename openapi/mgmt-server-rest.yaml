@@ -253,6 +253,59 @@ paths:
       responses:
         '200':
           description: Ok
+  /logs/{category}:
+    get:
+      summary: Fetches ingested logs
+      parameters:
+        - name: category
+          in: path
+          description: Category of logs to get
+          required: true
+          schema:
+            type: string
+        - name: count
+          in: query
+          description: How many logs to get per page
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+        - name: direction
+          in: query
+          description: Which direction to iterate over logs from the starting position
+          required: true
+          schema:
+            type: string
+            enum:
+              - "Forward"
+              - "Backward"
+        - name: from
+          in: query
+          description: Iteration starting position. If empty, Forward iteration will start at the earliest entry, and Backward iteration will start at the latest entry.
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The requested logs, plus a URL at which to continue iteration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsPaginationObject'
+  /logs/{category}/stream:
+    get:
+      summary: Request a WebSocket connection to stream incoming logs of the given category
+      parameters:
+        - name: category
+          in: path
+          description: Category of logs to stream
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Accepted, see the Location header for stream location.
 
 components:
   schemas:
@@ -373,3 +426,15 @@ components:
     ModSettingsObject:
       description: A mod-settings.dat file, converted into a JSON format
       type: object
+    LogsPaginationObject:
+      required:
+        - logs
+      properties:
+        next:
+          description: A URL indicating the location of the next iteration of this log query. If this is empty, then no more data is available.
+          type: string
+          format: uri
+        logs:
+          type: array
+          items:
+            type: string

@@ -39,12 +39,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .manage(event_broker)
         .manage(agent_client)
         .manage(ws)
-        .mount(
-            "/",
-            routes![
-                routes::options::options,
-            ]
-        )
+        .mount("/", routes![routes::options::options,])
         .mount(
             "/api/v0",
             routes![
@@ -71,6 +66,8 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::apply_mods_list,
                 routes::server::get_mod_settings,
                 routes::server::put_mod_settings,
+                routes::logs::get,
+                routes::logs::stream,
             ],
         )
         .mount(
@@ -118,11 +115,26 @@ impl Fairing for CORS {
     }
 
     async fn on_response<'r>(&self, req: &'r rocket::Request<'_>, res: &mut rocket::Response<'r>) {
-        res.set_header(rocket::http::Header::new("Access-Control-Allow-Origin", "*"));
-        res.set_header(rocket::http::Header::new("Access-Control-Allow-Methods", "GET, OPTIONS, POST, PUT"));
-        res.set_header(rocket::http::Header::new("Access-Control-Allow-Headers", "*"));
-        res.set_header(rocket::http::Header::new("Access-Control-Allow-Credentials", "false"));
-        res.set_header(rocket::http::Header::new("Access-Control-Expose-Headers", "Location"));
+        res.set_header(rocket::http::Header::new(
+            "Access-Control-Allow-Origin",
+            "*",
+        ));
+        res.set_header(rocket::http::Header::new(
+            "Access-Control-Allow-Methods",
+            "GET, OPTIONS, POST, PUT",
+        ));
+        res.set_header(rocket::http::Header::new(
+            "Access-Control-Allow-Headers",
+            "*",
+        ));
+        res.set_header(rocket::http::Header::new(
+            "Access-Control-Allow-Credentials",
+            "false",
+        ));
+        res.set_header(rocket::http::Header::new(
+            "Access-Control-Expose-Headers",
+            "Location",
+        ));
 
         if req.method() == rocket::http::Method::Options {
             res.set_header(rocket::http::ContentType::Plain);

@@ -46,7 +46,6 @@ impl From<factorio_mod_settings_parser::Error> for Error {
     }
 }
 
-
 impl From<rocksdb::Error> for Error {
     fn from(e: rocksdb::Error) -> Self {
         Error::DbExternal(e)
