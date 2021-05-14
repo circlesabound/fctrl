@@ -17,6 +17,7 @@ use crate::{
         StoppedInstance,
     },
 };
+use chrono::Utc;
 use factorio_mod_settings_parser::ModSettings;
 use fctrl::schema::*;
 use futures::Sink;
@@ -419,6 +420,7 @@ impl AgentController {
         let with_id = AgentResponseWithId {
             operation_id: operation_id.clone(),
             status: OperationStatus::Ack,
+            timestamp: Utc::now(),
             content: AgentOutMessage::Ok,
         };
         let json = serde_json::to_string(&with_id);
@@ -437,6 +439,7 @@ impl AgentController {
         let with_id = AgentResponseWithId {
             operation_id: operation_id.clone(),
             status: OperationStatus::Ongoing,
+            timestamp: Utc::now(),
             content: message,
         };
         let json = serde_json::to_string(&with_id);
@@ -455,6 +458,7 @@ impl AgentController {
         let with_id = AgentResponseWithId {
             operation_id,
             status: OperationStatus::Completed,
+            timestamp: Utc::now(),
             content: message,
         };
         let json = serde_json::to_string(&with_id);
@@ -473,6 +477,7 @@ impl AgentController {
         let with_id = AgentResponseWithId {
             operation_id,
             status: OperationStatus::Failed,
+            timestamp: Utc::now(),
             content: message,
         };
         let json = serde_json::to_string(&with_id);
@@ -836,7 +841,10 @@ impl AgentController {
         let stream_out = Arc::clone(&self.global_tx);
         let mut builder = ServerBuilder::using_installation(version)
             .with_stdout_handler(move |s| {
-                let msg = AgentStreamingMessage::ServerStdout(s);
+                let msg = AgentStreamingMessage {
+                    timestamp: Utc::now(),
+                    content: AgentStreamingMessageInner::ServerStdout(s),
+                };
                 let _ = stream_out.send(msg);
             })
             .hosting_savefile(
@@ -930,7 +938,10 @@ impl AgentController {
             let stream_out = Arc::clone(&self.global_tx);
             let builder = ServerBuilder::using_installation(version)
                 .with_stdout_handler(move |s| {
-                    let msg = AgentStreamingMessage::ServerStdout(s);
+                    let msg = AgentStreamingMessage {
+                        timestamp: Utc::now(),
+                        content: AgentStreamingMessageInner::ServerStdout(s),
+                    };
                     let _ = stream_out.send(msg);
                 })
                 .creating_savefile(save_name.clone());

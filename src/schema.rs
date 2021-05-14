@@ -135,6 +135,7 @@ pub enum AgentRequest {
 pub struct AgentResponseWithId {
     pub operation_id: OperationId,
     pub status: OperationStatus,
+    pub timestamp: DateTime<Utc>,
     pub content: AgentOutMessage,
 }
 
@@ -232,6 +233,12 @@ pub struct WhitelistObject {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum AgentStreamingMessage {
+pub struct AgentStreamingMessage {
+    pub timestamp: DateTime<Utc>,
+    pub content: AgentStreamingMessageInner,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum AgentStreamingMessageInner {
     ServerStdout(String),
 }

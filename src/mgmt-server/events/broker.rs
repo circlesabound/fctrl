@@ -112,6 +112,7 @@ impl EventBroker {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use futures::{pin_mut, FutureExt};
     use tokio_stream::StreamExt;
 
@@ -130,6 +131,7 @@ mod tests {
             .collect();
         let test_event = Event {
             tags: test_event_tags,
+            timestamp: Utc::now(),
             content: "asdf".to_owned(),
         };
 
@@ -155,6 +157,7 @@ mod tests {
             .collect();
         let test_event = Event {
             tags: test_event_tags,
+            timestamp: Utc::now(),
             content: "aaaa".to_owned(),
         };
 
@@ -179,6 +182,7 @@ mod tests {
             .collect();
         let test_event = Event {
             tags: test_event_tags,
+            timestamp: Utc::now(),
             content: "bbbb".to_owned(),
         };
 

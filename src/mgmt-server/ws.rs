@@ -225,6 +225,7 @@ impl<'a> tokio_tungstenite::tungstenite::handshake::server::Callback
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
+    use chrono::Utc;
     use futures::stream;
 
     use super::*;
@@ -241,6 +242,7 @@ mod tests {
                 "test".to_owned(),
                 stream::repeat(Event {
                     tags: HashMap::new(),
+                    timestamp: Utc::now(),
                     content: "asdf".to_owned(),
                 }),
                 Duration::from_millis(200),

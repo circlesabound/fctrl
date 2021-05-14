@@ -8,10 +8,12 @@ use std::{
     time::Duration,
 };
 
+use chrono::Utc;
 use fctrl::schema::{
     AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
-    FactorioVersion, ModObject, ModSettingsBytes, OperationId, OperationStatus, RconConfig, Save,
-    SecretsObject, ServerStartSaveFile, ServerStatus, WhitelistObject,
+    AgentStreamingMessageInner, FactorioVersion, ModObject, ModSettingsBytes, OperationId,
+    OperationStatus, RconConfig, Save, SecretsObject, ServerStartSaveFile, ServerStatus,
+    WhitelistObject,
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
@@ -22,7 +24,13 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
-use crate::{consts, error::{Error, Result}, events::{Event, OPERATION_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_SYSTEMLOG_CATEGORY, TopicName, broker::EventBroker}};
+use crate::{
+    error::{Error, Result},
+    events::{
+        broker::EventBroker, Event, TopicName, OPERATION_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY,
+        STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
+    },
+};
 
 pub struct AgentApiClient {
     event_broker: Arc<EventBroker>,
@@ -351,8 +359,13 @@ impl AgentApiClient {
             TopicName(OUTGOING_TOPIC_NAME.to_owned()),
             self.ws_addr.to_string(),
         );
+        let timestamp = Utc::now();
         let content = serde_json::to_string(&request_with_id)?;
-        let event = Event { tags, content };
+        let event = Event {
+            tags,
+            timestamp,
+            content,
+        };
 
         let id_clone = id.clone();
         let subscriber = self
@@ -500,18 +513,26 @@ fn tag_incoming_message(s: String) -> Option<Event> {
             TopicName(OPERATION_TOPIC_NAME.to_string()),
             response_with_id.operation_id.into(),
         );
-        let event = Event { tags, content: s };
+        let event = Event {
+            tags,
+            timestamp: response_with_id.timestamp,
+            content: s,
+        };
         Some(event)
     } else if let Ok(streaming_msg) = serde_json::from_str::<AgentStreamingMessage>(&s) {
         let mut tags = HashMap::new();
-        match streaming_msg {
-            AgentStreamingMessage::ServerStdout(stdout_message) => {
+        match streaming_msg.content {
+            AgentStreamingMessageInner::ServerStdout(stdout_message) => {
                 let topic = TopicName(STDOUT_TOPIC_NAME.to_string());
                 let tag_value = classify_server_stdout_message(&stdout_message);
-                tags.insert(TopicName(STDOUT_TOPIC_NAME.to_string()), tag_value);
+                tags.insert(topic, tag_value);
             }
         }
-        let event = Event { tags, content: s };
+        let event = Event {
+            tags,
+            timestamp: streaming_msg.timestamp,
+            content: s,
+        };
         Some(event)
     } else {
         warn!("Got text message of unsupported format: {}", s);

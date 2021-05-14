@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 pub mod broker;
@@ -7,6 +8,7 @@ pub mod broker;
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Event {
     pub tags: HashMap<TopicName, String>,
+    pub timestamp: DateTime<Utc>,
     pub content: String,
 }
 

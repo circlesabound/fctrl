@@ -30,8 +30,7 @@ impl Db {
         let mut open_options = rocksdb::Options::default();
         open_options.create_if_missing(true);
         open_options.create_missing_column_families(true);
-        let primary =
-            RocksDbMultiThreaded::open_cf(&open_options, &db_path, &cfs)?;
+        let primary = RocksDbMultiThreaded::open_cf(&open_options, &db_path, &cfs)?;
 
         Ok(Db { primary })
     }
@@ -47,19 +46,29 @@ impl Db {
         let opt_value_bytes = self.primary.get_cf(cfh, key_bytes)?;
         let opt_ret = opt_value_bytes.map(|v| Record {
             key,
-            value: String::from_utf8_lossy(v.as_ref()).to_string()
+            value: String::from_utf8_lossy(v.as_ref()).to_string(),
         });
         Ok(opt_ret)
     }
 
-    pub fn read_range(&self, cf: &Cf, key: String, direction: RangeDirection, count: usize) -> Result<ReadRange> {
+    pub fn read_range(
+        &self,
+        cf: &Cf,
+        key: String,
+        direction: RangeDirection,
+        count: usize,
+    ) -> Result<ReadRange> {
         let cfh = self.get_or_create_cf_handle(cf)?;
         let read_opts = rocksdb::ReadOptions::default();
 
         let key_bytes = key.as_bytes();
         let mode = match direction {
-            RangeDirection::Forward => rocksdb::IteratorMode::From(key_bytes, rocksdb::Direction::Forward),
-            RangeDirection::Backward => rocksdb::IteratorMode::From(key_bytes, rocksdb::Direction::Reverse),
+            RangeDirection::Forward => {
+                rocksdb::IteratorMode::From(key_bytes, rocksdb::Direction::Forward)
+            }
+            RangeDirection::Backward => {
+                rocksdb::IteratorMode::From(key_bytes, rocksdb::Direction::Reverse)
+            }
         };
 
         self.read_range_internal(cfh, read_opts, mode, count)
@@ -89,9 +98,7 @@ impl Db {
     }
 
     async fn exists(db_path: impl AsRef<Path>) -> bool {
-        fs::metadata(db_path)
-            .await
-            .map_or(false, |m| m.is_dir())
+        fs::metadata(db_path).await.map_or(false, |m| m.is_dir())
     }
 
     fn flush(&self) -> Result<()> {
@@ -110,7 +117,13 @@ impl Db {
         )
     }
 
-    fn read_range_internal(&self, cfh: rocksdb::BoundColumnFamily, read_opts: rocksdb::ReadOptions, mode: rocksdb::IteratorMode, count: usize) -> Result<ReadRange> {
+    fn read_range_internal(
+        &self,
+        cfh: rocksdb::BoundColumnFamily,
+        read_opts: rocksdb::ReadOptions,
+        mode: rocksdb::IteratorMode,
+        count: usize,
+    ) -> Result<ReadRange> {
         let mut iter = self.primary.iterator_cf_opt(cfh, read_opts, mode);
 
         let mut continue_from = None;
@@ -128,7 +141,9 @@ impl Db {
 
             // Read n+1 to get a continuation point
             if i == count - 1 {
-                continue_from = iter.next().map(|(k, _)| String::from_utf8_lossy(&k).to_string());
+                continue_from = iter
+                    .next()
+                    .map(|(k, _)| String::from_utf8_lossy(&k).to_string());
             }
         }
 
@@ -248,18 +263,27 @@ mod tests {
         let ret = db.read_range_head(&cf, 3)?;
         assert_eq!(ret.records.len(), 3);
         let mut iter = ret.records.iter();
-        assert_eq!(iter.next(), Some(&Record {
-            key: "0".to_owned(),
-            value: "0".to_owned(),
-        }));
-        assert_eq!(iter.next(), Some(&Record {
-            key: "1".to_owned(),
-            value: "1".to_owned(),
-        }));
-        assert_eq!(iter.next(), Some(&Record {
-            key: "2".to_owned(),
-            value: "2".to_owned(),
-        }));
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "0".to_owned(),
+                value: "0".to_owned(),
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "1".to_owned(),
+                value: "1".to_owned(),
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "2".to_owned(),
+                value: "2".to_owned(),
+            })
+        );
         assert_eq!(ret.continue_from, Some("3".to_owned()));
 
         // Clean up
@@ -293,18 +317,27 @@ mod tests {
         let ret = db.read_range_tail(&cf, 3)?;
         assert_eq!(ret.records.len(), 3);
         let mut iter = ret.records.iter();
-        assert_eq!(iter.next(), Some(&Record {
-            key: "9".to_owned(),
-            value: "9".to_owned(),
-        }));
-        assert_eq!(iter.next(), Some(&Record {
-            key: "8".to_owned(),
-            value: "8".to_owned(),
-        }));
-        assert_eq!(iter.next(), Some(&Record {
-            key: "7".to_owned(),
-            value: "7".to_owned(),
-        }));
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "9".to_owned(),
+                value: "9".to_owned(),
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "8".to_owned(),
+                value: "8".to_owned(),
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "7".to_owned(),
+                value: "7".to_owned(),
+            })
+        );
         assert_eq!(ret.continue_from, Some("6".to_owned()));
 
         // Clean up

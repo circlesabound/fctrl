@@ -2,11 +2,21 @@
 
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
-use log::info;
+use events::{
+    TopicName, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
+    STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
+};
+use futures::{pin_mut, StreamExt};
+use log::{error, info};
 use rocket::{async_trait, catchers, fairing::Fairing, routes};
 use rocket_contrib::serve::StaticFiles;
 
-use crate::{clients::AgentApiClient, events::broker::EventBroker, ws::WebSocketServer};
+use crate::{
+    clients::AgentApiClient,
+    db::{Cf, Db, Record},
+    events::broker::EventBroker,
+    ws::WebSocketServer,
+};
 
 mod catchers;
 mod clients;
@@ -22,11 +32,18 @@ mod ws;
 async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
+    info!("Creating event broker");
     let event_broker = Arc::new(EventBroker::new());
 
     let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
     info!("Creating agent client with address {}", agent_addr);
     let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
+
+    info!("Opening db");
+    let db = Arc::new(Db::open_or_new(&*consts::DB_DIR).await?);
+
+    info!("Creating db ingestion subscriber");
+    create_db_ingestion_subscriber(Arc::clone(&event_broker), db).await?;
 
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
@@ -35,7 +52,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let ws = WebSocketServer::new(ws_bind).await?;
 
     rocket::build()
-        .attach(CORS::new())
+        .attach(Cors::new())
         .manage(event_broker)
         .manage(agent_client)
         .manage(ws)
@@ -97,16 +114,55 @@ fn get_dist_path() -> PathBuf {
         .join("web")
 }
 
-struct CORS {}
+async fn create_db_ingestion_subscriber(
+    event_broker: Arc<EventBroker>,
+    db: Arc<Db>,
+) -> crate::error::Result<()> {
+    let stdout_sub = event_broker
+        .subscribe(TopicName(STDOUT_TOPIC_NAME.to_string()), |_| true)
+        .await;
+    tokio::spawn(async move {
+        pin_mut!(stdout_sub);
+        while let Some(event) = stdout_sub.next().await {
+            // Map to the right CF
+            if let Some(tag_value) = event.tags.get(&TopicName(STDOUT_TOPIC_NAME.to_string())) {
+                let opt_cf = match tag_value.as_str() {
+                    STDOUT_TOPIC_CHAT_CATEGORY => Some(STDOUT_TOPIC_CHAT_CATEGORY),
+                    STDOUT_TOPIC_JOINLEAVE_CATEGORY => Some(STDOUT_TOPIC_JOINLEAVE_CATEGORY),
+                    STDOUT_TOPIC_SYSTEMLOG_CATEGORY => Some(STDOUT_TOPIC_SYSTEMLOG_CATEGORY),
+                    _ => None,
+                };
 
-impl CORS {
-    pub fn new() -> CORS {
-        CORS {}
+                if let Some(cf) = opt_cf {
+                    let record = Record {
+                        key: event.timestamp.to_rfc3339(),
+                        value: event.content,
+                    };
+                    if let Err(e) = db.write(&Cf(cf.to_string()), &record) {
+                        error!("Error writing to db: {:?}", e);
+                    }
+                }
+            } else {
+                error!("missing tag, this should never happen");
+            }
+        }
+
+        error!("stdout ingestion subscriber task is finishing - this should never happen!");
+    });
+
+    Ok(())
+}
+
+struct Cors {}
+
+impl Cors {
+    pub fn new() -> Cors {
+        Cors {}
     }
 }
 
 #[async_trait]
-impl Fairing for CORS {
+impl Fairing for Cors {
     fn info(&self) -> rocket::fairing::Info {
         rocket::fairing::Info {
             name: "Add CORS headers to response",

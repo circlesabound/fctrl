@@ -93,7 +93,8 @@ where
                                     // more messages on the way
                                 }
                             }
-                        } else if serde_json::from_str::<AgentStreamingMessage>(&json).is_ok() {
+                        } else if serde_json::from_str::<AgentStreamingMessageInner>(&json).is_ok()
+                        {
                             println!("{}", json);
                         }
                     } else {
