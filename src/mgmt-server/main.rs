@@ -35,15 +35,15 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Creating event broker");
     let event_broker = Arc::new(EventBroker::new());
 
+    info!("Opening db");
+    let db = Arc::new(Db::open_or_new(&*consts::DB_DIR).await?);
+
     let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
     info!("Creating agent client with address {}", agent_addr);
     let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
 
-    info!("Opening db");
-    let db = Arc::new(Db::open_or_new(&*consts::DB_DIR).await?);
-
     info!("Creating db ingestion subscriber");
-    create_db_ingestion_subscriber(Arc::clone(&event_broker), db).await?;
+    create_db_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
@@ -54,6 +54,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     rocket::build()
         .attach(Cors::new())
         .manage(event_broker)
+        .manage(db)
         .manage(agent_client)
         .manage(ws)
         .mount("/", routes![routes::options::options,])

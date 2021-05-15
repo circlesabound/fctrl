@@ -56,7 +56,7 @@ impl Db {
         cf: &Cf,
         key: String,
         direction: RangeDirection,
-        count: usize,
+        count: u32,
     ) -> Result<ReadRange> {
         let cfh = self.get_or_create_cf_handle(cf)?;
         let read_opts = rocksdb::ReadOptions::default();
@@ -74,7 +74,7 @@ impl Db {
         self.read_range_internal(cfh, read_opts, mode, count)
     }
 
-    pub fn read_range_head(&self, cf: &Cf, count: usize) -> Result<ReadRange> {
+    pub fn read_range_head(&self, cf: &Cf, count: u32) -> Result<ReadRange> {
         let cfh = self.get_or_create_cf_handle(cf)?;
         let read_opts = rocksdb::ReadOptions::default();
         let mode = rocksdb::IteratorMode::Start;
@@ -82,7 +82,7 @@ impl Db {
         self.read_range_internal(cfh, read_opts, mode, count)
     }
 
-    pub fn read_range_tail(&self, cf: &Cf, count: usize) -> Result<ReadRange> {
+    pub fn read_range_tail(&self, cf: &Cf, count: u32) -> Result<ReadRange> {
         let cfh = self.get_or_create_cf_handle(cf)?;
         let read_opts = rocksdb::ReadOptions::default();
         let mode = rocksdb::IteratorMode::End;
@@ -122,7 +122,7 @@ impl Db {
         cfh: rocksdb::BoundColumnFamily,
         read_opts: rocksdb::ReadOptions,
         mode: rocksdb::IteratorMode,
-        count: usize,
+        count: u32,
     ) -> Result<ReadRange> {
         let mut iter = self.primary.iterator_cf_opt(cfh, read_opts, mode);
 
@@ -172,8 +172,8 @@ pub enum RangeDirection {
 
 #[derive(Debug)]
 pub struct ReadRange {
-    records: Vec<Record>,
-    continue_from: Option<String>,
+    pub records: Vec<Record>,
+    pub continue_from: Option<String>,
 }
 
 #[cfg(test)]

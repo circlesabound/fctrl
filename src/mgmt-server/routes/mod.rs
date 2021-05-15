@@ -25,7 +25,7 @@ impl WsStreamingResponder {
         operation_id: OperationId,
     ) -> WsStreamingResponder {
         let path = format!("/operation/{}", operation_id.0);
-        let full_uri = format!("ws://{}:{}{}", host.0, ws.port, path);
+        let full_uri = format!("ws://{}:{}{}", host.hostname, ws.port, path);
         WsStreamingResponder { path, full_uri }
     }
 }

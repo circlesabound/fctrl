@@ -1,6 +1,9 @@
 use rocket::request::{FromRequest, Outcome};
 
-pub struct HostHeader<'r>(pub &'r str);
+pub struct HostHeader<'r> {
+    pub hostname: &'r str,
+    pub host: &'r str,
+}
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for HostHeader<'r> {
@@ -13,7 +16,7 @@ impl<'r> FromRequest<'r> for HostHeader<'r> {
             Some(h) => {
                 // remove the port if any
                 match h.split(':').next() {
-                    Some(h) => Outcome::Success(HostHeader(h)),
+                    Some(hostname) => Outcome::Success(HostHeader { hostname, host: h }),
                     None => Outcome::Forward(()),
                 }
             }
