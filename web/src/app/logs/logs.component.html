@@ -1,1 +1,18 @@
-<p>logs works!</p>
+<div class="columns is-desktop">
+  <div class="column is-narrow">
+    <!-- sidebar for sub-navigation -->
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a routerLink="system" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavSystemIcon"></fa-icon>&nbsp;System logs
+        </a></li>
+        <li><a routerLink="chat" routerLinkActive="is-active">
+          <fa-icon class="fa-fw" [icon]="subnavChatIcon"></fa-icon>&nbsp;Chat logs
+        </a></li>
+      </ul>
+    </aside>
+  </div>
+  <div class="column box px-5">
+    <router-outlet></router-outlet>
+  </div>
+</div>

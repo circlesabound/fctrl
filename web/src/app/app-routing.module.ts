@@ -12,6 +12,8 @@ import { ServerSettingsComponent } from './server-config/server-settings/server-
 import { BanListComponent } from './server-config/ban-list/ban-list.component';
 import { WhiteListComponent } from './server-config/white-list/white-list.component';
 import { SecretsComponent } from './server-config/secrets/secrets.component';
+import { SystemComponent } from './logs/system/system.component';
+import { ChatComponent } from './logs/chat/chat.component';
 
 const routes: Routes = [
   {
@@ -98,9 +100,27 @@ const routes: Routes = [
   {
     path: 'logs',
     component: LogsComponent,
-    data: {
-      title: 'fctrl | Logs',
-    },
+    children: [
+      {
+        path: '',
+        redirectTo: 'system',
+        pathMatch: 'full',
+      },
+      {
+        path: 'system',
+        component: SystemComponent,
+        data: {
+          title: 'fctrl | System Logs',
+        },
+      },
+      {
+        path: 'chat',
+        component: ChatComponent,
+        data: {
+          title: 'fctrl | Chat Logs',
+        },
+      },
+    ]
   },
   {
     path: '',

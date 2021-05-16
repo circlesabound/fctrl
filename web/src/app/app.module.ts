@@ -27,6 +27,8 @@ import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-m
 import { environment } from 'src/environments/environment';
 import { ClickOutsideModule } from 'ng-click-outside';
 import { StatusComponent } from './dashboard/status/status.component';
+import { ChatComponent } from './logs/chat/chat.component';
+import { SystemComponent } from './logs/system/system.component';
 
 @NgModule({
   declarations: [
@@ -47,6 +49,8 @@ import { StatusComponent } from './dashboard/status/status.component';
     EditableListComponent,
     ModObjectComponent,
     StatusComponent,
+    ChatComponent,
+    SystemComponent,
   ],
   imports: [
     BrowserModule,

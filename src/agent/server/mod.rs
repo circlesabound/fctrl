@@ -103,7 +103,7 @@ impl StartableInstance {
                 // Parse for player join / leave, update counter
                 lazy_static! {
                     static ref JOIN_RE: Regex = Regex::new(
-                        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+): joined the game$"
+                        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+) joined the game$"
                     )
                     .unwrap();
                     static ref LEAVE_RE: Regex = Regex::new(
