@@ -49,7 +49,11 @@ export class ChatComponent implements OnInit, OnDestroy {
           async line => {
             this.text += ((line as any).content.ServerStdout + '\n');
             if (this.autoscroll) {
-              this.monaco.revealLine(this.monaco.getModel().getLineCount(), 1); // immediate scroll to bottom
+              const model = this.monaco.getModel();
+              // this is sometimes null for whatever reason
+              if (model !== null) {
+                this.monaco.revealLine(model.getLineCount(), 1); // immediate scroll to bottom
+              }
             }
           },
           async err => {

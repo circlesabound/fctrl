@@ -47,9 +47,15 @@ export class SystemComponent implements OnInit, OnDestroy {
         const ws = webSocket(location);
         ws.subscribe(
           async line => {
-            this.text += ((line as any).content.ServerStdout + '\n');
+            const timestamp = (line as any).timestamp;
+            const logContent = (line as any).content.ServerStdout;
+            this.text += ('[' + timestamp + ']' + logContent + '\n');
             if (this.autoscroll) {
-              this.monaco.revealLine(this.monaco.getModel().getLineCount(), 1); // immediate scroll to bottom
+              const model = this.monaco.getModel();
+              // this is sometimes null for whatever reason
+              if (model !== null) {
+                this.monaco.revealLine(model.getLineCount(), 1); // immediate scroll to bottom
+              }
             }
           },
           async err => {
