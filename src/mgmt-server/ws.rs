@@ -72,15 +72,21 @@ impl WebSocketServer {
                     let path_clone = path.clone();
                     let inactivity_task = tokio::spawn(async move {
                         let inactivity_timeout = Duration::from_secs(60 * 60);
-                        while tokio::time::timeout(inactivity_timeout, activity_rx.recv())
-                            .await
-                            .is_ok()
-                        {}
-                        info!(
-                            "WebSocket stream at {} timing out from inactivity after {} seconds",
-                            path_clone,
-                            inactivity_timeout.as_secs()
-                        );
+                        let mut break_from_inactivity = true;
+                        while let Ok(activity_opt) = tokio::time::timeout(inactivity_timeout, activity_rx.recv()).await {
+                            if activity_opt.is_none() {
+                                // All senders dropped. Break here to avoid infinite loop eating CPU
+                                break_from_inactivity = false;
+                                break;
+                            }
+                        }
+                        if break_from_inactivity {
+                            info!(
+                                "WebSocket stream at {} timing out from inactivity after {} seconds",
+                                path_clone,
+                                inactivity_timeout.as_secs()
+                            );
+                        }
                     });
 
                     // Abstract ws_tx with a channel to avoid locking
