@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use crate::{
     consts,
@@ -43,7 +43,7 @@ impl Db {
     pub fn read(&self, cf: &Cf, key: String) -> Result<Option<Record>> {
         let cfh = self.get_or_create_cf_handle(cf)?;
         let key_bytes = key.as_bytes();
-        let opt_value_bytes = self.primary.get_cf(cfh, key_bytes)?;
+        let opt_value_bytes = self.primary.get_cf(&cfh, key_bytes)?;
         let opt_ret = opt_value_bytes.map(|v| Record {
             key,
             value: String::from_utf8_lossy(v.as_ref()).to_string(),
@@ -94,7 +94,7 @@ impl Db {
         let cfh = self.get_or_create_cf_handle(cf)?;
         Ok(self
             .primary
-            .put_cf(cfh, record.key.as_bytes(), record.value.as_bytes())?)
+            .put_cf(&cfh, record.key.as_bytes(), record.value.as_bytes())?)
     }
 
     async fn exists(db_path: impl AsRef<Path>) -> bool {
@@ -105,7 +105,7 @@ impl Db {
         Ok(self.primary.flush()?)
     }
 
-    fn get_or_create_cf_handle(&self, cf: &Cf) -> Result<rocksdb::BoundColumnFamily<'_>> {
+    fn get_or_create_cf_handle(&self, cf: &Cf) -> Result<Arc<rocksdb::BoundColumnFamily<'_>>> {
         self.primary.cf_handle(&cf.0).map_or_else(
             || {
                 self.create_cf(cf)?;
@@ -119,12 +119,12 @@ impl Db {
 
     fn read_range_internal(
         &self,
-        cfh: rocksdb::BoundColumnFamily,
+        cfh: Arc<rocksdb::BoundColumnFamily>,
         read_opts: rocksdb::ReadOptions,
         mode: rocksdb::IteratorMode,
         count: u32,
     ) -> Result<ReadRange> {
-        let mut iter = self.primary.iterator_cf_opt(cfh, read_opts, mode);
+        let mut iter = self.primary.iterator_cf_opt(&cfh, read_opts, mode);
 
         let mut continue_from = None;
         let mut records = vec![];

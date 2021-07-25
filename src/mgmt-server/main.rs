@@ -8,8 +8,7 @@ use events::{
 };
 use futures::{pin_mut, StreamExt};
 use log::{error, info};
-use rocket::{async_trait, catchers, fairing::Fairing, routes};
-use rocket_contrib::serve::StaticFiles;
+use rocket::{async_trait, fs::FileServer, catchers, fairing::Fairing, routes};
 
 use crate::{
     clients::AgentApiClient,
@@ -96,7 +95,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::proxy::mod_portal_full_get,
             ],
         )
-        .mount("/", StaticFiles::from(get_dist_path()))
+        .mount("/", FileServer::from(get_dist_path()))
         .register("/api/v0", catchers![catchers::not_found,])
         .register("/", catchers![catchers::fallback_to_index_html,])
         .launch()

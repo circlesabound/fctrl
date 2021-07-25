@@ -4,7 +4,7 @@ import { Option } from 'prelude-ts';
 import { ModInfo } from '../mod-info';
 
 @Component({
-  // tslint:disable-next-line: component-selector
+  // eslint-disable-next-line @angular-eslint/component-selector
   selector: '[app-mod-object]',
   templateUrl: './mod-object.component.html',
   styleUrls: ['./mod-object.component.sass']

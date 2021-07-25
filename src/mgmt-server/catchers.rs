@@ -1,4 +1,4 @@
-use rocket::{catch, http::Status, response::NamedFile, Request};
+use rocket::{Request, catch, fs::NamedFile, http::Status};
 
 use crate::get_dist_path;
 

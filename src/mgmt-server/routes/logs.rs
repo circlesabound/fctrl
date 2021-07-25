@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use fctrl::schema::{mgmt_server_rest::LogsPaginationObject, OperationId};
 use rocket::{get, State};
-use rocket_contrib::json::Json;
+use rocket::serde::json::Json;
 use uuid::Uuid;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 #[get("/logs/<category>?<count>&<direction>&<from>")]
 pub async fn get<'a>(
     host: HostHeader<'a>,
-    db: State<'a, Arc<Db>>,
+    db: &State<Arc<Db>>,
     category: String,
     count: u32,
     direction: String,
@@ -60,8 +60,8 @@ pub async fn get<'a>(
 #[get("/logs/<category>/stream")]
 pub async fn stream<'a>(
     host: HostHeader<'a>,
-    event_broker: State<'a, Arc<EventBroker>>,
-    ws: State<'a, Arc<WebSocketServer>>,
+    event_broker: &State<Arc<EventBroker>>,
+    ws: &State<Arc<WebSocketServer>>,
     category: String,
 ) -> Result<WsStreamingResponder> {
     let id = OperationId(Uuid::new_v4().to_string());
