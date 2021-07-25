@@ -31,9 +31,10 @@
     "ng-click-outside": "^8.0.0",
     "ng-openapi-gen": "^0.17.0",
     "ngx-monaco-editor": "^12.0.0",
-    "prelude-ts": "^1.0.2",
+    "prelude-ts": "^1.0.3",
     "rxjs": "~6.6.0",
     "tslib": "^2.0.0",
+    "util": "^0.12.4",
     "zone.js": "~0.11.3"
   },
   "devDependencies": {

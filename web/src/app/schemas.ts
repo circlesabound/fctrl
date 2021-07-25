@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 // Schemas ported from src/schema.rs
 
 export interface ResponseWithId {

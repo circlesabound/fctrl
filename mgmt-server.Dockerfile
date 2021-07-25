@@ -40,7 +40,7 @@ COPY web/package.json /app/web/package.json
 COPY web/package-lock.json /app/web/package-lock.json
 RUN npm install
 COPY web /app/web
-RUN npm run ng -- build --prod
+RUN npm run ng -- build --configuration production
 
 FROM debian:buster-slim AS runtime
 WORKDIR /app
