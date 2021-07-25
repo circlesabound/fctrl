@@ -8,7 +8,7 @@ use events::{
 };
 use futures::{pin_mut, StreamExt};
 use log::{error, info};
-use rocket::{async_trait, fs::FileServer, catchers, fairing::Fairing, routes};
+use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
 
 use crate::{
     clients::AgentApiClient,

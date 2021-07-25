@@ -28,6 +28,7 @@
     "@fortawesome/free-regular-svg-icons": "^5.15.2",
     "@fortawesome/free-solid-svg-icons": "^5.15.2",
     "bulma": "^0.9.2",
+    "monaco-editor": "^0.26.1",
     "ng-click-outside": "^8.0.0",
     "ng-openapi-gen": "^0.17.0",
     "ngx-monaco-editor": "^12.0.0",
