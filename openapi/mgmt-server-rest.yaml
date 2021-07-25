@@ -306,6 +306,10 @@ paths:
       responses:
         '202':
           description: Accepted, see the Location header for stream location.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogStreamPreviousMarker'
 
 components:
   schemas:
@@ -431,10 +435,14 @@ components:
         - logs
       properties:
         next:
-          description: A URL indicating the location of the next iteration of this log query. If this is empty, then no more data is available.
+          description: Iteration position of the next iteration of this log query. If this is empty, then no more data is available.
           type: string
-          format: uri
         logs:
           type: array
           items:
             type: string
+    LogStreamPreviousMarker:
+      properties:
+        previous:
+          description: Iteration position of the last ingested log entry before the stream, if any exists. This can be used to iterate backwards to fetch older entries.
+          type: string

@@ -10,7 +10,7 @@ describe('EditableListComponent', () => {
     await TestBed.configureTestingModule({
       declarations: [ EditableListComponent ]
     })
-    .compileComponents();
+      .compileComponents();
   });
 
   beforeEach(() => {

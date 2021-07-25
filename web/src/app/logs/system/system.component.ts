@@ -3,18 +3,25 @@ import { Option } from 'prelude-ts';
 import { Subscription } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
+import * as monaco from 'monaco-editor';
+import { delay, tap } from 'rxjs/operators';
+import { faHistory } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-system',
   templateUrl: './system.component.html',
   styleUrls: ['./system.component.sass']
 })
-export class SystemComponent implements OnInit, OnDestroy {
+export class SystemComponent implements OnDestroy {
   text = '';
 
   streamLogsSub: Option<Subscription>;
-  monaco: any;
+  monaco!: monaco.editor.ICodeEditor;
   autoscroll = true;
+  fetchPreviousMarker: Option<string>;
+
+  fetchButtonIcon = faHistory;
+  fetchButtonLoading = false;
 
   monacoOptions = {
     theme: 'vs-light',
@@ -27,10 +34,7 @@ export class SystemComponent implements OnInit, OnDestroy {
     private apiClient: MgmtServerRestApiService,
   ) {
     this.streamLogsSub = Option.none();
-  }
-
-  ngOnInit(): void {
-    this.streamLogs();
+    this.fetchPreviousMarker = Option.none();
   }
 
   ngOnDestroy(): void {
@@ -44,17 +48,20 @@ export class SystemComponent implements OnInit, OnDestroy {
       const location = response.headers.get('Location');
 
       if (location !== null) {
+        if (response.body?.previous) {
+          const from = response.body.previous;
+          this.fetchPreviousMarker = Option.some(from);
+        }
+
         const ws = webSocket(location);
         ws.subscribe(
           async line => {
-            const timestamp = (line as any).timestamp;
-            const logContent = (line as any).content.ServerStdout;
-            this.text += ('[' + timestamp + ']' + logContent + '\n');
+            this.text += this.formatLine(line);
             if (this.autoscroll) {
               const model = this.monaco.getModel();
               // this is sometimes null for whatever reason
               if (model !== null) {
-                this.monaco.revealLine(model.getLineCount(), 1); // immediate scroll to bottom
+                this.monaco.revealLine(model.getLineCount(), monaco.editor.ScrollType.Immediate);
               }
             }
           },
@@ -71,9 +78,51 @@ export class SystemComponent implements OnInit, OnDestroy {
     }));
   }
 
-  onEditorInit(editor: any): void {
-    // editor is an ICodeEditor: https://microsoft.github.io/monaco-editor/api/interfaces/monaco.editor.icodeeditor.html
+  fetchPrevious(): void {
+    this.fetchPreviousMarker.map(from => {
+      this.fetchButtonLoading = true;
+      this.apiClient.logsCategoryGet({
+        category: 'systemlog',
+        count: 50,
+        direction: 'Backward',
+        from: from,
+      }).pipe(
+        tap(previousLogs => {
+          console.log('fetchPrevious returned');
+          this.fetchButtonLoading = false;
+
+          if (previousLogs.logs.length > 0) {
+            let textToPrepend = '';
+            const last = previousLogs.logs.length - 1;
+            for (let i = last; i >= 0; --i) {
+              const lineObj = JSON.parse(previousLogs.logs[i]);
+              textToPrepend += this.formatLine(lineObj);
+            }
+            this.text = textToPrepend + this.text;
+          }
+
+          if (previousLogs.next) {
+            console.log('Next fetchPrevious will start at ' + previousLogs.next);
+            this.fetchPreviousMarker = Option.some(previousLogs.next);
+          } else {
+            console.log('No more results for fetchPrevious');
+            this.fetchPreviousMarker = Option.none();
+          }
+        }),
+        delay(100),
+      ).subscribe(() => { });
+    });
+  }
+
+  formatLine(logLineObject: any): string {
+    const timestamp = logLineObject.timestamp;
+    const logContent = logLineObject.content.ServerStdout;
+    return '[' + timestamp + ']' + logContent + '\n';
+  }
+
+  onEditorInit(editor: monaco.editor.ICodeEditor): void {
     this.monaco = editor;
+    this.streamLogs();
   }
 
 }

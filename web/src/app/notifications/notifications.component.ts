@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { OperationService } from '../operation.service';
 
 @Component({
@@ -6,7 +6,7 @@ import { OperationService } from '../operation.service';
   templateUrl: './notifications.component.html',
   styleUrls: ['./notifications.component.sass']
 })
-export class NotificationsComponent implements OnInit {
+export class NotificationsComponent {
   notificationsExpanded = false;
   operationService: OperationService;
 
@@ -14,9 +14,6 @@ export class NotificationsComponent implements OnInit {
     operationService: OperationService,
   ) {
     this.operationService = operationService;
-  }
-
-  ngOnInit(): void {
   }
 
 }

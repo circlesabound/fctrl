@@ -10,7 +10,7 @@ describe('BanListComponent', () => {
     await TestBed.configureTestingModule({
       declarations: [ BanListComponent ]
     })
-    .compileComponents();
+      .compileComponents();
   });
 
   beforeEach(() => {

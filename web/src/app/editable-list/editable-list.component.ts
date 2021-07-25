@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { faPlus, faTimes } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
@@ -6,7 +6,7 @@ import { faPlus, faTimes } from '@fortawesome/free-solid-svg-icons';
   templateUrl: './editable-list.component.html',
   styleUrls: ['./editable-list.component.sass']
 })
-export class EditableListComponent implements OnInit {
+export class EditableListComponent {
   @Input() list: string[] = [];
   @Output() listChange = new EventEmitter<string[]>();
 
@@ -16,9 +16,6 @@ export class EditableListComponent implements OnInit {
   removeIcon = faTimes;
 
   constructor() { }
-
-  ngOnInit(): void {
-  }
 
   addItem(): void {
     this.list.push(this.addText);

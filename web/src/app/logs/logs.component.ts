@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { faComments, faStream } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
@@ -6,13 +6,10 @@ import { faComments, faStream } from '@fortawesome/free-solid-svg-icons';
   templateUrl: './logs.component.html',
   styleUrls: ['./logs.component.sass']
 })
-export class LogsComponent implements OnInit {
+export class LogsComponent {
   subnavSystemIcon = faStream;
   subnavChatIcon = faComments;
 
   constructor() { }
-
-  ngOnInit(): void {
-  }
 
 }

@@ -3,6 +3,7 @@ import { Option } from 'prelude-ts';
 import { Subscription } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
+import * as monaco from 'monaco-editor';
 
 @Component({
   selector: 'app-chat',
@@ -13,7 +14,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   text = '';
 
   streamLogsSub: Option<Subscription>;
-  monaco: any;
+  monaco!: monaco.editor.ICodeEditor;
   autoscroll = true;
 
   monacoOptions = {
@@ -69,8 +70,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }));
   }
 
-  onEditorInit(editor: any): void {
-    // editor is an ICodeEditor: https://microsoft.github.io/monaco-editor/api/interfaces/monaco.editor.icodeeditor.html
+  onEditorInit(editor: monaco.editor.ICodeEditor): void {
     this.monaco = editor;
   }
 

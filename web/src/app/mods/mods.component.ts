@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { faList, faTools } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
@@ -6,13 +6,10 @@ import { faList, faTools } from '@fortawesome/free-solid-svg-icons';
   templateUrl: './mods.component.html',
   styleUrls: ['./mods.component.sass']
 })
-export class ModsComponent implements OnInit {
+export class ModsComponent {
   subnavModListIcon = faList;
   subnavModSettingsIcon = faTools;
 
   constructor() { }
-
-  ngOnInit(): void {
-  }
 
 }

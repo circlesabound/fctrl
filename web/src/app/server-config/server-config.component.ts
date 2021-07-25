@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { faCogs, faKey, faUserCheck, faUserShield, faUserTimes } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
@@ -6,7 +6,7 @@ import { faCogs, faKey, faUserCheck, faUserShield, faUserTimes } from '@fortawes
   templateUrl: './server-config.component.html',
   styleUrls: ['./server-config.component.sass']
 })
-export class ServerConfigComponent implements OnInit {
+export class ServerConfigComponent {
   subnavServerSettingsIcon = faCogs;
   subnavSecretsIcon = faKey;
   subnavAdminListIcon = faUserShield;
@@ -14,8 +14,5 @@ export class ServerConfigComponent implements OnInit {
   subnavWhiteListIcon = faUserCheck;
 
   constructor() { }
-
-  ngOnInit(): void {
-  }
 
 }

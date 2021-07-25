@@ -10,7 +10,7 @@ describe('ServerConfigComponent', () => {
     await TestBed.configureTestingModule({
       declarations: [ ServerConfigComponent ]
     })
-    .compileComponents();
+      .compileComponents();
   });
 
   beforeEach(() => {

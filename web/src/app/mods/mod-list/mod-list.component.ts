@@ -134,12 +134,12 @@ export class ModListComponent implements OnInit {
       catchError(err => {
         console.error(`error with prefetch: ${JSON.stringify(err, null, 2)}`);
         const ret: ModInfoShort = {
-            name: '',
-            title: '',
-            downloads_count: 0,
-            owner: '',
-            summary: '',
-            releases: [],
+          name: '',
+          title: '',
+          downloads_count: 0,
+          owner: '',
+          summary: '',
+          releases: [],
         };
         return of(ret);
       }),
@@ -154,8 +154,7 @@ export class ModListComponent implements OnInit {
           selectedVersion,
         };
         return ret;
-      }
-    ));
+      }));
   }
 
   getVersionsToAdd(): string[] {

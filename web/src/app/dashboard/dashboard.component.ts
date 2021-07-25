@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Option } from 'prelude-ts';
 import { SavefileObject, ServerControlStartPostRequest, ServerControlStatus } from '../mgmt-server-rest-api/models';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
@@ -12,7 +12,7 @@ import { StatusControl } from './status-control';
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.sass']
 })
-export class DashboardComponent implements OnInit, OnDestroy {
+export class DashboardComponent implements OnInit {
   savefiles: SavefileObject[];
   selectedSavefile: Option<SavefileObject>;
   savefileDropdownHidden: boolean;
@@ -48,10 +48,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.updateSavefiles();
-  }
-
-  ngOnDestroy(): void {
-    //
   }
 
   displaySavefileOpt(savefile: Option<SavefileObject>): string {

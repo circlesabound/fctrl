@@ -57,8 +57,11 @@
       "extends": [
         "plugin:@angular-eslint/template/recommended"
       ],
+      "plugins": [
+        "@angular-eslint"
+      ],
       "rules": {
-        "@angular-eslint/template/eqeqeq": "error"
+        // "@angular-eslint/template/eqeqeq": "error"
       }
     }
   ]

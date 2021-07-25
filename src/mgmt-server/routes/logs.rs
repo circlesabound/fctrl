@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use fctrl::schema::mgmt_server_rest::LogStreamPreviousMarker;
 use fctrl::schema::{mgmt_server_rest::LogsPaginationObject, OperationId};
 use rocket::{get, State};
 use rocket::serde::json::Json;
@@ -10,13 +11,14 @@ use crate::{
     error::{Error, Result},
     events::{broker::EventBroker, TopicName, STDOUT_TOPIC_NAME},
     guards::HostHeader,
-    routes::WsStreamingResponder,
     ws::WebSocketServer,
 };
 
+use super::WsStreamingResponderWithPreviousMarker;
+
 #[get("/logs/<category>?<count>&<direction>&<from>")]
 pub async fn get<'a>(
-    host: HostHeader<'a>,
+    // host: HostHeader<'a>,
     db: &State<Arc<Db>>,
     category: String,
     count: u32,
@@ -45,13 +47,7 @@ pub async fn get<'a>(
     }
 
     // Calculate url for next
-    let next = ret.continue_from.map(|key| {
-        format!(
-            "{}/api/v0/logs/{}?count={}&direction={}&from={}",
-            host.host, category, count, direction, key,
-        )
-    });
-
+    let next = ret.continue_from;
     let logs = ret.records.into_iter().map(|r| r.value).collect();
 
     Ok(Json(LogsPaginationObject { next, logs }))
@@ -60,11 +56,18 @@ pub async fn get<'a>(
 #[get("/logs/<category>/stream")]
 pub async fn stream<'a>(
     host: HostHeader<'a>,
+    db: &State<Arc<Db>>,
     event_broker: &State<Arc<EventBroker>>,
     ws: &State<Arc<WebSocketServer>>,
     category: String,
-) -> Result<WsStreamingResponder> {
+) -> Result<WsStreamingResponderWithPreviousMarker> {
     let id = OperationId(Uuid::new_v4().to_string());
+
+    // Get the previous marker from DB
+    let cf = Cf(category.clone());
+    let ret = db.read_range_tail(&cf, 1)?;
+    let previous = ret.records.get(0).map(|r| r.key.clone());
+
     // TODO proper category -> topicname/tagvalue mapping
     let sub = event_broker
         .subscribe(TopicName(STDOUT_TOPIC_NAME.to_string()), move |tag_value| {
@@ -72,10 +75,15 @@ pub async fn stream<'a>(
         })
         .await;
 
-    let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
+    let resp = WsStreamingResponderWithPreviousMarker::new(
+        Arc::clone(&ws),
+        host,
+        id,
+        LogStreamPreviousMarker { previous },
+    );
 
     let ws = Arc::clone(&ws);
-    let path = resp.path.clone();
+    let path = resp.base.path.clone();
     tokio::spawn(async move {
         ws.stream_at(path, sub, Duration::from_secs(300)).await;
     });

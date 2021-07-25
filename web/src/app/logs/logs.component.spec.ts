@@ -10,7 +10,7 @@ describe('LogsComponent', () => {
     await TestBed.configureTestingModule({
       declarations: [ LogsComponent ]
     })
-    .compileComponents();
+      .compileComponents();
   });
 
   beforeEach(() => {

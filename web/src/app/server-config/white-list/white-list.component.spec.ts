@@ -10,7 +10,7 @@ describe('WhiteListComponent', () => {
     await TestBed.configureTestingModule({
       declarations: [ WhiteListComponent ]
     })
-    .compileComponents();
+      .compileComponents();
   });
 
   beforeEach(() => {
