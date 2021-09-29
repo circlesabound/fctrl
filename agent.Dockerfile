@@ -11,7 +11,7 @@ FROM rustlang/rust:nightly AS cache
 WORKDIR /usr/src/app
 RUN cargo install cargo-chef --version 0.1.31
 RUN apt-get update \
-    && apt install -y clang
+    && apt-get install -y clang
 COPY --from=prepare /usr/src/app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
