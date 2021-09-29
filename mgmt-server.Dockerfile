@@ -40,7 +40,8 @@ COPY web/package.json /app/web/package.json
 COPY web/package-lock.json /app/web/package-lock.json
 RUN npm install
 COPY web /app/web
-RUN npm run ng -- build --configuration production
+COPY openapi /app/openapi
+RUN npm run build -- --configuration production
 
 FROM debian:bullseye-slim AS runtime
 WORKDIR /app
