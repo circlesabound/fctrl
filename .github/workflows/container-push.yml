@@ -1,0 +1,19 @@
+name: Build and push container images
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: docker-compose build
+      run: docker-compose -f docker-compose.yml -f docker-compose.ci.yml build
+      env:
+        DOCKER_BUILDKIT: 1
+    - name: push agent
+      run: docker push ghcr.io/circlesabound/fctrl/agent:latest
+    - name: push mgmt-server
+      run: docker push ghcr.io/circlesabound/fctrl/mgmt-server:latest
