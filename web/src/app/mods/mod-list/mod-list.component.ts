@@ -48,24 +48,29 @@ export class ModListComponent implements OnInit {
 
   fetchModList(): void {
     this.apiClient.serverModsListGet().subscribe(modList => {
-      this.modPortalClient.apiModsGet({
-        namelist: modList.map(mo => mo.name),
-        page_size: 'max',
-      }).subscribe(listResponse => {
-        const infoList: ModInfo[] = [];
-        for (const remoteInfo of listResponse.results) {
-          infoList.push({
-            name: remoteInfo.name ?? '<undefined>',
-            title: remoteInfo.title ?? '<undefined>',
-            summary: remoteInfo.summary ?? '<undefined>',
-            selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
-            versions: remoteInfo.releases?.map(r => r.version).sort().reverse() ?? [],
-          });
-        }
-        this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
-
+      if (modList.length === 0) {
+        this.modInfoList = [];
         this.ready = true;
-      });
+      } else {
+        this.modPortalClient.apiModsGet({
+          namelist: modList.map(mo => mo.name),
+          page_size: 'max',
+        }).subscribe(listResponse => {
+          const infoList: ModInfo[] = [];
+          for (const remoteInfo of listResponse.results) {
+            infoList.push({
+              name: remoteInfo.name ?? '<undefined>',
+              title: remoteInfo.title ?? '<undefined>',
+              summary: remoteInfo.summary ?? '<undefined>',
+              selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
+              versions: remoteInfo.releases?.map(r => r.version).sort().reverse() ?? [],
+            });
+          }
+          this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
+
+          this.ready = true;
+        });
+      }
     });
   }
 
@@ -101,6 +106,7 @@ export class ModListComponent implements OnInit {
         );
       } else {
         console.error('Location header was empty');
+        this.saveButtonLoading = false;
       }
     });
   }
