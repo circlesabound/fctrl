@@ -43,7 +43,7 @@ Installation:
 
 1. Clone the repository, or download a .zip of the source code and extract.
 2. Run `npm install` to restore Node-based build tools.
-3. In the `web` directory, run `npm install` to restore dependencies for the Angular build, then run `ng build --prod` to build the web interface.
+3. In the `web` directory, run `npm install` to restore dependencies for the Angular build, then run `ng build --configuration production` to build the web interface.
 4. Configure the values in `.env`, then apply them by running `source .env`.
 5. To run the agent application, run `cargo run --release --bin agent`.
 6. To run the management web server, run `cargo run --release --bin mgmt-server`.

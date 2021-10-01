@@ -23,8 +23,8 @@ export class OperationService {
         this.addNotification(`"${friendlyName}": ${JSON.stringify(msg.content)}`);
         if (msg.status === OperationStatus.Completed || msg.status === OperationStatus.Failed) {
           ws.complete();
+          await successCallback();
         }
-        await successCallback();
       },
       async err => {
         this.addNotification(`"${friendlyName}" failed: WebSocket Error: ${err}`);

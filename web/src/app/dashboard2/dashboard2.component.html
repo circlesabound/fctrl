@@ -1,0 +1,21 @@
+<p>
+  Status: {{status}}
+  <button (click)="stopServer()">Stop</button>
+</p>
+<p>Players: {{playerCount}}</p>
+<p>
+  Version: {{version}}
+  <input type="text" [(ngModel)]="installVersionString">
+  <button (click)="installVersion()">Install</button>
+</p>
+<p>
+  Saves:
+  <select [(ngModel)]="selectedSave">
+    <option disabled selected style="display:none"></option>
+    <option *ngFor="let name of saves">{{name}}</option>
+  </select>
+  <button (click)="startServer()">Start</button>
+  <button (click)="deleteSave()">Delete</button>
+  <input type="text" [(ngModel)]="createSaveName">
+  <button (click)="createSave()">Create</button>
+</p>

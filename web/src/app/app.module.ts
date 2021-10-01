@@ -29,6 +29,7 @@ import { ClickOutsideModule } from 'ng-click-outside';
 import { StatusComponent } from './dashboard/status/status.component';
 import { ChatComponent } from './logs/chat/chat.component';
 import { SystemComponent } from './logs/system/system.component';
+import { Dashboard2Component } from './dashboard2/dashboard2.component';
 
 @NgModule({
   declarations: [
@@ -51,6 +52,7 @@ import { SystemComponent } from './logs/system/system.component';
     StatusComponent,
     ChatComponent,
     SystemComponent,
+    Dashboard2Component,
   ],
   imports: [
     BrowserModule,

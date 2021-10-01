@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { DashboardComponent } from './dashboard/dashboard.component';
+import { Dashboard2Component } from './dashboard2/dashboard2.component';
 import { ServerConfigComponent } from './server-config/server-config.component';
 import { ModsComponent } from './mods/mods.component';
 import { LogsComponent } from './logs/logs.component';
@@ -18,7 +18,7 @@ import { ChatComponent } from './logs/chat/chat.component';
 const routes: Routes = [
   {
     path: 'dashboard',
-    component: DashboardComponent,
+    component: Dashboard2Component,
     data: {
       title: 'fctrl | Dashboard',
     },
