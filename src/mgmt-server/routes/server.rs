@@ -9,9 +9,9 @@ use fctrl::schema::{
     mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject,
     ServerStartSaveFile, ServerStatus,
 };
+use rocket::serde::json::Json;
 use rocket::{get, post, put, response::content};
 use rocket::{http::Status, State};
-use rocket::serde::json::Json;
 
 use crate::{clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer};
 use crate::{error::Result, routes::WsStreamingResponder};
@@ -220,17 +220,12 @@ pub async fn get_server_settings(
 }
 
 #[put("/server/config/server-settings", data = "<body>")]
-pub async fn put_server_settings(
-    agent_client: &State<AgentApiClient>,
-    body: String,
-) -> Result<()> {
+pub async fn put_server_settings(agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
     agent_client.config_server_settings_set(body).await
 }
 
 #[get("/server/mods/list")]
-pub async fn get_mods_list(
-    agent_client: &State<AgentApiClient>,
-) -> Result<Json<Vec<ModObject>>> {
+pub async fn get_mods_list(agent_client: &State<AgentApiClient>) -> Result<Json<Vec<ModObject>>> {
     let mod_list = agent_client.mod_list_get().await?;
     // Need to convert into the codegen type
     let resp = mod_list

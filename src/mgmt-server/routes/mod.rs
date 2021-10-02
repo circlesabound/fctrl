@@ -1,8 +1,11 @@
 use std::{io::Cursor, sync::Arc};
 
-use fctrl::schema::{OperationId, mgmt_server_rest::LogStreamPreviousMarker};
+use fctrl::schema::{mgmt_server_rest::LogStreamPreviousMarker, OperationId};
 use log::error;
-use rocket::{http::{ContentType, Header, Status}, response::{Responder, Response}};
+use rocket::{
+    http::{ContentType, Header, Status},
+    response::{Responder, Response},
+};
 
 use crate::{guards::HostHeader, ws::WebSocketServer};
 

@@ -73,7 +73,9 @@ impl WebSocketServer {
                     let inactivity_task = tokio::spawn(async move {
                         let inactivity_timeout = Duration::from_secs(60 * 60);
                         let mut break_from_inactivity = true;
-                        while let Ok(activity_opt) = tokio::time::timeout(inactivity_timeout, activity_rx.recv()).await {
+                        while let Ok(activity_opt) =
+                            tokio::time::timeout(inactivity_timeout, activity_rx.recv()).await
+                        {
                             if activity_opt.is_none() {
                                 // All senders dropped. Break here to avoid infinite loop eating CPU
                                 break_from_inactivity = false;

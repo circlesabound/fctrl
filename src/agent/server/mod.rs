@@ -55,107 +55,35 @@ impl StartableInstance {
                 .map_or("None".to_owned(), |pid| pid.to_string())
         );
 
+        // set up to pass various things to the stdout and stderr handlers
+        let stdout_handler = self.stdout_handler;
+
         let rcon = Arc::new(RwLock::new(None));
-        let rcon_arc = Arc::clone(&rcon);
-        let configured_rcon_bind = self.launch_settings.rcon_bind;
+        let rcon_clone = Arc::clone(&rcon);
         let rcon_password_clone = self.launch_settings.rcon_password.clone();
+        let rcon_bind_clone = self.launch_settings.rcon_bind.clone();
 
         let out_stream = instance.stdout.take().ok_or(Error::ProcessPipeError)?;
         let err_stream = instance.stderr.take().ok_or(Error::ProcessPipeError)?;
 
         let internal_server_state = Arc::new(RwLock::new(InternalServerState::Ready));
-        let internal_server_state_arc = Arc::clone(&internal_server_state);
-        let internal_stdout_handler = self.stdout_handler;
+        let internal_server_state_clone = Arc::clone(&internal_server_state);
 
         let player_count = Arc::new(AtomicU32::new(0));
         let player_count_arc = Arc::clone(&player_count);
+
         tokio::spawn(async move {
-            let mut rcon_initialised = false;
-
-            let mut lines = tokio::io::BufReader::new(out_stream).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                // Parse for internal server state
-                lazy_static! {
-                    static ref STATE_CHANGE_RE: Regex =
-                        Regex::new(r"changing state from\(([a-zA-Z]+)\) to\(([a-zA-Z]+)\)")
-                            .unwrap();
-                }
-                if let Some(captures) = STATE_CHANGE_RE.captures(&line) {
-                    if let Ok(from) =
-                        InternalServerState::from_str(captures.get(1).unwrap().as_str())
-                    {
-                        if let Ok(to) =
-                            InternalServerState::from_str(captures.get(2).unwrap().as_str())
-                        {
-                            info!(
-                                "Server switching internal state from {:?} to {:?}",
-                                from, to
-                            );
-                            *internal_server_state_arc.write().await = to;
-                        } else {
-                            warn!("Server internal state change but could not parse 'to' state from log: {}", line);
-                        }
-                    } else {
-                        warn!("Server internal state change but could not parse 'from' state from log: {}", line);
-                    }
-                }
-
-                // Parse for player join / leave, update counter
-                lazy_static! {
-                    static ref JOIN_RE: Regex = Regex::new(
-                        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+) joined the game$"
-                    )
-                    .unwrap();
-                    static ref LEAVE_RE: Regex = Regex::new(
-                        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$"
-                    )
-                    .unwrap();
-                }
-                if JOIN_RE.is_match(&line) {
-                    player_count_arc.fetch_add(1, Ordering::Relaxed);
-                } else if LEAVE_RE.is_match(&line) {
-                    player_count_arc.fetch_sub(1, Ordering::Relaxed);
-                }
-
-                // If not already open, parse for "RCON ready message"
-                lazy_static! {
-                    static ref RCON_READY_RE: Regex = Regex::new(
-                        r"Starting RCON interface at IP ADDR:\(\{\d+\.\d+\.\d+\.\d+:(\d+)\}\)"
-                    )
-                    .unwrap();
-                }
-                if !rcon_initialised {
-                    if let Some(captures) = RCON_READY_RE.captures(&line) {
-                        match u16::from_str(captures.get(1).unwrap().as_str()) {
-                            Ok(port) => {
-                                if port != configured_rcon_bind.port() {
-                                    warn!("RCON bound port was configured to be {}, but Factorio is using port {} instead!", configured_rcon_bind.port(), port);
-                                }
-                                match Rcon::connect(
-                                    SocketAddrV4::new(Ipv4Addr::LOCALHOST, port),
-                                    &rcon_password_clone,
-                                )
-                                .await
-                                {
-                                    Ok(rcon) => {
-                                        *rcon_arc.write().await = Some(rcon);
-                                        rcon_initialised = true;
-                                    }
-                                    Err(e) => {
-                                        error!("Error connecting to RCON: {:?}", e);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("Error parsing RCON ready stdout message: {:?}", e);
-                            }
-                        }
-                    }
-                }
-
-                // Pass off to stdout handler
-                (internal_stdout_handler)(line);
-            }
+            let lines_reader = tokio::io::BufReader::new(out_stream);
+            proc::parse_process_stdout(
+                lines_reader,
+                stdout_handler,
+                rcon_clone,
+                rcon_password_clone,
+                rcon_bind_clone,
+                internal_server_state_clone,
+                player_count_arc,
+            )
+            .await;
         });
 
         tokio::spawn(async move {

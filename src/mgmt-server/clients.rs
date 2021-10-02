@@ -619,10 +619,9 @@ fn classify_server_stdout_message(message: &str) -> String {
     lazy_static! {
         static ref CHAT_RE: Regex =
             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();
-        static ref JOIN_RE: Regex = Regex::new(
-            r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+) joined the game$"
-        )
-        .unwrap();
+        static ref JOIN_RE: Regex =
+            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+) joined the game$")
+                .unwrap();
         static ref LEAVE_RE: Regex =
             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$")
                 .unwrap();

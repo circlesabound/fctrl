@@ -2,8 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use fctrl::schema::mgmt_server_rest::LogStreamPreviousMarker;
 use fctrl::schema::{mgmt_server_rest::LogsPaginationObject, OperationId};
-use rocket::{get, State};
 use rocket::serde::json::Json;
+use rocket::{get, State};
 use uuid::Uuid;
 
 use crate::{
