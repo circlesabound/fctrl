@@ -8,6 +8,44 @@ servers:
   - url: /api/v0
 
 paths:
+  /auth/info:
+    get:
+      summary: Returns the type of auth required to access the rest of the API
+      responses:
+        '200':
+          description: A JSON object describing required auth
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthInfo'
+  /auth/discord/grant:
+    post:
+      summary: Redirect URL for OAuth code grant flow
+      parameters:
+        - name: code
+          in: query
+          description: OAuth access code
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthTokenResponse'
+  /auth/discord/refresh:
+    post:
+      summary: Obtain a fresh access token while already authenticated
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthTokenResponse'
+
   /server/control:
     get:
       summary: Returns the status of the Factorio multiplayer server.
@@ -312,7 +350,39 @@ paths:
                 $ref: '#/components/schemas/LogStreamPreviousMarker'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      bearerFormat: JWT
+      scheme: bearer
   schemas:
+    AuthInfo:
+      required:
+        - provider
+      properties:
+        provider:
+          type: string
+          enum:
+            - none
+            - discord
+        discord:
+          $ref: "#/components/schemas/AuthInfoDiscord"
+    AuthInfoDiscord:
+      required:
+        - client_id
+      properties:
+        client_id:
+          type: string
+          description: Application client ID to use for the code grant flow
+    OAuthTokenResponse:
+      required:
+        - access_token
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Number of seconds the access token will be valid for, refresh the token before this is up
     ServerControlStatus:
       required:
         - game_status

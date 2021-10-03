@@ -14,11 +14,21 @@ import { WhiteListComponent } from './server-config/white-list/white-list.compon
 import { SecretsComponent } from './server-config/secrets/secrets.component';
 import { SystemComponent } from './logs/system/system.component';
 import { ChatComponent } from './logs/chat/chat.component';
+import { AuthGuard } from './auth/auth.guard';
+import { OauthRedirectComponent } from './oauth-redirect/oauth-redirect.component';
 
 const routes: Routes = [
   {
+    path: 'oauth-redirect',
+    component: OauthRedirectComponent,
+    data: {
+      title: 'fctrl | Redirecting...'
+    }
+  },
+  {
     path: 'dashboard',
     component: Dashboard2Component,
+    canActivate: [AuthGuard],
     data: {
       title: 'fctrl | Dashboard',
     },
@@ -26,6 +36,7 @@ const routes: Routes = [
   {
     path: 'server',
     component: ServerConfigComponent,
+    canActivate: [AuthGuard],
     children: [
       {
         path: '',
@@ -75,6 +86,7 @@ const routes: Routes = [
   {
     path: 'mods',
     component: ModsComponent,
+    canActivate: [AuthGuard],
     children: [
       {
         path: '',
@@ -100,6 +112,7 @@ const routes: Routes = [
   {
     path: 'logs',
     component: LogsComponent,
+    canActivate: [AuthGuard],
     children: [
       {
         path: '',

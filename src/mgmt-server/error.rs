@@ -16,6 +16,8 @@ pub enum Error {
     AgentDisconnected,
     AgentInternalError(String),
     AgentTimeout,
+    AuthInvalid,
+    AuthRefreshUnavailable,
     BadRequest(String),
     Db(String),
 
@@ -102,7 +104,9 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::Json(_)
             | Error::Reqwest(_)
             | Error::ModSettingsParseError(_) => Status::InternalServerError,
-            Error::BadRequest(_) => Status::BadRequest,
+            Error::BadRequest(_) | Error::AuthInvalid | Error::AuthRefreshUnavailable => {
+                Status::BadRequest
+            }
             Error::ModSettingsNotInitialised | Error::SecretsNotInitialised => Status::NoContent,
         };
 

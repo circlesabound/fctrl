@@ -1,5 +1,5 @@
-import { HttpClientModule } from '@angular/common/http';
-import { NgModule } from '@angular/core';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { forwardRef, NgModule, Provider } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BrowserModule, Title } from '@angular/platform-browser';
 
@@ -30,6 +30,14 @@ import { StatusComponent } from './dashboard/status/status.component';
 import { ChatComponent } from './logs/chat/chat.component';
 import { SystemComponent } from './logs/system/system.component';
 import { Dashboard2Component } from './dashboard2/dashboard2.component';
+import { ApiRequestConfiguration, BearerAuthInterceptor } from './auth/bearer-auth-interceptor';
+import { OauthRedirectComponent } from './oauth-redirect/oauth-redirect.component';
+
+export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
+  provide: HTTP_INTERCEPTORS,
+  useExisting: forwardRef(() => BearerAuthInterceptor),
+  multi: true,
+};
 
 @NgModule({
   declarations: [
@@ -53,6 +61,7 @@ import { Dashboard2Component } from './dashboard2/dashboard2.component';
     ChatComponent,
     SystemComponent,
     Dashboard2Component,
+    OauthRedirectComponent,
   ],
   imports: [
     BrowserModule,
@@ -74,6 +83,9 @@ import { Dashboard2Component } from './dashboard2/dashboard2.component';
   ],
   providers: [
     Title,
+    ApiRequestConfiguration,
+    BearerAuthInterceptor,
+    BEARER_AUTH_INTERCEPTOR_PROVIDER,
   ],
   bootstrap: [
     AppComponent,

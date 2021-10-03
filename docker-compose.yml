@@ -24,6 +24,9 @@ services:
         target: /app/db
     environment:
       - AGENT_ADDR=ws://agent:${AGENT_WS_PORT}
+      - AUTH_PROVIDER
+      - AUTH_DISCORD_CLIENT_ID
+      - AUTH_DISCORD_CLIENT_SECRET
       - MGMT_SERVER_WS_ADDRESS=${MGMT_SERVER_BIND}
       - MGMT_SERVER_WS_PORT
       - ROCKET_ADDRESS=${MGMT_SERVER_BIND}

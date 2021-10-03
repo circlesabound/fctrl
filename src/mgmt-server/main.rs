@@ -2,6 +2,7 @@
 
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
+use auth::{AuthManager, AuthProvider};
 use events::{
     TopicName, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
     STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
@@ -17,6 +18,7 @@ use crate::{
     ws::WebSocketServer,
 };
 
+mod auth;
 mod catchers;
 mod clients;
 mod consts;
@@ -37,6 +39,23 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Opening db");
     let db = Arc::new(Db::open_or_new(&*consts::DB_DIR).await?);
 
+    info!("Creating auth manager");
+    let auth_provider = match &std::env::var("AUTH_PROVIDER")?.as_ref() {
+        &"discord" => AuthProvider::Discord {
+            client_id: std::env::var("AUTH_DISCORD_CLIENT_ID")?,
+            client_secret: std::env::var("AUTH_DISCORD_CLIENT_SECRET")?,
+        },
+        &"none" => AuthProvider::None,
+        other => {
+            error!(
+                "Invalid value '{}' for env var AUTH_PROVIDER, using auth provider None",
+                other
+            );
+            AuthProvider::None
+        }
+    };
+    let auth = AuthManager::new(auth_provider)?;
+
     let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
     info!("Creating agent client with address {}", agent_addr);
     let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
@@ -52,6 +71,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     rocket::build()
         .attach(Cors::new())
+        .manage(auth)
         .manage(event_broker)
         .manage(db)
         .manage(agent_client)
@@ -60,6 +80,9 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .mount(
             "/api/v0",
             routes![
+                routes::auth::info,
+                routes::auth::discord_grant,
+                routes::auth::discord_refresh,
                 routes::server::status,
                 routes::server::start_server,
                 routes::server::stop_server,
