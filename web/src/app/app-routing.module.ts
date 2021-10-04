@@ -15,9 +15,17 @@ import { SecretsComponent } from './server-config/secrets/secrets.component';
 import { SystemComponent } from './logs/system/system.component';
 import { ChatComponent } from './logs/chat/chat.component';
 import { AuthGuard } from './auth/auth.guard';
-import { OauthRedirectComponent } from './oauth-redirect/oauth-redirect.component';
+import { OauthRedirectComponent } from './auth/oauth-redirect/oauth-redirect.component';
+import { LoginComponent } from './auth/login/login.component';
 
 const routes: Routes = [
+  {
+    path: 'login',
+    component: LoginComponent,
+    data: {
+      title: 'fctrl | Login'
+    }
+  },
   {
     path: 'oauth-redirect',
     component: OauthRedirectComponent,

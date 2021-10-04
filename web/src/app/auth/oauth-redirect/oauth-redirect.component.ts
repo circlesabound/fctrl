@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AuthDiscordService } from '../auth/auth-discord.service';
+import { AuthDiscordService } from '../auth-discord.service';
 
 @Component({
   selector: 'app-oauth-redirect',

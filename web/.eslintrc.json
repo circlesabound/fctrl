@@ -41,7 +41,7 @@
         ],
         "@typescript-eslint/no-shadow": "error",
         "dot-notation": "error",
-        "indent": [ "error", 2 ],
+        "indent": [ "error", 2, { "SwitchCase": 1 } ],
         "no-empty-function": "off",
         "no-shadow": "off",
         "no-unused-expressions": "error",

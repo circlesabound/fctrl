@@ -31,7 +31,8 @@ import { ChatComponent } from './logs/chat/chat.component';
 import { SystemComponent } from './logs/system/system.component';
 import { Dashboard2Component } from './dashboard2/dashboard2.component';
 import { ApiRequestConfiguration, BearerAuthInterceptor } from './auth/bearer-auth-interceptor';
-import { OauthRedirectComponent } from './oauth-redirect/oauth-redirect.component';
+import { OauthRedirectComponent } from './auth/oauth-redirect/oauth-redirect.component';
+import { LoginComponent } from './auth/login/login.component';
 
 export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
   provide: HTTP_INTERCEPTORS,
@@ -62,6 +63,7 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
     SystemComponent,
     Dashboard2Component,
     OauthRedirectComponent,
+    LoginComponent,
   ],
   imports: [
     BrowserModule,
