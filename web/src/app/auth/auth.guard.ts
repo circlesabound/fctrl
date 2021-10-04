@@ -12,7 +12,6 @@ import { AuthInfoService } from './auth-info.service';
 export class AuthGuard implements CanActivate {
 
   constructor(
-    private apiClient: MgmtServerRestApiService,
     private authDiscordService: AuthDiscordService,
     private authInfoService: AuthInfoService,
     private router: Router) { }

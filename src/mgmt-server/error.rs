@@ -20,6 +20,7 @@ pub enum Error {
     AuthRefreshUnavailable,
     BadRequest(String),
     Db(String),
+    NotImplemented,
 
     // Specific errors
     ModSettingsNotInitialised,
@@ -103,7 +104,8 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::Io(_)
             | Error::Json(_)
             | Error::Reqwest(_)
-            | Error::ModSettingsParseError(_) => Status::InternalServerError,
+            | Error::ModSettingsParseError(_)
+            | Error::NotImplemented => Status::InternalServerError,
             Error::BadRequest(_) | Error::AuthInvalid | Error::AuthRefreshUnavailable => {
                 Status::BadRequest
             }

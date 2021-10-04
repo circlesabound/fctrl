@@ -33,6 +33,7 @@ import { Dashboard2Component } from './dashboard2/dashboard2.component';
 import { ApiRequestConfiguration, BearerAuthInterceptor } from './auth/bearer-auth-interceptor';
 import { OauthRedirectComponent } from './auth/oauth-redirect/oauth-redirect.component';
 import { LoginComponent } from './auth/login/login.component';
+import { LogoutComponent } from './auth/logout/logout.component';
 
 export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
   provide: HTTP_INTERCEPTORS,
@@ -64,6 +65,7 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
     Dashboard2Component,
     OauthRedirectComponent,
     LoginComponent,
+    LogoutComponent,
   ],
   imports: [
     BrowserModule,

@@ -12,7 +12,8 @@ export class OauthRedirectComponent implements OnInit {
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private authDiscordService: AuthDiscordService) { }
+    private authDiscordService: AuthDiscordService,
+  ) { }
 
   ngOnInit(): void {
     // TODO clean out logs

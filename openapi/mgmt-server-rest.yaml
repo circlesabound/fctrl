@@ -350,11 +350,6 @@ paths:
                 $ref: '#/components/schemas/LogStreamPreviousMarker'
 
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      bearerFormat: JWT
-      scheme: bearer
   schemas:
     AuthInfo:
       required:

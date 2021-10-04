@@ -13,11 +13,11 @@ use rocket::serde::json::Json;
 use rocket::{get, post, put, response::content};
 use rocket::{http::Status, State};
 
-use crate::{clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer};
+use crate::{auth::UserIdentity, clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer};
 use crate::{error::Result, routes::WsStreamingResponder};
 
 #[get("/server/control")]
-pub async fn status(agent_client: &State<AgentApiClient>) -> Result<Json<ServerControlStatus>> {
+pub async fn status(_identity: UserIdentity, agent_client: &State<AgentApiClient>) -> Result<Json<ServerControlStatus>> {
     let ss = agent_client.server_status().await?;
     let mut num_players = 0;
     let game_status = match ss {
@@ -37,6 +37,7 @@ pub async fn status(agent_client: &State<AgentApiClient>) -> Result<Json<ServerC
 
 #[post("/server/control/start", data = "<savefile>")]
 pub async fn start_server(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     savefile: Json<ServerControlStartPostRequest>,
 ) -> Result<Status> {
@@ -46,13 +47,16 @@ pub async fn start_server(
 }
 
 #[post("/server/control/stop")]
-pub async fn stop_server(agent_client: &State<AgentApiClient>) -> Result<Status> {
+pub async fn stop_server(
+    _identity: UserIdentity,
+    agent_client: &State<AgentApiClient>) -> Result<Status> {
     agent_client.server_stop().await?;
     Ok(Status::Accepted)
 }
 
 #[get("/server/install")]
 pub async fn get_install(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<Json<ServerInstallGetResponse>> {
     let version = agent_client.version_get().await?;
@@ -62,6 +66,7 @@ pub async fn get_install(
 #[post("/server/install", data = "<body>")]
 pub async fn upgrade_install<'a>(
     host: HostHeader<'a>,
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     ws: &State<Arc<WebSocketServer>>,
     body: Json<ServerInstallPostRequest>,
@@ -87,6 +92,7 @@ pub async fn upgrade_install<'a>(
 
 #[get("/server/savefile")]
 pub async fn get_savefiles(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<Json<Vec<SavefileObject>>> {
     let s = agent_client.save_list().await?;
@@ -103,6 +109,7 @@ pub async fn get_savefiles(
 #[put("/server/savefile/<id>")]
 pub async fn create_savefile<'a>(
     host: HostHeader<'a>,
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     ws: &State<Arc<WebSocketServer>>,
     id: String,
@@ -121,13 +128,16 @@ pub async fn create_savefile<'a>(
 }
 
 #[get("/server/config/adminlist")]
-pub async fn get_adminlist(agent_client: &State<AgentApiClient>) -> Result<Json<Vec<String>>> {
+pub async fn get_adminlist(
+    _identity: UserIdentity,
+    agent_client: &State<AgentApiClient>) -> Result<Json<Vec<String>>> {
     let al = agent_client.config_adminlist_get().await?;
     Ok(Json(al))
 }
 
 #[put("/server/config/adminlist", data = "<body>")]
 pub async fn put_adminlist(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     body: Json<Vec<String>>,
 ) -> Result<()> {
@@ -135,13 +145,16 @@ pub async fn put_adminlist(
 }
 
 #[get("/server/config/banlist")]
-pub async fn get_banlist(agent_client: &State<AgentApiClient>) -> Result<Json<Vec<String>>> {
+pub async fn get_banlist(
+    _identity: UserIdentity,
+    agent_client: &State<AgentApiClient>) -> Result<Json<Vec<String>>> {
     let al = agent_client.config_banlist_get().await?;
     Ok(Json(al))
 }
 
 #[put("/server/config/banlist", data = "<body>")]
 pub async fn put_banlist(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     body: Json<Vec<String>>,
 ) -> Result<()> {
@@ -150,6 +163,7 @@ pub async fn put_banlist(
 
 #[get("/server/config/whitelist")]
 pub async fn get_whitelist(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<Json<ServerConfigWhiteList>> {
     let wl = agent_client.config_whitelist_get().await?;
@@ -162,6 +176,7 @@ pub async fn get_whitelist(
 
 #[put("/server/config/whitelist", data = "<body>")]
 pub async fn put_whitelist(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     body: Json<ServerConfigWhiteList>,
 ) -> Result<()> {
@@ -173,6 +188,7 @@ pub async fn put_whitelist(
 
 #[get("/server/config/rcon")]
 pub async fn get_rcon_config(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<Json<ServerConfigRconGetResponse>> {
     let rcon_config = agent_client.config_rcon_get().await?;
@@ -185,6 +201,7 @@ pub async fn get_rcon_config(
 
 #[put("/server/config/rcon", data = "<body>")]
 pub async fn put_rcon_config(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     body: Json<RconConfig>,
 ) -> Result<()> {
@@ -193,6 +210,7 @@ pub async fn put_rcon_config(
 
 #[get("/server/config/secrets")]
 pub async fn get_secrets(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<Json<ServerConfigSecrets>> {
     let secrets = agent_client.config_secrets_get().await?;
@@ -205,6 +223,7 @@ pub async fn get_secrets(
 
 #[put("/server/config/secrets", data = "<body>")]
 pub async fn put_secrets(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     body: Json<SecretsObject>,
 ) -> Result<()> {
@@ -213,6 +232,7 @@ pub async fn put_secrets(
 
 #[get("/server/config/server-settings")]
 pub async fn get_server_settings(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<content::Json<String>> {
     let json_str = agent_client.config_server_settings_get().await?;
@@ -220,12 +240,16 @@ pub async fn get_server_settings(
 }
 
 #[put("/server/config/server-settings", data = "<body>")]
-pub async fn put_server_settings(agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
+pub async fn put_server_settings(
+    _identity: UserIdentity,
+    agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
     agent_client.config_server_settings_set(body).await
 }
 
 #[get("/server/mods/list")]
-pub async fn get_mods_list(agent_client: &State<AgentApiClient>) -> Result<Json<Vec<ModObject>>> {
+pub async fn get_mods_list(
+    _identity: UserIdentity,
+    agent_client: &State<AgentApiClient>) -> Result<Json<Vec<ModObject>>> {
     let mod_list = agent_client.mod_list_get().await?;
     // Need to convert into the codegen type
     let resp = mod_list
@@ -241,6 +265,7 @@ pub async fn get_mods_list(agent_client: &State<AgentApiClient>) -> Result<Json<
 #[post("/server/mods/list", data = "<body>")]
 pub async fn apply_mods_list<'a>(
     host: HostHeader<'a>,
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
     ws: &State<Arc<WebSocketServer>>,
     body: Json<Vec<ModObject>>,
@@ -270,6 +295,7 @@ pub async fn apply_mods_list<'a>(
 
 #[get("/server/mods/settings")]
 pub async fn get_mod_settings(
+    _identity: UserIdentity,
     agent_client: &State<AgentApiClient>,
 ) -> Result<content::Json<String>> {
     let bytes = agent_client.mod_settings_get().await?;
@@ -280,7 +306,9 @@ pub async fn get_mod_settings(
 }
 
 #[put("/server/mods/settings", data = "<body>")]
-pub async fn put_mod_settings(agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
+pub async fn put_mod_settings(
+    _identity: UserIdentity,
+    agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
     let ms: ModSettings = serde_json::from_str(&body)?;
     let bytes = ms.try_into()?;
     agent_client.mod_settings_set(ModSettingsBytes(bytes)).await

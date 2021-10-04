@@ -3,6 +3,7 @@ import { Option } from 'prelude-ts';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
+import { ApiRequestConfiguration } from './bearer-auth-interceptor';
 
 @Injectable({
   providedIn: 'root'
@@ -11,7 +12,10 @@ export class AuthDiscordService {
   private accessToken: Option<string>;
   private expiry: Option<Date>;
 
-  constructor(private apiClient: MgmtServerRestApiService) {
+  constructor(
+    private apiClient: MgmtServerRestApiService,
+    private apiRequestCfg: ApiRequestConfiguration,
+  ) {
     this.accessToken = Option.none();
     this.expiry = Option.none();
   }
@@ -44,6 +48,7 @@ export class AuthDiscordService {
         console.log('read oauth data from localStorage');
         this.accessToken = Option.some(storedData.access_token);
         this.expiry = Option.some(storedData.expiry);
+        this.apiRequestCfg.useBearerAuth(storedData.access_token);
         return storedData.access_token;
       });
     }
@@ -63,6 +68,7 @@ export class AuthDiscordService {
           access_token: s.access_token,
           expiry,
         };
+        this.apiRequestCfg.useBearerAuth(s.access_token);
         console.log('storing oauth data in localStorage');
         localStorage.setItem(LOCAL_STORAGE_OAUTH_STORED_DATA_KEY, JSON.stringify(storedData));
       }),
@@ -81,6 +87,7 @@ export class AuthDiscordService {
   logout(): void {
     localStorage.removeItem(LOCAL_STORAGE_OAUTH_STORED_DATA_KEY);
     this.accessToken = Option.none();
+    this.apiRequestCfg.clear();
   }
 }
 

@@ -2,7 +2,7 @@
 
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
-use auth::{AuthManager, AuthProvider};
+use auth::{AuthnManager, AuthnProvider};
 use events::{
     TopicName, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
     STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
@@ -41,20 +41,20 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     info!("Creating auth manager");
     let auth_provider = match &std::env::var("AUTH_PROVIDER")?.as_ref() {
-        &"discord" => AuthProvider::Discord {
+        &"discord" => AuthnProvider::Discord {
             client_id: std::env::var("AUTH_DISCORD_CLIENT_ID")?,
             client_secret: std::env::var("AUTH_DISCORD_CLIENT_SECRET")?,
         },
-        &"none" => AuthProvider::None,
+        &"none" => AuthnProvider::None,
         other => {
             error!(
                 "Invalid value '{}' for env var AUTH_PROVIDER, using auth provider None",
                 other
             );
-            AuthProvider::None
+            AuthnProvider::None
         }
     };
-    let auth = AuthManager::new(auth_provider)?;
+    let authn = AuthnManager::new(auth_provider)?;
 
     let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
     info!("Creating agent client with address {}", agent_addr);
@@ -71,7 +71,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     rocket::build()
         .attach(Cors::new())
-        .manage(auth)
+        .manage(authn)
         .manage(event_broker)
         .manage(db)
         .manage(agent_client)
