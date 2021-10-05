@@ -18,10 +18,12 @@ pub struct AuthnManager {
 
 impl AuthnManager {
     pub fn new(provider: AuthnProvider) -> Result<AuthnManager> {
+        let token_to_id_map = Arc::new(Mutex::new(HashMap::new()));
         let refresh_tokens: Arc<Mutex<HashMap<String, (String, DateTime<Utc>)>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
-        // Background task to sweep the refresh token hashmap every so often
+        // Background task to sweep the token hashmaps every so often
+        let token_to_id_map_arc = Arc::clone(&token_to_id_map);
         let refresh_tokens_arc = Arc::clone(&refresh_tokens);
         let refresh_tokens_sweep_jh = tokio::spawn(async move {
             loop {
@@ -29,18 +31,20 @@ impl AuthnManager {
 
                 {
                     let mut mg = refresh_tokens_arc.lock().await;
-                    let mut keys_to_remove = vec![];
+                    let mut tokens_as_keys_to_remove = vec![];
 
                     // First pass, get keys to remove
                     for (k, (_v, expiry)) in mg.iter() {
                         if expiry < &Utc::now() {
-                            keys_to_remove.push(k.clone());
+                            tokens_as_keys_to_remove.push(k.clone());
                         }
                     }
 
                     // Second pass, remove entries
-                    for k in keys_to_remove {
+                    let mut id_mg = token_to_id_map_arc.lock().await;
+                    for k in tokens_as_keys_to_remove {
                         mg.remove(&k);
+                        id_mg.remove(&k);
                     }
                 }
             }
@@ -48,7 +52,7 @@ impl AuthnManager {
 
         let mgr = AuthnManager {
             provider,
-            token_to_id_map: Arc::new(Mutex::new(HashMap::new())),
+            token_to_id_map,
             refresh_token_map: refresh_tokens,
             refresh_token_sweep_jh: refresh_tokens_sweep_jh,
         };
@@ -150,6 +154,14 @@ impl AuthnManager {
     pub async fn get_id_details(&self, access_token: impl AsRef<str>) -> Result<UserIdentity> {
         if let AuthnProvider::Discord { .. } = &self.provider
         {
+            // Check if in cache first
+            {
+                let mut mg = self.token_to_id_map.lock().await;
+                if let Some(cached_id) = mg.get(access_token.as_ref()) {
+                    return Ok(cached_id.clone());
+                }
+            }
+
             let client = reqwest::Client::new();
             let result = client.get(DISCORD_IDENTITY_URL)
                 .bearer_auth(access_token.as_ref())
@@ -192,7 +204,7 @@ pub struct UserIdentity {
 }
 
 impl UserIdentity {
-    pub fn none() -> UserIdentity {
+    pub fn anonymous() -> UserIdentity {
         UserIdentity {
             sub: "anonymous".to_owned(),
         }

@@ -48,7 +48,7 @@ impl<'r> FromRequest<'r> for UserIdentity {
     ) -> rocket::request::Outcome<Self, Self::Error> {
         if let Some(authn_mgr) = request.rocket().state::<AuthnManager>() {
             if let AuthnProvider::None = authn_mgr.provider {
-                Outcome::Success(UserIdentity::none())
+                Outcome::Success(UserIdentity::anonymous())
             } else {
                 if let Some(h) = request.headers().get_one("Authorization") {
                     if let Some(token) = h.strip_prefix("Bearer ") {
