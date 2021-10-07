@@ -35,7 +35,7 @@ impl AuthnManager {
 
                     // First pass, get keys to remove
                     for (k, (_v, expiry)) in mg.iter() {
-                        if expiry < &Utc::now() {
+                        if *expiry < Utc::now() {
                             tokens_as_keys_to_remove.push(k.clone());
                         }
                     }
@@ -197,8 +197,25 @@ impl Drop for AuthnManager {
 const DISCORD_TOKEN_URL: &'static str = "https://discord.com/api/oauth2/token";
 const DISCORD_IDENTITY_URL: &'static str = "https://discord.com/api/users/@me";
 
+pub struct AuthzManager {
+    admin: UserIdentity,
+}
+
+impl AuthzManager {
+    pub fn new(admin: UserIdentity) -> AuthzManager {
+        AuthzManager {
+            admin,
+        }
+    }
+
+    pub fn authorize(&self, id: &UserIdentity) -> bool {
+        // TODO
+        *id == self.admin
+    }
+}
+
 /// this scuffed authn system's equivalent of OIDC id_token
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct UserIdentity {
     pub sub: String,
 }
@@ -218,6 +235,8 @@ impl From<DiscordUser> for UserIdentity {
         }
     }
 }
+
+pub struct AuthorizedUser(pub UserIdentity);
 
 #[derive(serde::Deserialize)]
 struct DiscordUser {

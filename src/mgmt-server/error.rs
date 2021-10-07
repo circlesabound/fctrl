@@ -21,6 +21,7 @@ pub enum Error {
     BadRequest(String),
     Db(String),
     NotImplemented,
+    Misconfiguration(String),
 
     // Specific errors
     ModSettingsNotInitialised,
@@ -105,6 +106,7 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::Json(_)
             | Error::Reqwest(_)
             | Error::ModSettingsParseError(_)
+            | Error::Misconfiguration(_)
             | Error::NotImplemented => Status::InternalServerError,
             Error::BadRequest(_) | Error::AuthInvalid | Error::AuthRefreshUnavailable => {
                 Status::BadRequest

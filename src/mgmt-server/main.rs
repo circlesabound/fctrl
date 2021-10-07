@@ -2,7 +2,7 @@
 
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
-use auth::{AuthnManager, AuthnProvider};
+use auth::{AuthnManager, AuthnProvider, AuthzManager};
 use events::{
     TopicName, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
     STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
@@ -11,12 +11,7 @@ use futures::{pin_mut, StreamExt};
 use log::{error, info};
 use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
 
-use crate::{
-    clients::AgentApiClient,
-    db::{Cf, Db, Record},
-    events::broker::EventBroker,
-    ws::WebSocketServer,
-};
+use crate::{auth::UserIdentity, clients::AgentApiClient, db::{Cf, Db, Record}, events::broker::EventBroker, ws::WebSocketServer};
 
 mod auth;
 mod catchers;
@@ -39,11 +34,30 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Opening db");
     let db = Arc::new(Db::open_or_new(&*consts::DB_DIR).await?);
 
-    info!("Creating auth manager");
+    info!("Checking Discord integration...");
+    let discord_integration_enabled = match &std::env::var("DISCORD_INTEGRATION").as_deref() {
+        Ok("true") => {
+            let discord_bot_token = std::env::var("DISCORD_BOT_TOKEN")?;
+            // TODO set up serenity here
+            info!("Discord integration enabled");
+            true
+        }
+        _ => {
+            info!("Discord integration disabled");
+            false
+        }
+    };
+
+    info!("Creating authn and authz manager");
     let auth_provider = match &std::env::var("AUTH_PROVIDER")?.as_ref() {
-        &"discord" => AuthnProvider::Discord {
-            client_id: std::env::var("AUTH_DISCORD_CLIENT_ID")?,
-            client_secret: std::env::var("AUTH_DISCORD_CLIENT_SECRET")?,
+        &"discord" => {
+            if !discord_integration_enabled {
+                return Err(error::Error::Misconfiguration("Authn provider selected as discord, but discord integration is disabled!".to_owned()).into());
+            }
+            AuthnProvider::Discord {
+                client_id: std::env::var("DISCORD_OAUTH2_CLIENT_ID")?,
+                client_secret: std::env::var("DISCORD_OAUTH2_CLIENT_SECRET")?,
+            }
         },
         &"none" => AuthnProvider::None,
         other => {
@@ -55,6 +69,11 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
     };
     let authn = AuthnManager::new(auth_provider)?;
+    let admin_user = match std::env::var("AUTH_DISCORD_ADMIN_USER_ID") {
+        Ok(id) => UserIdentity { sub: id },
+        Err(_) => UserIdentity::anonymous(),
+    };
+    let authz = AuthzManager::new(admin_user);
 
     let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
     info!("Creating agent client with address {}", agent_addr);
@@ -72,6 +91,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     rocket::build()
         .attach(Cors::new())
         .manage(authn)
+        .manage(authz)
         .manage(event_broker)
         .manage(db)
         .manage(agent_client)
