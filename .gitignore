@@ -13,3 +13,9 @@ target/
 
 # node modules
 node_modules
+
+# specific env files
+.env.prod
+
+# letsencrypt
+letsencrypt/

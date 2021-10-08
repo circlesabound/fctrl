@@ -72,8 +72,8 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
     AppRoutingModule,
     FormsModule,
     HttpClientModule,
-    MgmtServerRestApiModule.forRoot({ rootUrl: `http://${environment.backendHost}/api/v0` }),
-    FactorioModPortalApiModule.forRoot({ rootUrl: `http://${environment.backendHost}/proxy` }),
+    MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.protocol}//${environment.backendHost}/api/v0` }),
+    FactorioModPortalApiModule.forRoot({ rootUrl: `${window.location.protocol}//${environment.backendHost}/proxy` }),
     FontAwesomeModule,
     MonacoEditorModule.forRoot({
       defaultOptions: {

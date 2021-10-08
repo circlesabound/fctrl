@@ -16,6 +16,7 @@ services:
       - '${FACTORIO_PORT}:${FACTORIO_PORT}/udp'
       - '${FACTORIO_RCON_PORT}:${FACTORIO_RCON_PORT}/tcp'
     stop_signal: SIGINT
+
   mgmt-server:
     image: ghcr.io/circlesabound/fctrl/mgmt-server:latest
     volumes:
@@ -38,5 +39,5 @@ services:
       - RUST_LOG=${LOG_LEVEL}
     ports:
       - '${MGMT_SERVER_BIND}:${MGMT_SERVER_PORT}:${MGMT_SERVER_PORT}/tcp'
-      - '${MGMT_SERVER_WS_PORT}:${MGMT_SERVER_WS_PORT}/tcp'
+      - '${MGMT_SERVER_BIND}:${MGMT_SERVER_WS_PORT}:${MGMT_SERVER_WS_PORT}/tcp'
     stop_signal: SIGINT

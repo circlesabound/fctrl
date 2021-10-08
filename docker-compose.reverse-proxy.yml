@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  reverse-proxy:
+    image: traefik:latest
+    command:
+      - '--providers.docker=true'
+      - '--providers.docker.exposedbydefault=false'
+      - '--entrypoints.websecure.address=:443'
+      - '--certificatesresolvers.myresolver.acme.tlsChallenge=true'
+      - '--certificatesresolvers.myresolver.acme.email=${RPROXY_LETS_ENCRYPT_EMAIL}'
+      - '--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json'
+      # uncomment for debugging
+      # - '--log.level=DEBUG'
+      # uncomment to issue test cert instead of real cert
+      # - '--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory'
+      # uncomment for dashboard
+      # - '--api.insecure=true'
+    ports:
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - type: bind
+        source: ${PWD}/letsencrypt
+        target: /letsencrypt
+
+  mgmt-server:
+    labels:
+      - 'traefik.enable=true'
+
+      - 'traefik.http.routers.mgmt-server.rule=Host(`${RPROXY_HOST}`)'
+      - 'traefik.http.routers.mgmt-server.entrypoints=websecure'
+      - 'traefik.http.routers.mgmt-server.service=mgmt-server-service'
+      - 'traefik.http.routers.mgmt-server.tls.certresolver=myresolver'
+      - 'traefik.http.services.mgmt-server-service.loadbalancer.server.port=${MGMT_SERVER_PORT}'
+
+      - 'traefik.http.routers.mgmt-server-ws.rule=Host(`${RPROXY_HOST}`) && PathPrefix(`/operation/`)'
+      - 'traefik.http.routers.mgmt-server-ws.entrypoints=websecure'
+      - 'traefik.http.routers.mgmt-server-ws.service=mgmt-server-ws-service'
+      - 'traefik.http.routers.mgmt-server-ws.tls.certresolver=myresolver'
+      - 'traefik.http.services.mgmt-server-ws-service.loadbalancer.server.port=${MGMT_SERVER_WS_PORT}'
