@@ -28,6 +28,13 @@ paths:
           required: true
           schema:
             type: string
+        - name: redirect_uri
+          in: query
+          description: Redirect URI used for the OAuth flow, URL-encoded
+          required: true
+          schema:
+            type: string
+            format: uri
       responses:
         '200':
           description: OK

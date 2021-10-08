@@ -55,7 +55,12 @@ export class AuthDiscordService {
   }
 
   codeToToken(accessCode: string): Observable<string> {
-    return this.apiClient.authDiscordGrantPost({ code: accessCode }).pipe(
+    // Get the redirect uri minus the query string
+    let redirect_uri = window.location.toString().replace(window.location.search, '');
+    return this.apiClient.authDiscordGrantPost({
+      code: accessCode,
+      redirect_uri: encodeURI(redirect_uri),
+    }).pipe(
       tap(s => {
         var expiry = new Date();
         if (s.expires_in) {

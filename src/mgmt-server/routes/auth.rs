@@ -23,17 +23,20 @@ pub async fn info(auth: &State<AuthnManager>) -> Result<Json<AuthInfo>> {
     Ok(Json(auth_info))
 }
 
-#[post("/auth/discord/grant?<code>")]
+#[post("/auth/discord/grant?<code>&<redirect_uri>")]
 pub async fn discord_grant<'a>(
     host: HostHeader<'a>,
     auth: &State<AuthnManager>,
     code: String,
+    redirect_uri: String,
 ) -> Result<Json<OAuthTokenResponse>> {
-    // TODO un-hack this
-    let redirect_uri = format!("http://{}:4200/oauth-redirect", host.hostname.to_string());
-    let resp = auth.oauth_grant(code, redirect_uri).await?;
-
-    Ok(Json(resp))
+    match urlencoding::decode(&redirect_uri) {
+        Ok(redirect_uri) => {
+            let resp = auth.oauth_grant(code, redirect_uri.to_string()).await?;
+            Ok(Json(resp))
+        }
+        Err(e) => Err(Error::BadRequest("Unable to decode value of redirect_uri parameter".to_owned()))
+    }
 }
 
 #[post("/auth/discord/refresh")]

@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use fctrl::schema::mgmt_server_rest::OAuthTokenResponse;
-use log::{error, warn};
+use log::{error, info, warn};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::error::{Error, Result};
@@ -80,24 +80,32 @@ impl AuthnManager {
             let result = client.post(DISCORD_TOKEN_URL).form(&body).send().await;
             match result {
                 Ok(resp) => {
-                    let text = resp.error_for_status()?.text().await?;
-                    let token_response = serde_json::from_str::<OAuthTokenFullResponse>(&text)?;
+                    match resp.error_for_status() {
+                        Ok(resp) => {
+                            let text = resp.error_for_status()?.text().await?;
+                            let token_response = serde_json::from_str::<OAuthTokenFullResponse>(&text)?;
 
-                    // Store the refresh token
-                    let expiry = Utc::now() + Duration::seconds(token_response.expires_in);
-                    let mut mg = self.refresh_token_map.lock().await;
-                    mg.insert(
-                        token_response.access_token.clone(),
-                        (token_response.refresh_token, expiry),
-                    );
+                            // Store the refresh token
+                            let expiry = Utc::now() + Duration::seconds(token_response.expires_in);
+                            let mut mg = self.refresh_token_map.lock().await;
+                            mg.insert(
+                                token_response.access_token.clone(),
+                                (token_response.refresh_token, expiry),
+                            );
 
-                    Ok(OAuthTokenResponse {
-                        access_token: token_response.access_token,
-                        expires_in: Some(token_response.expires_in as i32),
-                    })
+                            Ok(OAuthTokenResponse {
+                                access_token: token_response.access_token,
+                                expires_in: Some(token_response.expires_in as i32),
+                            })
+                        },
+                        Err(e) => {
+                            error!("non-success status response from discord token urL: {:?}", e);
+                            Err(e.into())
+                        }
+                    }
                 }
                 Err(e) => {
-                    error!("error with request to discord token url: {:?}", e);
+                    error!("error sending request to discord token url: {:?}", e);
                     Err(e.into())
                 }
             }
