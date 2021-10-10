@@ -15,15 +15,17 @@ type DynamicStreamsHashMap = HashMap<String, oneshot::Sender<(String, WebSocketS
 
 pub struct WebSocketServer {
     pub port: u16,
+    pub use_wss: bool,
     dynamic_streams_waiting: Arc<Mutex<DynamicStreamsHashMap>>,
 }
 
 impl WebSocketServer {
-    pub async fn new(bind_addr: SocketAddr) -> Result<Arc<WebSocketServer>> {
+    pub async fn new(bind_addr: SocketAddr, use_wss: bool) -> Result<Arc<WebSocketServer>> {
         let tcp_listener = TcpListener::bind(bind_addr).await?;
 
         let server = Arc::new(WebSocketServer {
             port: bind_addr.port(),
+            use_wss,
             dynamic_streams_waiting: Arc::new(Mutex::new(HashMap::new())),
         });
 
@@ -241,7 +243,7 @@ mod tests {
     #[tokio::test]
     async fn can_timeout_on_stream_at() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8378);
-        let s = WebSocketServer::new(bind_addr).await.unwrap();
+        let s = WebSocketServer::new(bind_addr, false).await.unwrap();
 
         // stream_at() should time out with the internal timeout of 200ms, completing the future
         // before the external timeout of 500ms

@@ -85,8 +85,12 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
     let ws_bind = SocketAddr::new(ws_addr, ws_port);
+    let reverse_proxy_enabled: bool = std::env::var("RPROXY_ENABLED")?.parse()?;
+    if reverse_proxy_enabled {
+        info!("Env var suggests reverse proxy is enabled, will enable WSS");
+    }
     info!("Opening ws server at {}", ws_bind);
-    let ws = WebSocketServer::new(ws_bind).await?;
+    let ws = WebSocketServer::new(ws_bind, reverse_proxy_enabled).await?;
 
     rocket::build()
         .attach(Cors::new())

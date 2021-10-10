@@ -27,7 +27,14 @@ impl WsStreamingResponder {
         operation_id: OperationId,
     ) -> WsStreamingResponder {
         let path = format!("/operation/{}", operation_id.0);
-        let full_uri = format!("ws://{}:{}{}", host.hostname, ws.port, path);
+        // Rocket.rs limitations force us to listen to WS connctions on a different port
+        // If reverse proxy through Traefik is enabled, we advertise the same port as regular HTTPS traffic (443),
+        // and let routing rules forward to the right port inside the container network.
+        // Otherwise, advertise the separate port as normal
+        let full_uri = match ws.use_wss {
+            true => format!("wss://{}{}", host.hostname, path),
+            false => format!("ws://{}:{}{}", host.hostname, ws.port, path),
+        };
         WsStreamingResponder { path, full_uri }
     }
 }
