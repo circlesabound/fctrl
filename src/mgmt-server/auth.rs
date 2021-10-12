@@ -83,7 +83,8 @@ impl AuthnManager {
                     match resp.error_for_status() {
                         Ok(resp) => {
                             let text = resp.error_for_status()?.text().await?;
-                            let token_response = serde_json::from_str::<OAuthTokenFullResponse>(&text)?;
+                            let token_response =
+                                serde_json::from_str::<OAuthTokenFullResponse>(&text)?;
 
                             // Store the refresh token
                             let expiry = Utc::now() + Duration::seconds(token_response.expires_in);
@@ -97,9 +98,12 @@ impl AuthnManager {
                                 access_token: token_response.access_token,
                                 expires_in: Some(token_response.expires_in as i32),
                             })
-                        },
+                        }
                         Err(e) => {
-                            error!("non-success status response from discord token urL: {:?}", e);
+                            error!(
+                                "non-success status response from discord token urL: {:?}",
+                                e
+                            );
                             Err(e.into())
                         }
                     }
@@ -160,8 +164,7 @@ impl AuthnManager {
     }
 
     pub async fn get_id_details(&self, access_token: impl AsRef<str>) -> Result<UserIdentity> {
-        if let AuthnProvider::Discord { .. } = &self.provider
-        {
+        if let AuthnProvider::Discord { .. } = &self.provider {
             // Check if in cache first
             {
                 let mut mg = self.token_to_id_map.lock().await;
@@ -171,7 +174,8 @@ impl AuthnManager {
             }
 
             let client = reqwest::Client::new();
-            let result = client.get(DISCORD_IDENTITY_URL)
+            let result = client
+                .get(DISCORD_IDENTITY_URL)
                 .bearer_auth(access_token.as_ref())
                 .send()
                 .await;
@@ -211,9 +215,7 @@ pub struct AuthzManager {
 
 impl AuthzManager {
     pub fn new(admin: UserIdentity) -> AuthzManager {
-        AuthzManager {
-            admin,
-        }
+        AuthzManager { admin }
     }
 
     pub fn authorize(&self, id: &UserIdentity) -> bool {
@@ -238,9 +240,7 @@ impl UserIdentity {
 
 impl From<DiscordUser> for UserIdentity {
     fn from(du: DiscordUser) -> Self {
-        UserIdentity {
-            sub: du.id,
-        }
+        UserIdentity { sub: du.id }
     }
 }
 

@@ -11,7 +11,13 @@ use futures::{pin_mut, StreamExt};
 use log::{error, info};
 use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
 
-use crate::{auth::UserIdentity, clients::AgentApiClient, db::{Cf, Db, Record}, events::broker::EventBroker, ws::WebSocketServer};
+use crate::{
+    auth::UserIdentity,
+    clients::AgentApiClient,
+    db::{Cf, Db, Record},
+    events::broker::EventBroker,
+    ws::WebSocketServer,
+};
 
 mod auth;
 mod catchers;
@@ -52,13 +58,17 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let auth_provider = match &std::env::var("AUTH_PROVIDER")?.as_ref() {
         &"discord" => {
             if !discord_integration_enabled {
-                return Err(error::Error::Misconfiguration("Authn provider selected as discord, but discord integration is disabled!".to_owned()).into());
+                return Err(error::Error::Misconfiguration(
+                    "Authn provider selected as discord, but discord integration is disabled!"
+                        .to_owned(),
+                )
+                .into());
             }
             AuthnProvider::Discord {
                 client_id: std::env::var("DISCORD_OAUTH2_CLIENT_ID")?,
                 client_secret: std::env::var("DISCORD_OAUTH2_CLIENT_SECRET")?,
             }
-        },
+        }
         &"none" => AuthnProvider::None,
         other => {
             error!(
@@ -195,6 +205,23 @@ async fn create_db_ingestion_subscriber(
         }
 
         error!("stdout ingestion subscriber task is finishing - this should never happen!");
+    });
+
+    Ok(())
+}
+
+async fn create_rpc_subscriber(
+    event_broker: Arc<EventBroker>,
+) -> crate::error::Result<()> {
+    let rpc_sub = event_broker.subscribe(TopicName(RPC_TOPIC_NAME.to_string()), |_| true).await;
+    tokio::spawn(async move {
+        pin_mut!(rpc_sub);
+        while let Some(event) = rpc_sub.next().await {
+            info!("DEBUGING received RPC call from agent: {:?}", event);
+            // TODO actually do something with it
+        }
+
+        error!("rpc subscriber task is finishing - this should never happen!");
     });
 
     Ok(())

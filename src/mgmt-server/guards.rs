@@ -67,10 +67,7 @@ impl<'r> FromRequest<'r> for UserIdentity {
             }
         } else {
             error!("Failed to retrieve AuthnManager, this should never happen!");
-            Outcome::Failure((
-                Status::InternalServerError,
-                AuthError::InternalError,
-            ))
+            Outcome::Failure((Status::InternalServerError, AuthError::InternalError))
         }
     }
 }
@@ -94,7 +91,7 @@ impl<'r> FromRequest<'r> for AuthorizedUser {
                     error!("Failed to retrieve AuthzManager, this should never happen!");
                     Outcome::Failure((Status::InternalServerError, AuthError::InternalError))
                 }
-            },
+            }
             Outcome::Failure(f) => Outcome::Failure(f),
             Outcome::Forward(f) => Outcome::Forward(f),
         }

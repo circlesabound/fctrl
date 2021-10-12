@@ -1,7 +1,11 @@
 use fctrl::schema::mgmt_server_rest::{AuthInfo, AuthInfoDiscord, OAuthTokenResponse, Provider};
 use rocket::{get, post, serde::json::Json, State};
 
-use crate::{auth::{AuthnManager, AuthnProvider, UserIdentity}, error::{Error, Result}, guards::HostHeader};
+use crate::{
+    auth::{AuthnManager, AuthnProvider, UserIdentity},
+    error::{Error, Result},
+    guards::HostHeader,
+};
 
 #[get("/auth/info")]
 pub async fn info(auth: &State<AuthnManager>) -> Result<Json<AuthInfo>> {
@@ -35,14 +39,14 @@ pub async fn discord_grant<'a>(
             let resp = auth.oauth_grant(code, redirect_uri.to_string()).await?;
             Ok(Json(resp))
         }
-        Err(e) => Err(Error::BadRequest("Unable to decode value of redirect_uri parameter".to_owned()))
+        Err(e) => Err(Error::BadRequest(
+            "Unable to decode value of redirect_uri parameter".to_owned(),
+        )),
     }
 }
 
 #[post("/auth/discord/refresh")]
-pub async fn discord_refresh(
-    _identity: UserIdentity,
-) -> Result<Json<OAuthTokenResponse>> {
+pub async fn discord_refresh(_identity: UserIdentity) -> Result<Json<OAuthTokenResponse>> {
     // TODO
     Err(Error::NotImplemented)
 }

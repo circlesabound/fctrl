@@ -13,11 +13,16 @@ use rocket::serde::json::Json;
 use rocket::{get, post, put, response::content};
 use rocket::{http::Status, State};
 
-use crate::{auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer};
+use crate::{
+    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer,
+};
 use crate::{error::Result, routes::WsStreamingResponder};
 
 #[get("/server/control")]
-pub async fn status(_a: AuthorizedUser, agent_client: &State<AgentApiClient>) -> Result<Json<ServerControlStatus>> {
+pub async fn status(
+    _a: AuthorizedUser,
+    agent_client: &State<AgentApiClient>,
+) -> Result<Json<ServerControlStatus>> {
     let ss = agent_client.server_status().await?;
     let mut num_players = 0;
     let game_status = match ss {
@@ -49,7 +54,8 @@ pub async fn start_server(
 #[post("/server/control/stop")]
 pub async fn stop_server(
     _a: AuthorizedUser,
-    agent_client: &State<AgentApiClient>) -> Result<Status> {
+    agent_client: &State<AgentApiClient>,
+) -> Result<Status> {
     agent_client.server_stop().await?;
     Ok(Status::Accepted)
 }
@@ -130,7 +136,8 @@ pub async fn create_savefile<'a>(
 #[get("/server/config/adminlist")]
 pub async fn get_adminlist(
     _a: AuthorizedUser,
-    agent_client: &State<AgentApiClient>) -> Result<Json<Vec<String>>> {
+    agent_client: &State<AgentApiClient>,
+) -> Result<Json<Vec<String>>> {
     let al = agent_client.config_adminlist_get().await?;
     Ok(Json(al))
 }
@@ -147,7 +154,8 @@ pub async fn put_adminlist(
 #[get("/server/config/banlist")]
 pub async fn get_banlist(
     _a: AuthorizedUser,
-    agent_client: &State<AgentApiClient>) -> Result<Json<Vec<String>>> {
+    agent_client: &State<AgentApiClient>,
+) -> Result<Json<Vec<String>>> {
     let al = agent_client.config_banlist_get().await?;
     Ok(Json(al))
 }
@@ -242,14 +250,17 @@ pub async fn get_server_settings(
 #[put("/server/config/server-settings", data = "<body>")]
 pub async fn put_server_settings(
     _a: AuthorizedUser,
-    agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
+    agent_client: &State<AgentApiClient>,
+    body: String,
+) -> Result<()> {
     agent_client.config_server_settings_set(body).await
 }
 
 #[get("/server/mods/list")]
 pub async fn get_mods_list(
     _a: AuthorizedUser,
-    agent_client: &State<AgentApiClient>) -> Result<Json<Vec<ModObject>>> {
+    agent_client: &State<AgentApiClient>,
+) -> Result<Json<Vec<ModObject>>> {
     let mod_list = agent_client.mod_list_get().await?;
     // Need to convert into the codegen type
     let resp = mod_list
@@ -308,7 +319,9 @@ pub async fn get_mod_settings(
 #[put("/server/mods/settings", data = "<body>")]
 pub async fn put_mod_settings(
     _a: AuthorizedUser,
-    agent_client: &State<AgentApiClient>, body: String) -> Result<()> {
+    agent_client: &State<AgentApiClient>,
+    body: String,
+) -> Result<()> {
     let ms: ModSettings = serde_json::from_str(&body)?;
     let bytes = ms.try_into()?;
     agent_client.mod_settings_set(ModSettingsBytes(bytes)).await

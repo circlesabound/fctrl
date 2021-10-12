@@ -524,8 +524,7 @@ fn tag_incoming_message(s: String) -> Option<Event> {
         match streaming_msg.content {
             AgentStreamingMessageInner::ServerStdout(stdout_message) => {
                 let topic = TopicName(STDOUT_TOPIC_NAME.to_string());
-                let tag_value = classify_server_stdout_message(&stdout_message);
-                tags.insert(topic, tag_value);
+                tag_server_stdout_message(&stdout_message, &tags);
             }
         }
         let event = Event {
@@ -615,7 +614,7 @@ fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item 
     })
 }
 
-fn classify_server_stdout_message(message: &str) -> String {
+fn tag_server_stdout_message(message: &str, &mut tags: HashMap<TopicName, String>) {
     lazy_static! {
         static ref CHAT_RE: Regex =
             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();
@@ -625,22 +624,45 @@ fn classify_server_stdout_message(message: &str) -> String {
         static ref LEAVE_RE: Regex =
             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$")
                 .unwrap();
+        static ref RPC_RE: Regex = Regex::new(r"^FCTRL_RPC (.+)$").unwrap();
     }
 
     if let Some(chat_captures) = CHAT_RE.captures(message) {
-        let timestamp = chat_captures.get(1).unwrap().as_str().to_string();
-        let user = chat_captures.get(2).unwrap().as_str().to_string();
-        let msg = chat_captures.get(3).unwrap().as_str().to_string();
-        STDOUT_TOPIC_CHAT_CATEGORY.to_string()
+        let _timestamp = chat_captures.get(1).unwrap().as_str().to_string();
+        let _user = chat_captures.get(2).unwrap().as_str().to_string();
+        let _msg = chat_captures.get(3).unwrap().as_str().to_string();
+        tags.insert(
+            TopicName(STDOUT_TOPIC_NAME.to_string()),
+            STDOUT_TOPIC_CHAT_CATEGORY.to_string(),
+        );
     } else if let Some(join_captures) = JOIN_RE.captures(message) {
-        let timestamp = join_captures.get(1).unwrap().as_str().to_string();
-        let user = join_captures.get(2).unwrap().as_str().to_string();
-        STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string()
+        let _timestamp = join_captures.get(1).unwrap().as_str().to_string();
+        let _user = join_captures.get(2).unwrap().as_str().to_string();
+        tags.insert(
+            TopicName(STDOUT_TOPIC_NAME.to_string()),
+            STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string(),
+        );
     } else if let Some(leave_captures) = LEAVE_RE.captures(message) {
-        let timestamp = leave_captures.get(1).unwrap().as_str().to_string();
-        let user = leave_captures.get(2).unwrap().as_str().to_string();
-        STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string()
+        let _timestamp = leave_captures.get(1).unwrap().as_str().to_string();
+        let _user = leave_captures.get(2).unwrap().as_str().to_string();
+        tags.insert(
+            TopicName(STDOUT_TOPIC_NAME.to_string()),
+            STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string(),
+        );
+    } else if let Some(rpc_captures) = RPC_RE.captures(message) {
+        tags.insert(
+            TopicName(STDOUT_TOPIC_NAME.to_string()),
+            STDOUT_TOPIC_RPC.to_string(),
+        );
+        let rpc_command = rpc_captures.get(1).unwrap().as_str().to_string();
+        tags.insert(
+            TopicName(RPC_TOPIC_NAME.to_string()),
+            rpc_command,
+        );
     } else {
-        STDOUT_TOPIC_SYSTEMLOG_CATEGORY.to_string()
+        tags.insert(
+            TopicName(STDOUT_TOPIC_NAME.to_string()),
+            STDOUT_TOPIC_SYSTEMLOG_CATEGORY.to_string(),
+        );
     }
 }
