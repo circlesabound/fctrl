@@ -30,12 +30,7 @@ use server::{
     mods::{Mod, ModManager},
     settings::{BanList, Secrets, WhiteList},
 };
-use tokio::{
-    fs,
-    net::{TcpListener, TcpStream},
-    sync::{broadcast, watch, Mutex, RwLock},
-    task::JoinHandle,
-};
+use tokio::{fs, net::{TcpListener, TcpStream}, sync::{Mutex, RwLock, broadcast::{self, error::RecvError}, watch}, task::JoinHandle};
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 use tungstenite::Message;
 
@@ -57,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Init Factorio server process management");
     let proc_manager = Arc::new(ProcessManager::new());
 
-    let (global_bus_tx, ..) = broadcast::channel::<AgentStreamingMessage>(50);
+    let (global_bus_tx, ..) = broadcast::channel::<AgentStreamingMessage>(300);
 
     info!("Init WebSocketListener");
     let ws_listener = WebSocketListener::new().await?;
@@ -182,22 +177,32 @@ impl AgentController {
         let ws_tx_clone = Arc::clone(&ws_tx);
         let mut global_bus_rx = global_bus_tx.subscribe();
         let _send_global_outgoing_msgs_task = tokio::spawn(async move {
-            while let Ok(outgoing) = global_bus_rx.recv().await {
-                let json = serde_json::to_string(&outgoing);
-                match json {
-                    Err(e) => {
-                        error!("Error serialising message: {:?}", e)
-                    }
-                    Ok(json) => {
-                        debug!("Sending streaming message: {}", json);
-                        AgentController::_send_message(
-                            Arc::clone(&ws_tx_clone),
-                            Message::Text(json),
-                        )
-                        .await;
+            loop {
+                match global_bus_rx.recv().await {
+                    Ok(outgoing) => {
+                        let json = serde_json::to_string(&outgoing);
+                        match json {
+                            Err(e) => {
+                                error!("Error serialising message: {:?}", e)
+                            }
+                            Ok(json) => {
+                                debug!("Sending streaming message: {}", json);
+                                AgentController::_send_message(
+                                    Arc::clone(&ws_tx_clone),
+                                    Message::Text(json),
+                                )
+                                .await;
+                            }
+                        }
+                    },
+                    Err(RecvError::Lagged(num_skipped)) => warn!("global bus rx lagging, skipped {} messages!", num_skipped),
+                    Err(RecvError::Closed) => {
+                        error!("All global bus senders closed - this should never happen");
+                        break;
                     }
                 }
             }
+
             warn!("Global bus rx listener exiting");
         });
 
