@@ -25,7 +25,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use server::{
     mods::{Mod, ModManager},
     settings::{BanList, Secrets, WhiteList},
@@ -198,6 +198,7 @@ impl AgentController {
                     }
                 }
             }
+            warn!("Global bus rx listener exiting");
         });
 
         // Background task to close connection on SIGINT
@@ -845,7 +846,9 @@ impl AgentController {
                     timestamp: Utc::now(),
                     content: AgentStreamingMessageInner::ServerStdout(s),
                 };
-                let _ = stream_out.send(msg);
+                if let Err(e) = stream_out.send(msg) {
+                    error!("Failed to send streaming message: {:?}", e);
+                }
             })
             .hosting_savefile(
                 savefile,
@@ -942,7 +945,9 @@ impl AgentController {
                         timestamp: Utc::now(),
                         content: AgentStreamingMessageInner::ServerStdout(s),
                     };
-                    let _ = stream_out.send(msg);
+                    if let Err(e) = stream_out.send(msg) {
+                        error!("Failed to send streaming message: {:?}", e);
+                    }
                 })
                 .creating_savefile(save_name.clone());
             match self

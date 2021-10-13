@@ -84,6 +84,7 @@ impl StartableInstance {
                 player_count_arc,
             )
             .await;
+            warn!("Exiting stdout handler task");
         });
 
         tokio::spawn(async move {
@@ -92,6 +93,7 @@ impl StartableInstance {
                 // Not sure if Factorio executable logs anything to stderr
                 error!("## Server stderr ## {}", line);
             }
+            warn!("Exiting stderr handler task");
         });
 
         Ok(StartedInstance {
