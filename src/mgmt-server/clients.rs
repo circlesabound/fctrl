@@ -28,7 +28,7 @@ use crate::{
     error::{Error, Result},
     events::{
         broker::EventBroker, Event, TopicName, OPERATION_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY,
-        STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
+        STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC, STDOUT_TOPIC_SYSTEMLOG_CATEGORY, RPC_TOPIC_NAME,
     },
 };
 
@@ -524,7 +524,7 @@ fn tag_incoming_message(s: String) -> Option<Event> {
         match streaming_msg.content {
             AgentStreamingMessageInner::ServerStdout(stdout_message) => {
                 let topic = TopicName(STDOUT_TOPIC_NAME.to_string());
-                tag_server_stdout_message(&stdout_message, &tags);
+                tag_server_stdout_message(&stdout_message, &mut tags);
             }
         }
         let event = Event {
@@ -614,7 +614,7 @@ fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item 
     })
 }
 
-fn tag_server_stdout_message(message: &str, &mut tags: HashMap<TopicName, String>) {
+fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String>) {
     lazy_static! {
         static ref CHAT_RE: Regex =
             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();

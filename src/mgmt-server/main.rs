@@ -5,7 +5,7 @@ use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 use auth::{AuthnManager, AuthnProvider, AuthzManager};
 use events::{
     TopicName, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
-    STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
+    STDOUT_TOPIC_SYSTEMLOG_CATEGORY, RPC_TOPIC_NAME,
 };
 use futures::{pin_mut, StreamExt};
 use log::{error, info};
