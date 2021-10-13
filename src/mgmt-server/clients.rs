@@ -523,7 +523,6 @@ fn tag_incoming_message(s: String) -> Option<Event> {
         let mut tags = HashMap::new();
         match streaming_msg.content {
             AgentStreamingMessageInner::ServerStdout(stdout_message) => {
-                let topic = TopicName(STDOUT_TOPIC_NAME.to_string());
                 tag_server_stdout_message(&stdout_message, &mut tags);
             }
         }

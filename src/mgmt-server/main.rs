@@ -92,6 +92,9 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Creating db ingestion subscriber");
     create_db_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
+    info!("Creating rpc subscriber");
+    create_rpc_subscriber(Arc::clone(&event_broker)).await?;
+
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
     let ws_bind = SocketAddr::new(ws_addr, ws_port);
