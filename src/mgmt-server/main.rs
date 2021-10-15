@@ -4,11 +4,11 @@ use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use auth::{AuthnManager, AuthnProvider, AuthzManager};
 use events::{
-    TopicName, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
-    STDOUT_TOPIC_SYSTEMLOG_CATEGORY, RPC_TOPIC_NAME,
+    TopicName, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY,
+    STDOUT_TOPIC_NAME, STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
 };
 use futures::{pin_mut, StreamExt};
-use log::{error, info};
+use log::{debug, error, info};
 use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
 
 use crate::{
@@ -16,6 +16,7 @@ use crate::{
     clients::AgentApiClient,
     db::{Cf, Db, Record},
     events::broker::EventBroker,
+    rpc::RpcHandler,
     ws::WebSocketServer,
 };
 
@@ -27,7 +28,9 @@ mod db;
 mod error;
 mod events;
 mod guards;
+mod metrics;
 mod routes;
+mod rpc;
 mod ws;
 
 #[rocket::main]
@@ -89,11 +92,11 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Creating agent client with address {}", agent_addr);
     let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
 
-    info!("Creating db ingestion subscriber");
-    create_db_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
+    info!("Creating log ingestion subscriber");
+    create_log_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
     info!("Creating rpc subscriber");
-    create_rpc_subscriber(Arc::clone(&event_broker)).await?;
+    create_rpc_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
@@ -174,7 +177,7 @@ fn get_dist_path() -> PathBuf {
         .join("web")
 }
 
-async fn create_db_ingestion_subscriber(
+async fn create_log_ingestion_subscriber(
     event_broker: Arc<EventBroker>,
     db: Arc<Db>,
 ) -> crate::error::Result<()> {
@@ -215,13 +218,24 @@ async fn create_db_ingestion_subscriber(
 
 async fn create_rpc_subscriber(
     event_broker: Arc<EventBroker>,
+    db: Arc<Db>,
 ) -> crate::error::Result<()> {
-    let rpc_sub = event_broker.subscribe(TopicName(RPC_TOPIC_NAME.to_string()), |_| true).await;
+    let rpc_sub = event_broker
+        .subscribe(TopicName(RPC_TOPIC_NAME.to_string()), |_| true)
+        .await;
     tokio::spawn(async move {
         pin_mut!(rpc_sub);
-        while let Some(event) = rpc_sub.next().await {
-            info!("DEBUGING received RPC call from agent: {:?}", event);
-            // TODO actually do something with it
+        let rpc_handler = Arc::new(RpcHandler::new(db));
+        while let Some(mut event) = rpc_sub.next().await {
+            if let Some(command) = event.tags.remove(&TopicName(RPC_TOPIC_NAME.to_string())) {
+                let rpc_handler = Arc::clone(&rpc_handler);
+                tokio::spawn(async move {
+                    debug!("handling rpc command: {}", command);
+                    if let Err(e) = rpc_handler.handle(&command).await {
+                        error!("error from rpc handler for command '{}': {:?}", command, e);
+                    }
+                });
+            }
         }
 
         error!("rpc subscriber task is finishing - this should never happen!");

@@ -22,6 +22,8 @@ pub enum Error {
     Db(String),
     NotImplemented,
     Misconfiguration(String),
+    MetricInvalidKey(String),
+    Rpc(String),
 
     // Specific errors
     ModSettingsNotInitialised,
@@ -107,10 +109,12 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::Reqwest(_)
             | Error::ModSettingsParseError(_)
             | Error::Misconfiguration(_)
-            | Error::NotImplemented => Status::InternalServerError,
-            Error::BadRequest(_) | Error::AuthInvalid | Error::AuthRefreshUnavailable => {
-                Status::BadRequest
-            }
+            | Error::NotImplemented
+            | Error::Rpc(_) => Status::InternalServerError,
+            Error::BadRequest(_)
+            | Error::AuthInvalid
+            | Error::AuthRefreshUnavailable
+            | Error::MetricInvalidKey(_) => Status::BadRequest,
             Error::ModSettingsNotInitialised | Error::SecretsNotInitialised => Status::NoContent,
         };
 

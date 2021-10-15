@@ -30,7 +30,15 @@ use server::{
     mods::{Mod, ModManager},
     settings::{BanList, Secrets, WhiteList},
 };
-use tokio::{fs, net::{TcpListener, TcpStream}, sync::{Mutex, RwLock, broadcast::{self, error::RecvError}, watch}, task::JoinHandle};
+use tokio::{
+    fs,
+    net::{TcpListener, TcpStream},
+    sync::{
+        broadcast::{self, error::RecvError},
+        watch, Mutex, RwLock,
+    },
+    task::JoinHandle,
+};
 use tokio_tungstenite::{accept_async, tungstenite, WebSocketStream};
 use tungstenite::Message;
 
@@ -194,8 +202,10 @@ impl AgentController {
                                 .await;
                             }
                         }
-                    },
-                    Err(RecvError::Lagged(num_skipped)) => warn!("global bus rx lagging, skipped {} messages!", num_skipped),
+                    }
+                    Err(RecvError::Lagged(num_skipped)) => {
+                        warn!("global bus rx lagging, skipped {} messages!", num_skipped)
+                    }
                     Err(RecvError::Closed) => {
                         error!("All global bus senders closed - this should never happen");
                         break;

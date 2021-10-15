@@ -27,8 +27,9 @@ use uuid::Uuid;
 use crate::{
     error::{Error, Result},
     events::{
-        broker::EventBroker, Event, TopicName, OPERATION_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY,
-        STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC, STDOUT_TOPIC_SYSTEMLOG_CATEGORY, RPC_TOPIC_NAME,
+        broker::EventBroker, Event, TopicName, OPERATION_TOPIC_NAME, RPC_TOPIC_NAME,
+        STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME,
+        STDOUT_TOPIC_RPC, STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
     },
 };
 
@@ -654,10 +655,7 @@ fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String
             STDOUT_TOPIC_RPC.to_string(),
         );
         let rpc_command = rpc_captures.get(1).unwrap().as_str().to_string();
-        tags.insert(
-            TopicName(RPC_TOPIC_NAME.to_string()),
-            rpc_command,
-        );
+        tags.insert(TopicName(RPC_TOPIC_NAME.to_string()), rpc_command);
     } else {
         tags.insert(
             TopicName(STDOUT_TOPIC_NAME.to_string()),
