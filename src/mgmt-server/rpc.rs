@@ -4,19 +4,21 @@ use std::sync::Arc;
 use log::error;
 use serde::Deserialize;
 
+use crate::clients::AgentApiClient;
 use crate::db::{Cf, Db, Record};
+use crate::discord::DiscordClient;
 use crate::error::{Error, Result};
-use crate::events::broker::EventBroker;
 use crate::metrics::{DataPoint, MetricPeriod, Tick, METRIC_CF_NAME};
 
 pub struct RpcHandler {
+    agent_client: Arc<AgentApiClient>,
     db: Arc<Db>,
-    event_broker: Arc<EventBroker>,
+    discord: Arc<Option<DiscordClient>>,
 }
 
 impl RpcHandler {
-    pub fn new(db: Arc<Db>, event_broker: Arc<EventBroker>) -> RpcHandler {
-        RpcHandler { db, event_broker }
+    pub fn new(agent_client: Arc<AgentApiClient>, db: Arc<Db>, discord: Arc<Option<DiscordClient>>) -> RpcHandler {
+        RpcHandler { agent_client, db, discord }
     }
 
     pub async fn handle(&self, command: &str) -> Result<()> {
@@ -27,7 +29,28 @@ impl RpcHandler {
             "query" => {
                 // args is <query_target>
                 match args {
-                    "discord" => Ok(()),
+                    "discord" => {
+                        // querying discord users
+                        if let Some(d) = &*self.discord {
+                            let users = d.get_user_list().await?;
+                            // invert and format as a lua table
+                            let table = users
+                                .into_iter()
+                                .map(|(k, v)| format!("[\"{}\"]=\"{}\"", v, k))
+                                .collect::<Vec<String>>()
+                                .join(",");
+                            let table = format!("{{{}}}", table);
+                            
+                            let remote_call = format!("/silent-command remote.call(\"fctrl-observers\", \"set_discord_users\", {})", table);
+                            if let Err(e) = self.agent_client.rcon_command(remote_call).await {
+                                Err(Error::Rpc(format!("error with rpc query discord callback: {:?}", e)))
+                            } else {
+                                Ok(())
+                            }
+                        } else {
+                            Err(Error::Rpc(format!("discord integration not enabled")))
+                        }
+                    }
                     _ => Err(Error::Rpc(format!("invalid query target '{}'", args))),
                 }
             }

@@ -50,16 +50,21 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let agent_client = Arc::new(AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await);
 
     info!("Checking Discord integration...");
-    let discord_client = match &std::env::var("DISCORD_INTEGRATION").as_deref() {
+    let discord_client = Arc::new(match &std::env::var("DISCORD_INTEGRATION").as_deref() {
         Ok("true") => {
             info!("Discord integration enabled, setting up Discord client");
             let discord_bot_token = std::env::var("DISCORD_BOT_TOKEN")?;
+            let alert_channel_id = match std::env::var("DISCORD_ALERT_CHANNEL_ID") {
+                Ok(s) => Some(s.parse()?),
+                Err(_) => None,
+            };
             let chat_link_channel_id = match std::env::var("DISCORD_CHAT_LINK_CHANNEL_ID") {
                 Ok(s) => Some(s.parse()?),
                 Err(_) => None,
             };
             Some(DiscordClient::new(
                 discord_bot_token,
+                alert_channel_id,
                 chat_link_channel_id,
                 Arc::clone(&agent_client),
                 Arc::clone(&event_broker),
@@ -69,7 +74,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             info!("Discord integration disabled");
             None
         }
-    };
+    });
 
     info!("Creating authn and authz manager");
     let auth_provider = match &std::env::var("AUTH_PROVIDER")?.as_ref() {
@@ -106,7 +111,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     create_log_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
     info!("Creating rpc subscriber");
-    create_rpc_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
+    create_rpc_subscriber(Arc::clone(&agent_client), Arc::clone(&event_broker), Arc::clone(&db), Arc::clone(&discord_client)).await?;
 
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
@@ -228,15 +233,17 @@ async fn create_log_ingestion_subscriber(
 }
 
 async fn create_rpc_subscriber(
+    agent_client: Arc<AgentApiClient>,
     event_broker: Arc<EventBroker>,
     db: Arc<Db>,
+    discord: Arc<Option<DiscordClient>>,
 ) -> crate::error::Result<()> {
     let rpc_sub = event_broker
         .subscribe(TopicName(RPC_TOPIC_NAME.to_string()), |_| true)
         .await;
     tokio::spawn(async move {
         pin_mut!(rpc_sub);
-        let rpc_handler = Arc::new(RpcHandler::new(db, event_broker));
+        let rpc_handler = Arc::new(RpcHandler::new(agent_client, db, discord));
         while let Some(mut event) = rpc_sub.next().await {
             if let Some(command) = event.tags.remove(&TopicName(RPC_TOPIC_NAME.to_string())) {
                 let rpc_handler = Arc::clone(&rpc_handler);

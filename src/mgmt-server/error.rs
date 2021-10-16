@@ -20,12 +20,14 @@ pub enum Error {
     AuthRefreshUnavailable,
     BadRequest(String),
     Db(String),
-    NotImplemented,
+    InternalMessaging(String),
     Misconfiguration(String),
     MetricInvalidKey(String),
+    NotImplemented,
     Rpc(String),
 
     // Specific errors
+    DiscordAlertingDisabled,
     ModSettingsNotInitialised,
     ModSettingsParseError(factorio_mod_settings_parser::Error),
     SecretsNotInitialised,
@@ -112,6 +114,8 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::Db(_)
             | Error::DbExternal(_)
             | Error::Discord(_)
+            | Error::DiscordAlertingDisabled
+            | Error::InternalMessaging(_)
             | Error::Io(_)
             | Error::Json(_)
             | Error::Reqwest(_)
