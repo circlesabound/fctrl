@@ -15,6 +15,7 @@ use crate::{
     auth::UserIdentity,
     clients::AgentApiClient,
     db::{Cf, Db, Record},
+    discord::DiscordClient,
     events::broker::EventBroker,
     rpc::RpcHandler,
     ws::WebSocketServer,
@@ -25,6 +26,7 @@ mod catchers;
 mod clients;
 mod consts;
 mod db;
+mod discord;
 mod error;
 mod events;
 mod guards;
@@ -43,24 +45,36 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     info!("Opening db");
     let db = Arc::new(Db::open_or_new(&*consts::DB_DIR).await?);
 
+    let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
+    info!("Creating agent client with address {}", agent_addr);
+    let agent_client = Arc::new(AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await);
+
     info!("Checking Discord integration...");
-    let discord_integration_enabled = match &std::env::var("DISCORD_INTEGRATION").as_deref() {
+    let discord_client = match &std::env::var("DISCORD_INTEGRATION").as_deref() {
         Ok("true") => {
+            info!("Discord integration enabled, setting up Discord client");
             let discord_bot_token = std::env::var("DISCORD_BOT_TOKEN")?;
-            // TODO set up serenity here
-            info!("Discord integration enabled");
-            true
+            let chat_link_channel_id = match std::env::var("DISCORD_CHAT_LINK_CHANNEL_ID") {
+                Ok(s) => Some(s.parse()?),
+                Err(_) => None,
+            };
+            Some(DiscordClient::new(
+                discord_bot_token,
+                chat_link_channel_id,
+                Arc::clone(&agent_client),
+                Arc::clone(&event_broker),
+            ).await?)
         }
         _ => {
             info!("Discord integration disabled");
-            false
+            None
         }
     };
 
     info!("Creating authn and authz manager");
     let auth_provider = match &std::env::var("AUTH_PROVIDER")?.as_ref() {
         &"discord" => {
-            if !discord_integration_enabled {
+            if discord_client.is_none() {
                 return Err(error::Error::Misconfiguration(
                     "Authn provider selected as discord, but discord integration is disabled!"
                         .to_owned(),
@@ -88,10 +102,6 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     };
     let authz = AuthzManager::new(admin_user);
 
-    let agent_addr = url::Url::parse(&std::env::var("AGENT_ADDR")?)?;
-    info!("Creating agent client with address {}", agent_addr);
-    let agent_client = AgentApiClient::new(agent_addr, Arc::clone(&event_broker)).await;
-
     info!("Creating log ingestion subscriber");
     create_log_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
@@ -105,7 +115,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     if reverse_proxy_enabled {
         info!("Env var suggests reverse proxy is enabled, will enable WSS");
     }
-    info!("Opening ws server at {}", ws_bind);
+    info!("Opening websocket server at {}", ws_bind);
     let ws = WebSocketServer::new(ws_bind, reverse_proxy_enabled).await?;
 
     rocket::build()
@@ -146,6 +156,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::apply_mods_list,
                 routes::server::get_mod_settings,
                 routes::server::put_mod_settings,
+                routes::server::send_rcon_command,
                 routes::logs::get,
                 routes::logs::stream,
             ],
@@ -225,7 +236,7 @@ async fn create_rpc_subscriber(
         .await;
     tokio::spawn(async move {
         pin_mut!(rpc_sub);
-        let rpc_handler = Arc::new(RpcHandler::new(db));
+        let rpc_handler = Arc::new(RpcHandler::new(db, event_broker));
         while let Some(mut event) = rpc_sub.next().await {
             if let Some(command) = event.tags.remove(&TopicName(RPC_TOPIC_NAME.to_string())) {
                 let rpc_handler = Arc::clone(&rpc_handler);

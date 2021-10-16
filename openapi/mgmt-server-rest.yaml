@@ -298,6 +298,23 @@ paths:
       responses:
         '200':
           description: Ok
+  /server/rcon:
+    post:
+      summary: Send a command over RCON to the Factorio game instance.
+      requestBody:
+        required: true
+        description: The command to send to the game instance.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RconCommandRequest'
+      responses:
+        '200':
+          description: The response to the command from the game instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RconCommandResponse'
   /logs/{category}:
     get:
       summary: Fetches ingested logs
@@ -502,6 +519,18 @@ components:
     ModSettingsObject:
       description: A mod-settings.dat file, converted into a JSON format
       type: object
+    RconCommandRequest:
+      required:
+        - command
+      properties:
+        command:
+          type: string
+    RconCommandResponse:
+      required:
+        - response
+      properties:
+        response:
+          type: string
     LogsPaginationObject:
       required:
         - logs

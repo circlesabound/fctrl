@@ -24,4 +24,7 @@ pub const STDOUT_TOPIC_JOINLEAVE_CATEGORY: &str = "joinleave";
 pub const STDOUT_TOPIC_RPC: &str = "rpc";
 pub const STDOUT_TOPIC_SYSTEMLOG_CATEGORY: &str = "systemlog";
 
+pub const CHAT_TOPIC_NAME: &str = "chat";
+pub const JOIN_TOPIC_NAME: &str = "join";
+pub const LEAVE_TOPIC_NAME: &str = "leave";
 pub const RPC_TOPIC_NAME: &str = "rpc";

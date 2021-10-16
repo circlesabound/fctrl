@@ -1,20 +1,22 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use log::{error, warn};
+use log::error;
 use serde::Deserialize;
 
 use crate::db::{Cf, Db, Record};
 use crate::error::{Error, Result};
+use crate::events::broker::EventBroker;
 use crate::metrics::{DataPoint, MetricPeriod, Tick, METRIC_CF_NAME};
 
 pub struct RpcHandler {
     db: Arc<Db>,
+    event_broker: Arc<EventBroker>,
 }
 
 impl RpcHandler {
-    pub fn new(db: Arc<Db>) -> RpcHandler {
-        RpcHandler { db }
+    pub fn new(db: Arc<Db>, event_broker: Arc<EventBroker>) -> RpcHandler {
+        RpcHandler { db, event_broker }
     }
 
     pub async fn handle(&self, command: &str) -> Result<()> {
@@ -22,7 +24,20 @@ impl RpcHandler {
             .split_once(' ')
             .ok_or(Error::Rpc("unable to extract rpc command".to_owned()))?;
         match command {
+            "query" => {
+                // args is <query_target>
+                match args {
+                    "discord" => Ok(()),
+                    _ => Err(Error::Rpc(format!("invalid query target '{}'", args))),
+                }
+            }
+            "oneshot" => {
+                // args is a json string
+                // TODO
+                Ok(())
+            }
             "stream" => {
+                // args is a json string
                 // Parse batch from json
                 let batch = serde_json::from_str::<DataPointBatch>(args)?;
                 // Build data points

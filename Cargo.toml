@@ -17,8 +17,8 @@ futures = "0.3"
 futures-util = "0.3"
 lazy_static = "1.4"
 log = "0.4"
-nix = "0.22"
-rcon = "0.4" # some async-std bug with 0.5 that fails compilation
+nix = "0.23"
+rcon = "0.4.0" # 0.5 and later run on async-std
 regex = "1.4"
 reqwest = { version = "0.11", features = [ "json" ] }
 rocksdb = "0.17"
@@ -27,8 +27,8 @@ serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 serenity = { version = "0.10", default-features = false, features = [ "client", "gateway", "rustls_backend", "model", "cache" ] }
 stream-cancel = "0.8"
-strum = "0.21"
-strum_macros = "0.21"
+strum = "0.22"
+strum_macros = "0.22"
 tar = "0.4"
 tokio = { version = "1.5", features = [ "full" ] }
 tokio-stream = { version = "0.1", features = [ "sync" ] }

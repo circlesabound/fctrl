@@ -32,6 +32,7 @@ pub enum Error {
 
     // Generic wrappers around external error types
     DbExternal(rocksdb::Error),
+    Discord(serenity::Error),
     Io(std::io::Error),
     Json(serde_json::error::Error),
     Reqwest(reqwest::Error),
@@ -76,6 +77,12 @@ impl From<serde_json::error::Error> for Error {
     }
 }
 
+impl From<serenity::Error> for Error {
+    fn from(e: serenity::Error) -> Self {
+        Error::Discord(e)
+    }
+}
+
 impl From<tokio_tungstenite::tungstenite::Error> for Error {
     fn from(e: tokio_tungstenite::tungstenite::Error) -> Self {
         Error::WebSocket(e)
@@ -104,6 +111,7 @@ impl<'r> Responder<'r, 'static> for Error {
             Error::AgentInternalError(_)
             | Error::Db(_)
             | Error::DbExternal(_)
+            | Error::Discord(_)
             | Error::Io(_)
             | Error::Json(_)
             | Error::Reqwest(_)
