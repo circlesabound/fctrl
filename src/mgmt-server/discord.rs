@@ -109,30 +109,49 @@ impl DiscordClient {
         }
     }
 
-    pub fn oneshot_alert(&self, target_id: String, alert_msg: String) -> Result<()> {
-        match target_id.parse() {
-            Ok(target_id) => {
-                if let Some(tx) = &self.alert_tx {
-                    let message = MessageBuilder::new()
-                        .push("**ALERT** for ")
-                        .mention(&UserId(target_id))
-                        .push(": ")
-                        .push(alert_msg)
-                        .build();
-                    if let Err(e) = tx.send(message) {
-                        error!("Error sending alert line through mpsc channel: {:?}", e);
-                        Err(Error::InternalMessaging("Failed to send alert".to_owned()))
+    pub fn oneshot_alert(&self, target_id: Option<String>, alert_msg: String) -> Result<()> {
+        let mut mb = MessageBuilder::new();
+        mb.push("**ALERT**");
+        if let Some(target_id) = target_id {
+            match target_id.parse() {
+                Ok(target_id) => {
+                    if let Some(tx) = &self.alert_tx {
+                        let message = mb
+                            .push(" for ")
+                            .mention(&UserId(target_id))
+                            .push(": ")
+                            .push(alert_msg)
+                            .build();
+                        if let Err(e) = tx.send(message) {
+                            error!("Error sending alert line through mpsc channel: {:?}", e);
+                            Err(Error::InternalMessaging("Failed to send alert".to_owned()))
+                        } else {
+                            Ok(())
+                        }
                     } else {
-                        Ok(())
+                        Err(Error::DiscordAlertingDisabled)
                     }
+                },
+                Err(_) => {
+                    error!("Invalid target id");
+                    Err(Error::BadRequest("Invalid target id".to_owned()))
+                },
+            }
+        } else {
+            if let Some(tx) = &self.alert_tx {
+                let message = mb
+                    .push(": ")
+                    .push(alert_msg)
+                    .build();
+                if let Err(e) = tx.send(message) {
+                    error!("Error sending alert line through mpsc channel: {:?}", e);
+                    Err(Error::InternalMessaging("Failed to send alert".to_owned()))
                 } else {
-                    Err(Error::DiscordAlertingDisabled)
+                    Ok(())
                 }
-            },
-            Err(_) => {
-                error!("Invalid target id");
-                Err(Error::BadRequest("Invalid target id".to_owned()))
-            },
+            } else {
+                Err(Error::DiscordAlertingDisabled)
+            }
         }
     }
 

@@ -33,10 +33,10 @@ impl RpcHandler {
                         // querying discord users
                         if let Some(d) = &*self.discord {
                             let users = d.get_user_list().await?;
-                            // invert and format as a lua table
+                            // format as a lua table
                             let table = users
                                 .into_iter()
-                                .map(|(k, v)| format!("[\"{}\"]=\"{}\"", v, k))
+                                .map(|(k, v)| format!("[\"{}\"]=\"{}\"", k, v))
                                 .collect::<Vec<String>>()
                                 .join(",");
                             let table = format!("{{{}}}", table);
@@ -56,8 +56,13 @@ impl RpcHandler {
             }
             "oneshot" => {
                 // args is a json string
-                // TODO
-                Ok(())
+                // Parse from json
+                let oneshot = serde_json::from_str::<OneshotData>(args)?;
+                if let Some(discord) = &*self.discord {
+                    discord.oneshot_alert(oneshot.notif_target_id, format!("({},{}) {}", oneshot.position.x, oneshot.position.y, oneshot.message))
+                } else {
+                    Err(Error::Rpc(format!("discord integration not enabled")))
+                }
             }
             "stream" => {
                 // args is a json string
@@ -105,4 +110,20 @@ struct DataPointBatch {
     timestamp: u64,
     /// Mapping from metric name (stream key) to data point value
     data: HashMap<String, f64>,
+}
+
+#[derive(Deserialize)]
+struct OneshotData {
+    /// Identifier representing who to notify (discord snowflake id)
+    notif_target_id: Option<String>,
+    /// Map position
+    position: Position,
+    /// Alert message
+    message: String,
+}
+
+#[derive(Deserialize)]
+struct Position {
+    pub x: f64,
+    pub y: f64,
 }
