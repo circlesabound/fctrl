@@ -239,6 +239,170 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn can_read_range_forward_from_nonspecific_key() -> GenericResult {
+        fctrl::util::testing::logger_init();
+
+        let db_dir = std::env::temp_dir().join("can_read_range_forward_from_nonspecific_key");
+        if fs::metadata(&db_dir).await.is_ok() {
+            let _ = fs::remove_dir_all(&db_dir).await;
+        };
+
+        let cf = Cf("can_read_range_forward_from_nonspecific_key".to_owned());
+        let db = Db::open_or_new(&db_dir).await?;
+
+        db.write(
+            &cf,
+            &Record {
+                key: "a1".to_owned(),
+                value: "a1".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "a3".to_owned(),
+                value: "a3".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "a4".to_owned(),
+                value: "a4".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "b2".to_owned(),
+                value: "b2".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "b4".to_owned(),
+                value: "b4".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "b5".to_owned(),
+                value: "b5".to_owned(),
+            },
+        )?;
+
+        db.flush()?;
+
+        let ret = db.read_range(&cf, "a2".to_owned(), RangeDirection::Forward, 2)?;
+        assert_eq!(ret.records.len(), 2);
+        let mut iter = ret.records.iter();
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "a3".to_owned(),
+                value: "a3".to_owned(),
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "a4".to_owned(),
+                value: "a4".to_owned(),
+            })
+        );
+        assert_eq!(ret.continue_from, Some("b2".to_owned()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&db_dir).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn can_read_range_backward_from_nonspecific_key() -> GenericResult {
+        fctrl::util::testing::logger_init();
+
+        let db_dir = std::env::temp_dir().join("can_read_range_backward_from_nonspecific_key");
+        if fs::metadata(&db_dir).await.is_ok() {
+            let _ = fs::remove_dir_all(&db_dir).await;
+        };
+
+        let cf = Cf("can_read_range_backward_from_nonspecific_key".to_owned());
+        let db = Db::open_or_new(&db_dir).await?;
+
+        db.write(
+            &cf,
+            &Record {
+                key: "a1".to_owned(),
+                value: "a1".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "a3".to_owned(),
+                value: "a3".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "a4".to_owned(),
+                value: "a4".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "b2".to_owned(),
+                value: "b2".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "b4".to_owned(),
+                value: "b4".to_owned(),
+            },
+        )?;
+        db.write(
+            &cf,
+            &Record {
+                key: "b5".to_owned(),
+                value: "b5".to_owned(),
+            },
+        )?;
+
+        db.flush()?;
+
+        let ret = db.read_range(&cf, "b3".to_owned(), RangeDirection::Backward, 2)?;
+        assert_eq!(ret.records.len(), 2);
+        let mut iter = ret.records.iter();
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "b2".to_owned(),
+                value: "b2".to_owned(),
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&Record {
+                key: "a4".to_owned(),
+                value: "a4".to_owned(),
+            })
+        );
+        assert_eq!(ret.continue_from, Some("a3".to_owned()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&db_dir).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn can_write_then_read_range_head() -> GenericResult {
         fctrl::util::testing::logger_init();
 

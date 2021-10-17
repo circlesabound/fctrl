@@ -11,6 +11,7 @@ use crate::{guards::HostHeader, ws::WebSocketServer};
 
 pub mod auth;
 pub mod logs;
+pub mod metrics;
 pub mod options;
 pub mod proxy;
 pub mod server;

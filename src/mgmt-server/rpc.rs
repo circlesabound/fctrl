@@ -5,10 +5,10 @@ use log::error;
 use serde::Deserialize;
 
 use crate::clients::AgentApiClient;
-use crate::db::{Cf, Db, Record};
+use crate::db::{Db, Record};
 use crate::discord::DiscordClient;
 use crate::error::{Error, Result};
-use crate::metrics::{DataPoint, MetricPeriod, Tick, METRIC_CF_NAME};
+use crate::metrics::{get_cf, DataPoint, MetricPeriod, Tick};
 
 pub struct RpcHandler {
     agent_client: Arc<AgentApiClient>,
@@ -17,8 +17,16 @@ pub struct RpcHandler {
 }
 
 impl RpcHandler {
-    pub fn new(agent_client: Arc<AgentApiClient>, db: Arc<Db>, discord: Arc<Option<DiscordClient>>) -> RpcHandler {
-        RpcHandler { agent_client, db, discord }
+    pub fn new(
+        agent_client: Arc<AgentApiClient>,
+        db: Arc<Db>,
+        discord: Arc<Option<DiscordClient>>,
+    ) -> RpcHandler {
+        RpcHandler {
+            agent_client,
+            db,
+            discord,
+        }
     }
 
     pub async fn handle(&self, command: &str) -> Result<()> {
@@ -40,10 +48,13 @@ impl RpcHandler {
                                 .collect::<Vec<String>>()
                                 .join(",");
                             let table = format!("{{{}}}", table);
-                            
+
                             let remote_call = format!("/silent-command remote.call(\"fctrl-observers\", \"set_discord_users\", {})", table);
                             if let Err(e) = self.agent_client.rcon_command(remote_call).await {
-                                Err(Error::Rpc(format!("error with rpc query discord callback: {:?}", e)))
+                                Err(Error::Rpc(format!(
+                                    "error with rpc query discord callback: {:?}",
+                                    e
+                                )))
                             } else {
                                 Ok(())
                             }
@@ -59,7 +70,13 @@ impl RpcHandler {
                 // Parse from json
                 let oneshot = serde_json::from_str::<OneshotData>(args)?;
                 if let Some(discord) = &*self.discord {
-                    discord.oneshot_alert(oneshot.notif_target_id, format!("({},{}) {}", oneshot.position.x, oneshot.position.y, oneshot.message))
+                    discord.oneshot_alert(
+                        oneshot.notif_target_id,
+                        format!(
+                            "({},{}) {}",
+                            oneshot.position.x, oneshot.position.y, oneshot.message
+                        ),
+                    )
                 } else {
                     Err(Error::Rpc(format!("discord integration not enabled")))
                 }
@@ -83,10 +100,10 @@ impl RpcHandler {
                 // Build records
                 let records = data_points.map(|dp| Record {
                     key: dp.key(),
-                    value: dp.value().to_string(),
+                    value: dp.value.to_string(),
                 });
                 // Insert records into db
-                let cf = Cf(METRIC_CF_NAME.to_string());
+                let cf = get_cf(&MetricPeriod::PT05S);
                 for record in records {
                     if let Err(e) = self.db.write(&cf, &record) {
                         error!(

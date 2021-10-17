@@ -39,7 +39,7 @@ pub async fn purge(id: &str) -> Result<()> {
     }
 }
 
-pub async fn purge_all() -> Result<()> {
+pub async fn _purge_all() -> Result<()> {
     let mut entries = fs::read_dir(get_cache_path().await?).await?;
     while let Some(entry) = entries.next_entry().await? {
         fs::remove_dir_all(entry.path()).await?;

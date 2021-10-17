@@ -3,19 +3,27 @@ use std::{
     fmt::Display,
 };
 
-use crate::error::{Error, Result};
+use crate::{
+    db::Cf,
+    error::{Error, Result},
+};
 
-pub const METRIC_CF_NAME: &str = "metrics";
+const METRICS_CF_PREFIX: &str = "metrics";
 
 pub struct DataPoint {
-    metric_name: String,
-    period: MetricPeriod,
-    tick: Tick,
-    value: f64,
+    pub metric_name: String,
+    pub period: MetricPeriod,
+    pub tick: Tick,
+    pub value: f64,
 }
+
+pub const _METRIC_PERIOD_AND_NAME_PREFIX: usize = 6 + 1 + MAX_METRIC_NAME_LENGTH;
 
 const MAX_METRIC_NAME_LENGTH: usize = 44;
 const MAX_TICK_STRING_LENGTH: usize = 12;
+
+/// 12 digits
+pub const MAX_TICK: u64 = 999999999999;
 
 impl DataPoint {
     pub fn new(
@@ -24,17 +32,7 @@ impl DataPoint {
         tick: Tick,
         value: f64,
     ) -> Result<DataPoint> {
-        if metric_name.contains("#") {
-            return Err(Error::MetricInvalidKey(
-                "Metric name contains disallowed character '#'".to_owned(),
-            ));
-        }
-        if metric_name.len() > MAX_METRIC_NAME_LENGTH {
-            return Err(Error::MetricInvalidKey(format!(
-                "Metric name {} longer than maximum supported length of {} bytes",
-                metric_name, MAX_METRIC_NAME_LENGTH
-            )));
-        }
+        DataPoint::validate_metric_name(&metric_name)?;
         if tick.0.to_string().len() > MAX_TICK_STRING_LENGTH {
             return Err(Error::MetricInvalidKey(format!(
                 "Requested tick {} greater than maximum supported tick of {}",
@@ -51,6 +49,23 @@ impl DataPoint {
         })
     }
 
+    pub fn validate_metric_name(metric_name: impl AsRef<str>) -> Result<()> {
+        if metric_name.as_ref().contains("#") {
+            return Err(Error::MetricInvalidKey(format!(
+                "Metric name {} contains disallowed character '#'",
+                metric_name.as_ref(),
+            )));
+        }
+        if metric_name.as_ref().len() > MAX_METRIC_NAME_LENGTH {
+            return Err(Error::MetricInvalidKey(format!(
+                "Metric name {} longer than maximum supported length of {} bytes",
+                metric_name.as_ref(),
+                MAX_METRIC_NAME_LENGTH,
+            )));
+        }
+        Ok(())
+    }
+
     pub fn try_from(key: String, value: f64) -> Result<DataPoint> {
         if key.len() != 64 {
             return Err(Error::MetricInvalidKey(format!(
@@ -59,17 +74,18 @@ impl DataPoint {
             )));
         }
 
-        // Get metric name
-        let (metric_name, key) = key.split_at(MAX_METRIC_NAME_LENGTH + 1);
-        let metric_name = metric_name.trim_end_matches("#");
-
         // Get period
         let (period_str, key) = key.split_at(6);
         let period = period_str.trim_end_matches("#");
         let period = period.to_string().try_into()?;
 
+        // Get metric name
+        let (metric_name, key) = key.split_at(MAX_METRIC_NAME_LENGTH + 1);
+        let metric_name = metric_name.trim_end_matches("#");
+
         // Get tick
         let tick_str = key;
+        let tick_str = tick_str.trim_start_matches("T");
         if let Ok(tick_u64) = tick_str.parse() {
             let tick = Tick(tick_u64);
 
@@ -83,18 +99,7 @@ impl DataPoint {
     }
 
     pub fn key(&self) -> String {
-        // Key is 64 length
-        // Example key: 'this-is-a-key################################PT30S#T000000000300'
-        format!(
-            "{}#{}#{}",
-            pad_metric_name(&self.metric_name),
-            self.period,
-            self.tick,
-        )
-    }
-
-    pub fn value(&self) -> f64 {
-        self.value
+        get_lookup_key(&self.period, &self.metric_name, &self.tick)
     }
 }
 
@@ -159,6 +164,15 @@ impl Display for Tick {
             max_tick_length = MAX_TICK_STRING_LENGTH
         ))
     }
+}
+pub fn get_cf(period: &MetricPeriod) -> Cf {
+    Cf(format!("{}_{}", METRICS_CF_PREFIX, period))
+}
+
+pub fn get_lookup_key(period: &MetricPeriod, metric_name: impl AsRef<str>, tick: &Tick) -> String {
+    // Key is 64 length
+    // Example key: 'PT30S#this-is-a-key################################T000000000300'
+    format!("{}#{}#{}", period, pad_metric_name(metric_name), tick)
 }
 
 fn pad_metric_name(metric_name: impl AsRef<str>) -> String {

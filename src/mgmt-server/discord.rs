@@ -1,12 +1,21 @@
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use futures::{StreamExt, pin_mut};
-use log::{debug, error, info};
-use serenity::{client::{Cache, Context, EventHandler}, http::Http, model::prelude::*, utils::MessageBuilder};
+use futures::{pin_mut, StreamExt};
+use log::{error, info};
+use serenity::{
+    client::{Cache, Context, EventHandler},
+    http::Http,
+    model::prelude::*,
+    utils::MessageBuilder,
+};
 use tokio::{sync::mpsc, task::JoinHandle};
 
-use crate::{clients::AgentApiClient, error::{Error, Result}, events::{CHAT_TOPIC_NAME, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME, TopicName, broker::EventBroker}};
+use crate::{
+    clients::AgentApiClient,
+    error::{Error, Result},
+    events::{broker::EventBroker, TopicName, CHAT_TOPIC_NAME, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME},
+};
 
 pub struct DiscordClient {
     alert_tx: Option<mpsc::UnboundedSender<String>>,
@@ -55,7 +64,8 @@ impl DiscordClient {
                     }
                 }
             });
-            DiscordClient::create_chat_link_g2d_subscriber(chat_link_tx.clone(), event_broker).await;
+            DiscordClient::create_chat_link_g2d_subscriber(chat_link_tx.clone(), event_broker)
+                .await;
         }
 
         let alert_tx;
@@ -97,8 +107,15 @@ impl DiscordClient {
                 Some(g) => {
                     let members = http.get_guild_members(g.guild_id.0, None, None).await?;
                     let not_bots = members.into_iter().filter(|m| !m.user.bot);
-                    Ok(not_bots.map(|m| (m.user.id.to_string(), format!("{}#{:04}", m.user.name, m.user.discriminator))).collect())
-                },
+                    Ok(not_bots
+                        .map(|m| {
+                            (
+                                m.user.id.to_string(),
+                                format!("{}#{:04}", m.user.name, m.user.discriminator),
+                            )
+                        })
+                        .collect())
+                }
                 None => {
                     error!("Only guild channels are supported for alerting");
                     Err(Error::Misconfiguration("Discord alerting is enabled, but a non-guild channel id was specified which is unsupported".to_owned()))
@@ -131,18 +148,15 @@ impl DiscordClient {
                     } else {
                         Err(Error::DiscordAlertingDisabled)
                     }
-                },
+                }
                 Err(_) => {
                     error!("Invalid target id");
                     Err(Error::BadRequest("Invalid target id".to_owned()))
-                },
+                }
             }
         } else {
             if let Some(tx) = &self.alert_tx {
-                let message = mb
-                    .push(": ")
-                    .push(alert_msg)
-                    .build();
+                let message = mb.push(": ").push(alert_msg).build();
                 if let Err(e) = tx.send(message) {
                     error!("Error sending alert line through mpsc channel: {:?}", e);
                     Err(Error::InternalMessaging("Failed to send alert".to_owned()))
@@ -169,7 +183,10 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(chat_sub);
             while let Some(event) = chat_sub.next().await {
-                let message = event.tags.get(&TopicName(CHAT_TOPIC_NAME.to_string())).unwrap();
+                let message = event
+                    .tags
+                    .get(&TopicName(CHAT_TOPIC_NAME.to_string()))
+                    .unwrap();
                 if let Err(e) = chat_tx.send(message.clone()) {
                     error!("Error sending line through mpsc channel: {:?}", e);
                     break;
@@ -185,7 +202,10 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(join_sub);
             while let Some(event) = join_sub.next().await {
-                let user = event.tags.get(&TopicName(JOIN_TOPIC_NAME.to_string())).unwrap();
+                let user = event
+                    .tags
+                    .get(&TopicName(JOIN_TOPIC_NAME.to_string()))
+                    .unwrap();
                 let message = format!("**{} has joined the server**", user);
                 if let Err(e) = join_tx.send(message) {
                     error!("Error sending line through mpsc channel: {:?}", e);
@@ -202,7 +222,10 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(leave_sub);
             while let Some(event) = leave_sub.next().await {
-                let user = event.tags.get(&TopicName(LEAVE_TOPIC_NAME.to_string())).unwrap();
+                let user = event
+                    .tags
+                    .get(&TopicName(LEAVE_TOPIC_NAME.to_string()))
+                    .unwrap();
                 let message = format!("**{} has left the server**", user);
                 if let Err(e) = leave_tx.send(message) {
                     error!("Error sending line through mpsc channel: {:?}", e);
@@ -210,7 +233,9 @@ impl DiscordClient {
                 }
             }
 
-            error!("Discord chat link g2d leave subscriber is finishing, this should never happen!");
+            error!(
+                "Discord chat link g2d leave subscriber is finishing, this should never happen!"
+            );
         });
     }
 }
@@ -230,7 +255,10 @@ impl EventHandler for DiscordToGameChatLinkHandler {
             let message_text = message_text.replace('\'', "\\'");
             let command = format!("/silent-command game.print('[Discord] {}')", message_text);
             if let Err(e) = self.agent_client.rcon_command(command).await {
-                error!("Couldn't send message via agent_client rcon_command: {:?}", e);
+                error!(
+                    "Couldn't send message via agent_client rcon_command: {:?}",
+                    e
+                );
             }
         }
     }

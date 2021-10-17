@@ -25,7 +25,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use server::{
     mods::{Mod, ModManager},
     settings::{BanList, Secrets, WhiteList},
@@ -416,19 +416,6 @@ impl AgentController {
             error!("Error sending message: {:?}", e);
         } else {
             let _ = tx.flush().await;
-        }
-    }
-
-    async fn send_streaming_messsage(&self, message: AgentStreamingMessage) {
-        let json = serde_json::to_string(&message);
-        match json {
-            Err(e) => {
-                error!("Error serialising message: {:?}", e)
-            }
-            Ok(json) => {
-                trace!("Sending streaming message: {}", json);
-                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
-            }
         }
     }
 

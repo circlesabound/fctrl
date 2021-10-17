@@ -62,13 +62,16 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 Ok(s) => Some(s.parse()?),
                 Err(_) => None,
             };
-            Some(DiscordClient::new(
-                discord_bot_token,
-                alert_channel_id,
-                chat_link_channel_id,
-                Arc::clone(&agent_client),
-                Arc::clone(&event_broker),
-            ).await?)
+            Some(
+                DiscordClient::new(
+                    discord_bot_token,
+                    alert_channel_id,
+                    chat_link_channel_id,
+                    Arc::clone(&agent_client),
+                    Arc::clone(&event_broker),
+                )
+                .await?,
+            )
         }
         _ => {
             info!("Discord integration disabled");
@@ -111,7 +114,13 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     create_log_ingestion_subscriber(Arc::clone(&event_broker), Arc::clone(&db)).await?;
 
     info!("Creating rpc subscriber");
-    create_rpc_subscriber(Arc::clone(&agent_client), Arc::clone(&event_broker), Arc::clone(&db), Arc::clone(&discord_client)).await?;
+    create_rpc_subscriber(
+        Arc::clone(&agent_client),
+        Arc::clone(&event_broker),
+        Arc::clone(&db),
+        Arc::clone(&discord_client),
+    )
+    .await?;
 
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
@@ -164,6 +173,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::send_rcon_command,
                 routes::logs::get,
                 routes::logs::stream,
+                routes::metrics::get,
             ],
         )
         .mount(

@@ -67,7 +67,7 @@ impl ProcessManager {
         }
     }
 
-    pub async fn wait_for_instance(&self) -> Option<StoppedInstance> {
+    pub async fn _wait_for_instance(&self) -> Option<StoppedInstance> {
         let mut mg = self.running_instance.lock().await;
 
         match mg.take() {

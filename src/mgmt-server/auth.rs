@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use fctrl::schema::mgmt_server_rest::OAuthTokenResponse;
-use log::{error, info, warn};
+use log::{error, warn};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::error::{Error, Result};
@@ -167,7 +167,7 @@ impl AuthnManager {
         if let AuthnProvider::Discord { .. } = &self.provider {
             // Check if in cache first
             {
-                let mut mg = self.token_to_id_map.lock().await;
+                let mg = self.token_to_id_map.lock().await;
                 if let Some(cached_id) = mg.get(access_token.as_ref()) {
                     return Ok(cached_id.clone());
                 }

@@ -372,6 +372,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogStreamPreviousMarker'
+  /metrics/{name}:
+    get:
+      summary: Fetches ingested metric datapoints
+      parameters:
+        - name: name
+          in: path
+          description: Name of the metric to get
+          required: true
+          schema:
+            type: string
+        - name: count
+          in: query
+          description: How many datapoints to get per page
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+        - name: period
+          in: query
+          description: Represents the granularity of datapoints to fetch, read higher period / lower granularity data points to reduce the load on the system
+          required: true
+          schema:
+            $ref: '#/components/schemas/MetricsPeriod'
+        - name: direction
+          in: query
+          description: Which direction to iterate over datapoints from the starting position
+          required: true
+          schema:
+            type: string
+            enum:
+              - "Forward"
+              - "Backward"
+        - name: from
+          in: query
+          description: Iteration starting position. If empty, Forward iteration will start at the earliest datapoint, and Backward iteration will start at the latest datapoint
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The requested metric datapoints, plus a URL at which to continue iteration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsPaginationObject'
 
 components:
   schemas:
@@ -547,3 +593,43 @@ components:
         previous:
           description: Iteration position of the last ingested log entry before the stream, if any exists. This can be used to iterate backwards to fetch older entries.
           type: string
+    MetricsPeriod:
+      type: string
+      enum:
+        - "PT5S"
+        - "PT30S"
+        - "PT1M"
+        - "PT5M"
+        - "PT30M"
+        - "PT1H"
+        - "PT6H"
+        - "PT12H"
+        - "P1D"
+    MetricsDataPoint:
+      required:
+        - tick
+        - period
+        - value
+      properties:
+        tick:
+          description: Timestamp of the end of the period represented by this data point
+          type: integer
+          format: int64
+        period:
+          description: Period over which this data point's value is aggregated over
+          $ref: '#/components/schemas/MetricsPeriod'
+        value:
+          description: Value of the data point
+          type: number
+          format: double
+    MetricsPaginationObject:
+      required:
+        - datapoints
+      properties:
+        next:
+          description: Iteration position of the next iteration of this metrics query. If this is empty, then no more data is available.
+          type: string
+        datapoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricsDataPoint'

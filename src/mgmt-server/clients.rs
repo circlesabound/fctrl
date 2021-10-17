@@ -24,7 +24,15 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
-use crate::{error::{Error, Result}, events::{CHAT_TOPIC_NAME, Event, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME, OPERATION_TOPIC_NAME, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC, STDOUT_TOPIC_SYSTEMLOG_CATEGORY, TopicName, broker::EventBroker}};
+use crate::{
+    error::{Error, Result},
+    events::{
+        broker::EventBroker, Event, TopicName, CHAT_TOPIC_NAME, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME,
+        OPERATION_TOPIC_NAME, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY,
+        STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC,
+        STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
+    },
+};
 
 pub struct AgentApiClient {
     event_broker: Arc<EventBroker>,
@@ -650,10 +658,7 @@ fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String
             TopicName(STDOUT_TOPIC_NAME.to_string()),
             STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string(),
         );
-        tags.insert(
-            TopicName(JOIN_TOPIC_NAME.to_string()),
-            user,
-        );
+        tags.insert(TopicName(JOIN_TOPIC_NAME.to_string()), user);
     } else if let Some(leave_captures) = LEAVE_RE.captures(message) {
         let _timestamp = leave_captures.get(1).unwrap().as_str().to_string();
         let user = leave_captures.get(2).unwrap().as_str().to_string();
@@ -661,10 +666,7 @@ fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String
             TopicName(STDOUT_TOPIC_NAME.to_string()),
             STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string(),
         );
-        tags.insert(
-            TopicName(LEAVE_TOPIC_NAME.to_string()),
-            user,
-        );
+        tags.insert(TopicName(LEAVE_TOPIC_NAME.to_string()), user);
     } else if let Some(rpc_captures) = RPC_RE.captures(message) {
         tags.insert(
             TopicName(STDOUT_TOPIC_NAME.to_string()),

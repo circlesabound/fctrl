@@ -335,7 +335,5 @@ pub async fn send_rcon_command(
 ) -> Result<Json<RconCommandResponse>> {
     let command = body.into_inner().command;
     let response = agent_client.rcon_command(command).await?;
-    Ok(Json(RconCommandResponse {
-        response,
-    }))
+    Ok(Json(RconCommandResponse { response }))
 }
