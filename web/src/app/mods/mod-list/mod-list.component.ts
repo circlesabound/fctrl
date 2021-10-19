@@ -50,7 +50,7 @@ export class ModListComponent implements OnInit {
     return this.modPortalClient.apiModsGet({
       namelist: namelist,
       page: page,
-      page_size: 2,
+      page_size: 'max',
     }).pipe(
       map(listResponse => {
         let nextPage: Option<number>;
