@@ -106,6 +106,12 @@ components:
         - results
     ModListPagination:
       properties:
+        page:
+          type: integer
+          description: The current page number
+        page_count:
+          type: integer
+          description: The total number of pages returned
         count:
           type: integer
           description: Total number of mods that match your specified filters
@@ -113,6 +119,8 @@ components:
           $ref: '#/components/schemas/ModListPaginationLinks'
           description: Utility links to mod portal API requests, preserving all filters and search queries
       required:
+        - page
+        - page_count
         - count
         - links
     ModListPaginationLinks:

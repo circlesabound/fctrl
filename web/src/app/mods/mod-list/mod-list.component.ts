@@ -1,9 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
-import { Observable, of, Subject, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
-import { ModInfoShort } from 'src/app/factorio-mod-portal-api/models';
+import { EMPTY, Observable, of, Subject, timer } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, expand, map, reduce, switchMap, tap } from 'rxjs/operators';
+import { ModInfoBatch, ModInfoShort } from 'src/app/factorio-mod-portal-api/models';
 import { FactorioModPortalApiService } from 'src/app/factorio-mod-portal-api/services';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
 import { OperationService } from 'src/app/operation.service';
@@ -46,30 +46,61 @@ export class ModListComponent implements OnInit {
     });
   }
 
+  private fetchModListInfoSinglePage(namelist: string[], page: number): Observable<{ nextPage: Option<number>, results: ModInfoBatch[] }> {
+    return this.modPortalClient.apiModsGet({
+      namelist: namelist,
+      page: page,
+      page_size: 2,
+    }).pipe(
+      map(listResponse => {
+        let nextPage: Option<number>;
+        if (listResponse.pagination.page === listResponse.pagination.page_count) {
+          nextPage = Option.none();
+        } else {
+          nextPage = Option.some(listResponse.pagination.page + 1);
+        }
+        return {
+          nextPage: nextPage,
+          results: listResponse.results,
+        };
+      })
+    );
+  }
+
   fetchModList(): void {
     this.apiClient.serverModsListGet().subscribe(modList => {
       if (modList.length === 0) {
         this.modInfoList = [];
         this.ready = true;
       } else {
-        this.modPortalClient.apiModsGet({
-          namelist: modList.map(mo => mo.name),
-          page_size: 'max',
-        }).subscribe(listResponse => {
-          const infoList: ModInfo[] = [];
-          for (const remoteInfo of listResponse.results) {
-            infoList.push({
-              name: remoteInfo.name ?? '<undefined>',
-              title: remoteInfo.title ?? '<undefined>',
-              summary: remoteInfo.summary ?? '<undefined>',
-              selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
-              versions: remoteInfo.releases?.map(r => r.version).sort().reverse() ?? [],
-            });
-          }
-          this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
+        let namelist = modList.map(mo => mo.name);
+        let all = this.fetchModListInfoSinglePage(namelist, 1)
+          .pipe(
+            expand((data, _) => {
+              return data.nextPage.match({
+                Some: nextPage => this.fetchModListInfoSinglePage(namelist, nextPage),
+                None: () => EMPTY,
+              });
+            }),
+            reduce((acc: ModInfoBatch[], data) => {
+              return acc.concat(data.results);
+            }, []),
+          )
+          .subscribe(modInfoBatch => {
+            const infoList: ModInfo[] = [];
+            for (const remoteInfo of modInfoBatch) {
+              infoList.push({
+                name: remoteInfo.name ?? '<undefined>',
+                title: remoteInfo.title ?? '<undefined>',
+                summary: remoteInfo.summary ?? '<undefined>',
+                selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
+                versions: remoteInfo.releases?.map(r => r.version).sort().reverse() ?? [],
+              });
+            }
+            this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
 
-          this.ready = true;
-        });
+            this.ready = true;
+          });
       }
     });
   }
