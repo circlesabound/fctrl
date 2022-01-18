@@ -2,6 +2,7 @@
   "name": "fctrl",
   "version": "0.1.0",
   "devDependencies": {
-    "@openapitools/openapi-generator-cli": "2.4.12"
+    "@openapitools/openapi-generator-cli": "2.4.25",
+    "follow-redirects": ">=1.14.7"
   }
 }

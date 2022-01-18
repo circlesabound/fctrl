@@ -1,23 +1,23 @@
-FROM instrumentisto/rust:nightly-2021-10-14 AS prepare
+FROM rustlang/rust:nightly AS prepare
 WORKDIR /usr/src/app
 COPY rust-toolchain.toml .
-RUN cargo install cargo-chef --version 0.1.31
+RUN cargo install cargo-chef --version 0.1.33
 COPY Cargo.toml .
 COPY Cargo.lock .
 COPY tests tests
 COPY src src
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM instrumentisto/rust:nightly-2021-10-14 AS cache
+FROM rustlang/rust:nightly AS cache
 WORKDIR /usr/src/app
 COPY rust-toolchain.toml .
-RUN cargo install cargo-chef --version 0.1.31
+RUN cargo install cargo-chef --version 0.1.33
 RUN apt-get update \
     && apt-get install -y clang
 COPY --from=prepare /usr/src/app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
-FROM instrumentisto/rust:nightly-2021-10-14 AS builder
+FROM rustlang/rust:nightly AS builder
 WORKDIR /usr/src/app
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash \
     && apt-get update \
@@ -37,7 +37,7 @@ COPY tests tests
 COPY src src
 RUN cargo build --release --bin mgmt-server
 
-FROM node:alpine AS web-builder
+FROM node:16-alpine AS web-builder
 WORKDIR /app/web
 COPY web/package.json /app/web/package.json
 COPY web/package-lock.json /app/web/package-lock.json
