@@ -28,8 +28,11 @@ impl ProcessManager {
     }
 
     pub async fn status(&self) -> ProcessStatus {
-        self.instance_is_running_or_cleanup().await;
-        self.internal_status().await
+        if !self.instance_is_running_or_cleanup().await {
+            ProcessStatus::NotRunning
+        } else {
+            self.internal_status().await
+        }
     }
 
     pub async fn start_instance<B: StartableInstanceBuilder>(&self, builder: B) -> Result<()> {
@@ -184,11 +187,16 @@ pub async fn parse_process_stdout(
                     // Parse for internal server state (whether the game is running, stopped, etc)
                     lazy_static! {
                         static ref STATE_CHANGE_RE: Regex =
-                            Regex::new(r"changing state from\(([a-zA-Z]+)\) to\(([a-zA-Z]+)\)").unwrap();
+                            Regex::new(r"changing state from\(([a-zA-Z]+)\) to\(([a-zA-Z]+)\)")
+                                .unwrap();
                     }
                     if let Some(captures) = STATE_CHANGE_RE.captures(&line) {
-                        if let Ok(from) = InternalServerState::from_str(captures.get(1).unwrap().as_str()) {
-                            if let Ok(to) = InternalServerState::from_str(captures.get(2).unwrap().as_str()) {
+                        if let Ok(from) =
+                            InternalServerState::from_str(captures.get(1).unwrap().as_str())
+                        {
+                            if let Ok(to) =
+                                InternalServerState::from_str(captures.get(2).unwrap().as_str())
+                            {
                                 info!(
                                     "Server switching internal state from {:?} to {:?}",
                                     from, to
@@ -227,9 +235,10 @@ pub async fn parse_process_stdout(
 
                     // If not already open, parse for "RCON ready message", then attempt to connect
                     lazy_static! {
-                        static ref RCON_READY_RE: Regex =
-                            Regex::new(r"Starting RCON interface at IP ADDR:\(\{\d+\.\d+\.\d+\.\d+:(\d+)\}\)")
-                                .unwrap();
+                        static ref RCON_READY_RE: Regex = Regex::new(
+                            r"Starting RCON interface at IP ADDR:\(\{\d+\.\d+\.\d+\.\d+:(\d+)\}\)"
+                        )
+                        .unwrap();
                     }
                     if !rcon_initialised {
                         if let Some(captures) = RCON_READY_RE.captures(&line) {
@@ -266,17 +275,19 @@ pub async fn parse_process_stdout(
                     // None means end of stream
                     break;
                 }
-            },
+            }
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::InvalidData {
                     // This happens when you try to use windows emoji keyboard in the in-game chat
                     debug!("Invalid UTF-8 encountered while reading line in parse_process_stdout, skipping. Error: {:?}", e);
                 } else {
-                    warn!("parse_process_stdout got unexpected error: {:?}. Breaking out of loop", e);
+                    warn!(
+                        "parse_process_stdout got unexpected error: {:?}. Breaking out of loop",
+                        e
+                    );
                     break;
                 }
-            },
+            }
         }
-        
     }
 }

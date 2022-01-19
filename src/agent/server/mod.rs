@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
     process::ExitStatus,
@@ -9,7 +10,7 @@ use std::{
 };
 
 use lazy_static::lazy_static;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -19,6 +20,7 @@ use strum_macros::EnumString;
 use tokio::io::AsyncBufReadExt;
 use tokio::process::*;
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 
 use crate::error::{Error, Result};
 use fctrl::schema::ServerStartSaveFile;
@@ -96,6 +98,34 @@ impl StartableInstance {
             warn!("Exiting stderr handler task");
         });
 
+        let player_count_clone = Arc::clone(&player_count);
+        let rcon_clone = Arc::clone(&rcon);
+        let player_count_refresh_task = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                if let Some(rcon) = rcon_clone.read().await.as_ref() {
+                    match rcon.send("/players online count").await {
+                        Ok(resp) => {
+                            // remove all non digits
+                            let digits: String = resp.chars().filter(|c| c.is_digit(10)).collect();
+                            match digits.parse::<u32>() {
+                                Ok(count) => {
+                                    player_count_clone.store(count, Ordering::Release);
+                                    debug!("Timer queried player count as {}, updating internal state to match", count);
+                                }
+                                Err(e) => {
+                                    warn!("Parse error when querying player count via RCON: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Error querying player count via RCON: {}", e);
+                        }
+                    }
+                }
+            }
+        });
+
         Ok(StartedInstance {
             process: instance,
             rcon,
@@ -105,6 +135,7 @@ impl StartableInstance {
             launch_settings: self.launch_settings,
             savefile: self.savefile,
             server_settings: self.server_settings,
+            player_count_refresh_task,
             _optional_args: self._optional_args,
         })
     }
@@ -119,6 +150,7 @@ pub struct StartedInstance {
     launch_settings: LaunchSettings,
     savefile: ServerStartSaveFile,
     server_settings: ServerSettings,
+    player_count_refresh_task: JoinHandle<()>,
     _optional_args: Vec<String>,
 }
 
@@ -132,6 +164,8 @@ impl StartedInstance {
     /// - sending SIGTERM failed
     /// - wait() on the process failed
     pub async fn stop(mut self) -> Result<StoppedInstance> {
+        self.player_count_refresh_task.abort();
+
         if let Some(exit_status) = self.process.try_wait()? {
             // process already exited
             warn!(
@@ -165,6 +199,8 @@ impl StartedInstance {
     }
 
     pub async fn wait(mut self) -> Result<StoppedInstance> {
+        self.player_count_refresh_task.abort();
+
         let exit_status = self.process.wait().await?;
         info!("Child process exited with status {}", exit_status);
 

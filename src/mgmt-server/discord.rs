@@ -1,8 +1,9 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, time::Duration};
 
+use fctrl::schema::ServerStatus;
 use futures::{pin_mut, StreamExt};
-use log::{error, info};
+use log::{error, info, warn};
 use serenity::{
     client::{Cache, Context, EventHandler},
     http::Http,
@@ -37,10 +38,13 @@ impl DiscordClient {
         let mut client_builder = serenity::Client::builder(&bot_token);
         if let Some(chat_link_channel_id) = chat_link_channel_id {
             let d2g = DiscordToGameChatLinkHandler {
-                agent_client,
+                agent_client: Arc::clone(&agent_client),
                 listen_channel_id: chat_link_channel_id,
             };
-            client_builder = client_builder.event_handler(d2g);
+            let presence = PresenceHandler {
+                agent_client: Arc::clone(&agent_client),
+            };
+            client_builder = client_builder.event_handler(d2g).event_handler(presence);
         } else {
             info!("Discord chat link channel id not provided, chat link functionality will be disabled");
         }
@@ -249,6 +253,7 @@ struct DiscordToGameChatLinkHandler {
 impl EventHandler for DiscordToGameChatLinkHandler {
     async fn message(&self, _ctx: Context, msg: Message) {
         if msg.channel_id == self.listen_channel_id && !msg.author.bot {
+            // TODO indicate if it's a reply
             // TODO handle empty messages with embeds, attachments, etc
             let message_text = format!("{}: {}", msg.author.name, msg.content);
             let message_text = message_text.replace('\\', "\\\\");
@@ -265,5 +270,41 @@ impl EventHandler for DiscordToGameChatLinkHandler {
 
     async fn ready(&self, _ctx: Context, _ready: Ready) {
         info!("DiscordToGameChatLinkHandler ready");
+    }
+}
+
+struct PresenceHandler {
+    agent_client: Arc<AgentApiClient>,
+}
+
+#[serenity::async_trait]
+impl EventHandler for PresenceHandler {
+    async fn ready(&self, ctx: Context, _: Ready) {
+        info!("PresenceHandler ready");
+        let agent_client = Arc::clone(&self.agent_client);
+        tokio::spawn(async move {
+            // update presence info with server status every 15 seconds
+            loop {
+                match agent_client.server_status().await {
+                    Ok(ss) => {
+                        let formatted = match ss {
+                            ServerStatus::NotRunning
+                            | ServerStatus::PreGame
+                            | ServerStatus::PostGame => "Server offline".to_owned(),
+                            ServerStatus::InGame { player_count } => {
+                                format!("{} players online", player_count)
+                            }
+                        };
+                        let activity = Activity::playing(formatted);
+                        ctx.set_activity(activity).await;
+                    }
+                    Err(e) => warn!(
+                        "Error querying server status to update Discord presence: {}",
+                        e
+                    ),
+                }
+                tokio::time::sleep(Duration::from_secs(15)).await;
+            }
+        });
     }
 }
