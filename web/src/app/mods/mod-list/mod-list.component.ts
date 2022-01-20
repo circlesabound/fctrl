@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import compareVersions from 'compare-versions';
 import { faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
 import { EMPTY, Observable, of, Subject, timer } from 'rxjs';
@@ -94,7 +95,7 @@ export class ModListComponent implements OnInit {
                 title: remoteInfo.title ?? '<undefined>',
                 summary: remoteInfo.summary ?? '<undefined>',
                 selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
-                versions: remoteInfo.releases?.map(r => r.version).sort().reverse() ?? [],
+                versions: remoteInfo.releases?.map(r => r.version).sort(compareVersions).reverse() ?? [],
               });
             }
             this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
