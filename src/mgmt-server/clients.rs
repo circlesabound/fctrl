@@ -21,7 +21,7 @@ use log::{error, info, trace, warn};
 use regex::Regex;
 use stream_cancel::Valved;
 use tokio::sync::{mpsc, Mutex};
-use tokio_tungstenite::tungstenite::{Message, protocol::frame::Frame};
+use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
 use crate::{

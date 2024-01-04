@@ -126,15 +126,15 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn can_install_version_1_1_32() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    async fn can_install_version_1_1_92() -> std::result::Result<(), Box<dyn std::error::Error>> {
         fctrl::util::testing::logger_init();
 
         let tmp_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
         fs::create_dir(&tmp_dir).await?;
         let mut vm = VersionManager::new(&tmp_dir).await?;
-        vm.install("1.1.32".to_owned()).await?;
+        vm.install("1.1.92".to_owned()).await?;
 
-        assert!(vm.versions.contains_key("1.1.32"));
+        assert!(vm.versions.contains_key("1.1.92"));
 
         let _ = fs::remove_dir_all(tmp_dir).await;
 

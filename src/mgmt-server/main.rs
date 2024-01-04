@@ -1,4 +1,4 @@
-#![feature(bool_to_option, decl_macro)]
+#![feature(decl_macro)]
 
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 

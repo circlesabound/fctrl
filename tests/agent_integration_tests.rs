@@ -11,7 +11,7 @@ use tokio::{
 
 use fctrl::{schema::*, util};
 
-const VERSION_TO_INSTALL: &'static str = "1.1.32";
+const VERSION_TO_INSTALL: &'static str = "1.1.92";
 
 struct AgentTestFixture {
     agent: Child,
