@@ -10,7 +10,7 @@ use fctrl::schema::{
     ServerStartSaveFile, ServerStatus,
 };
 use rocket::serde::json::Json;
-use rocket::{get, post, put, response::content};
+use rocket::{get, post, put};
 use rocket::{http::Status, State};
 
 use crate::{
@@ -242,9 +242,9 @@ pub async fn put_secrets(
 pub async fn get_server_settings(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
-) -> Result<content::Json<String>> {
+) -> Result<Json<String>> {
     let json_str = agent_client.config_server_settings_get().await?;
-    Ok(content::Json(json_str))
+    Ok(Json(json_str))
 }
 
 #[put("/server/config/server-settings", data = "<body>")]
@@ -308,12 +308,12 @@ pub async fn apply_mods_list<'a>(
 pub async fn get_mod_settings(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
-) -> Result<content::Json<String>> {
+) -> Result<Json<String>> {
     let bytes = agent_client.mod_settings_get().await?;
     let ms = ModSettings::try_from(bytes.0.as_ref())?;
     let json_str = serde_json::to_string(&ms)?;
 
-    Ok(content::Json(json_str))
+    Ok(Json(json_str))
 }
 
 #[put("/server/mods/settings", data = "<body>")]

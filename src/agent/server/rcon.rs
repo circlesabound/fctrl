@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use log::{debug, error};
-use tokio::{net::ToSocketAddrs, sync::Mutex};
+use tokio::{net::{ToSocketAddrs, TcpStream}, sync::Mutex};
 
 use crate::error::*;
 
 pub struct Rcon {
-    connection: Arc<Mutex<rcon::Connection>>,
+    connection: Arc<Mutex<rcon::Connection<TcpStream>>>,
 }
 
 impl Rcon {

@@ -1,14 +1,14 @@
 import { Component, OnInit } from '@angular/core';
-import compareVersions from 'compare-versions';
 import { faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
 import { EMPTY, Observable, of, Subject, timer } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, expand, map, reduce, switchMap, tap } from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, expand, map, reduce, switchMap } from 'rxjs/operators';
 import { ModInfoBatch, ModInfoShort } from 'src/app/factorio-mod-portal-api/models';
 import { FactorioModPortalApiService } from 'src/app/factorio-mod-portal-api/services';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
 import { OperationService } from 'src/app/operation.service';
 import { ModInfo } from './mod-info';
+import { compareVersions } from 'compare-versions';
 
 @Component({
   selector: 'app-mod-list',
@@ -95,7 +95,7 @@ export class ModListComponent implements OnInit {
                 title: remoteInfo.title ?? '<undefined>',
                 summary: remoteInfo.summary ?? '<undefined>',
                 selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
-                versions: remoteInfo.releases?.map(r => r.version).sort(compareVersions).reverse() ?? [],
+                versions: remoteInfo.releases?.map((r: { version: any; }) => r.version).sort(compareVersions).reverse() ?? [],
               });
             }
             this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));

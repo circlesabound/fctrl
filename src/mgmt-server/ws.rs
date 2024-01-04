@@ -1,8 +1,8 @@
 use std::{collections::HashMap, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
 
 use futures::{future, pin_mut, Future, FutureExt, SinkExt, Stream, StreamExt};
+use ::http::StatusCode;
 use log::{debug, error, info, warn};
-use rocket::http;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, oneshot, Mutex, MutexGuard},
@@ -134,7 +134,7 @@ impl WebSocketServer {
                     let handle_incoming_task = tokio::spawn(async move {
                         while let Some(Ok(msg)) = ws_rx.next().await {
                             match msg {
-                                Message::Text(_) | Message::Binary(_) | Message::Pong(_) => {
+                                Message::Text(_) | Message::Binary(_) | Message::Pong(_) | Message::Frame(_) => {
                                     // ignore
                                 }
                                 Message::Ping(_) => {
@@ -224,8 +224,8 @@ impl<'a> tokio_tungstenite::tungstenite::handshake::server::Callback
             let _ = self.tx_ws_tx.send(ws_tx);
             Ok(response)
         } else {
-            let mut response = http::hyper::Response::new(Some("no such route".to_owned()));
-            *response.status_mut() = http::hyper::StatusCode::BAD_REQUEST;
+            let mut response = ::http::response::Response::new(Some("no such route".to_owned()));
+            *response.status_mut() = StatusCode::BAD_REQUEST;
             Err(response)
         }
     }

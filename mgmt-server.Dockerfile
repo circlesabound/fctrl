@@ -19,8 +19,13 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 FROM rustlang/rust:nightly AS builder
 WORKDIR /usr/src/app
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash \
-    && apt-get update \
+RUN apt-get update \
+    && apt-get install -y ca-certificates curl gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && NODE_MAJOR=20 \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+RUN apt-get update \
     && apt-get install -y clang nodejs openjdk-11-jre-headless
 COPY openapitools.json .
 COPY package-lock.json .
@@ -37,7 +42,7 @@ COPY tests tests
 COPY src src
 RUN cargo build --release --bin mgmt-server
 
-FROM node:16-alpine AS web-builder
+FROM node:current-alpine AS web-builder
 WORKDIR /app/web
 COPY web/package.json /app/web/package.json
 COPY web/package-lock.json /app/web/package-lock.json

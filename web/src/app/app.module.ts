@@ -21,7 +21,7 @@ import { BanListComponent } from './server-config/ban-list/ban-list.component';
 import { WhiteListComponent } from './server-config/white-list/white-list.component';
 import { NotificationsComponent } from './notifications/notifications.component';
 import { EditableListComponent } from './editable-list/editable-list.component';
-import { MonacoEditorModule } from 'ngx-monaco-editor';
+import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.component';
 import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-mod-portal-api.module';
 import { environment } from 'src/environments/environment';

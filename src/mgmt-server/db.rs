@@ -129,7 +129,7 @@ impl Db {
         let mut continue_from = None;
         let mut records = vec![];
         for i in 0..count {
-            if let Some((k, v)) = iter.next() {
+            if let Some(Ok((k, v))) = iter.next() {
                 let record = Record {
                     key: String::from_utf8_lossy(&k).to_string(),
                     value: String::from_utf8_lossy(&v).to_string(),
@@ -141,9 +141,10 @@ impl Db {
 
             // Read n+1 to get a continuation point
             if i == count - 1 {
-                continue_from = iter
-                    .next()
-                    .map(|(k, _)| String::from_utf8_lossy(&k).to_string());
+                let c = iter.next();
+                if let Some(Ok((k, _))) = c {
+                    continue_from = Some(String::from_utf8_lossy(&k).to_string());
+                }
             }
         }
 

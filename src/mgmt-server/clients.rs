@@ -21,7 +21,7 @@ use log::{error, info, trace, warn};
 use regex::Regex;
 use stream_cancel::Valved;
 use tokio::sync::{mpsc, Mutex};
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{Message, protocol::frame::Frame};
 use uuid::Uuid;
 
 use crate::{
@@ -496,6 +496,9 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
                             warn!("Agent requested to close the websocket connection");
                             let _ = ws_write.lock().await.close().await;
                             break;
+                        }
+                        Message::Frame(_) => {
+                            // not too sure but ignore
                         }
                     }
                 }

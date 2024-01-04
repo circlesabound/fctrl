@@ -23,10 +23,10 @@ impl<'r> FromRequest<'r> for HostHeader<'r> {
                 // remove the port if any
                 match h.split(':').next() {
                     Some(hostname) => Outcome::Success(HostHeader { hostname, host: h }),
-                    None => Outcome::Forward(()),
+                    None => Outcome::Forward(Status::InternalServerError),
                 }
             }
-            None => Outcome::Forward(()),
+            None => Outcome::Forward(Status::InternalServerError),
         }
     }
 }
@@ -56,18 +56,18 @@ impl<'r> FromRequest<'r> for UserIdentity {
                         if let Ok(id) = authn_mgr.get_id_details(token).await {
                             Outcome::Success(id)
                         } else {
-                            Outcome::Failure((Status::Forbidden, AuthError::TokenInvalid))
+                            Outcome::Error((Status::Forbidden, AuthError::TokenInvalid))
                         }
                     } else {
-                        Outcome::Failure((Status::Forbidden, AuthError::Malformed))
+                        Outcome::Error((Status::Forbidden, AuthError::Malformed))
                     }
                 } else {
-                    Outcome::Failure((Status::Forbidden, AuthError::Missing))
+                    Outcome::Error((Status::Forbidden, AuthError::Missing))
                 }
             }
         } else {
             error!("Failed to retrieve AuthnManager, this should never happen!");
-            Outcome::Failure((Status::InternalServerError, AuthError::InternalError))
+            Outcome::Error((Status::InternalServerError, AuthError::InternalError))
         }
     }
 }
@@ -85,14 +85,14 @@ impl<'r> FromRequest<'r> for AuthorizedUser {
                     if authz_mgr.authorize(&id) {
                         Outcome::Success(AuthorizedUser(id))
                     } else {
-                        Outcome::Failure((Status::Forbidden, AuthError::Unauthorized))
+                        Outcome::Error((Status::Forbidden, AuthError::Unauthorized))
                     }
                 } else {
                     error!("Failed to retrieve AuthzManager, this should never happen!");
-                    Outcome::Failure((Status::InternalServerError, AuthError::InternalError))
+                    Outcome::Error((Status::InternalServerError, AuthError::InternalError))
                 }
             }
-            Outcome::Failure(f) => Outcome::Failure(f),
+            Outcome::Error(f) => Outcome::Error(f),
             Outcome::Forward(f) => Outcome::Forward(f),
         }
     }

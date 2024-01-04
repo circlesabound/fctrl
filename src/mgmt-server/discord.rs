@@ -4,6 +4,7 @@ use std::{collections::HashMap, time::Duration};
 use fctrl::schema::ServerStatus;
 use futures::{pin_mut, StreamExt};
 use log::{error, info, warn};
+use serenity::gateway::ActivityData;
 use serenity::{
     client::{Cache, Context, EventHandler},
     http::Http,
@@ -35,7 +36,7 @@ impl DiscordClient {
         event_broker: Arc<EventBroker>,
     ) -> Result<DiscordClient> {
         let cache = Arc::new(Cache::new());
-        let mut client_builder = serenity::Client::builder(&bot_token);
+        let mut client_builder = serenity::Client::builder(&bot_token, GatewayIntents::all());
         if let Some(chat_link_channel_id) = chat_link_channel_id {
             let handler = Handler {
                 agent_client: Arc::clone(&agent_client),
@@ -57,8 +58,8 @@ impl DiscordClient {
             let bot_token_clone = bot_token.clone();
             let (chat_link_tx, mut rx) = mpsc::unbounded_channel();
             tokio::spawn(async move {
-                let http = Http::new_with_token(&bot_token_clone);
-                let channel = ChannelId(chat_link_channel_id);
+                let http = Http::new(&bot_token_clone);
+                let channel = ChannelId::new(chat_link_channel_id);
                 while let Some(line) = rx.recv().await {
                     if let Err(e) = channel.say(&http, line).await {
                         error!("Couldn't send message to Discord: {:?}", e);
@@ -75,10 +76,10 @@ impl DiscordClient {
             let bot_token_clone = bot_token.clone();
             let (alert_tx_inner, mut rx) = mpsc::unbounded_channel();
             alert_tx = Some(alert_tx_inner);
-            alert_channel_http = Some(Http::new_with_token(&bot_token_clone));
+            alert_channel_http = Some(Http::new(&bot_token_clone));
             tokio::spawn(async move {
-                let http = Http::new_with_token(&bot_token_clone);
-                let channel = ChannelId(alert_channel_id);
+                let http = Http::new(&bot_token_clone);
+                let channel = ChannelId::new(alert_channel_id);
                 while let Some(message) = rx.recv().await {
                     if let Err(e) = channel.say(&http, message).await {
                         error!("Couldn't send message to Discord: {:?}", e);
@@ -102,17 +103,21 @@ impl DiscordClient {
     /// Returns a mapping from snowflake id to username#discriminator
     pub async fn get_user_list(&self) -> Result<HashMap<String, String>> {
         if let Some(http) = &self.alert_channel_http {
-            let channel = ChannelId(self.alert_channel_id.unwrap());
+            let channel = ChannelId::new(self.alert_channel_id.unwrap());
             let ch = channel.to_channel((&self.cache, http)).await?;
             match ch.guild() {
                 Some(g) => {
-                    let members = http.get_guild_members(g.guild_id.0, None, None).await?;
+                    let members = http.get_guild_members(g.guild_id, None, None).await?;
                     let not_bots = members.into_iter().filter(|m| !m.user.bot);
                     Ok(not_bots
                         .map(|m| {
                             (
                                 m.user.id.to_string(),
-                                format!("{}#{:04}", m.user.name, m.user.discriminator),
+                                if let Some(discriminator) = m.user.discriminator {
+                                    format!("{}#{:04}", m.user.name, discriminator)
+                                } else {
+                                    m.user.name
+                                }
                             )
                         })
                         .collect())
@@ -136,7 +141,7 @@ impl DiscordClient {
                     if let Some(tx) = &self.alert_tx {
                         let message = mb
                             .push(" for ")
-                            .mention(&UserId(target_id))
+                            .mention(&UserId::new(target_id))
                             .push(": ")
                             .push(alert_msg)
                             .build();
@@ -280,15 +285,15 @@ impl EventHandler for Handler {
                                 format!("{} players online", player_count)
                             }
                         };
-                        let activity = Activity::playing(formatted);
-                        ctx.set_activity(activity).await;
+                        let activity = ActivityData::custom(formatted);
+                        ctx.set_activity(Some(activity));
                     }
                     Err(e) => warn!(
                         "Error querying server status to update Discord presence: {}",
                         e
                     ),
                 }
-                tokio::time::sleep(Duration::from_secs(15)).await;
+                tokio::time::sleep(Duration::from_secs(5)).await;
             }
         });
 
