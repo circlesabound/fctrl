@@ -13,6 +13,7 @@ pub struct Db {
     primary: RocksDbMultiThreaded,
 }
 
+#[allow(unused)]
 impl Db {
     pub async fn open_or_new(db_dir: impl AsRef<Path>) -> Result<Db> {
         fs::create_dir_all(&db_dir).await?;

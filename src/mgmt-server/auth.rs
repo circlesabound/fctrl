@@ -118,6 +118,7 @@ impl AuthnManager {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn oauth_refresh(&self, original_token: String) -> Result<OAuthTokenResponse> {
         if let AuthnProvider::Discord {
             client_id,
@@ -246,6 +247,7 @@ impl From<DiscordUser> for UserIdentity {
 
 pub struct AuthorizedUser(pub UserIdentity);
 
+#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 struct DiscordUser {
     id: String,
@@ -261,6 +263,7 @@ pub enum AuthnProvider {
     },
 }
 
+#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 struct OAuthTokenFullResponse {
     access_token: String,
