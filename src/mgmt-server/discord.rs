@@ -32,6 +32,7 @@ impl DiscordClient {
         bot_token: String,
         alert_channel_id: Option<u64>,
         chat_link_channel_id: Option<u64>,
+        chat_link_preserve_achievements: bool,
         agent_client: Arc<AgentApiClient>,
         event_broker: Arc<EventBroker>,
     ) -> Result<DiscordClient> {
@@ -42,6 +43,7 @@ impl DiscordClient {
             let handler = Handler {
                 agent_client: Arc::clone(&agent_client),
                 listen_channel_id: chat_link_channel_id,
+                chat_link_preserve_achievements,
             };
             client_builder = client_builder.event_handler(handler);
         } else {
@@ -250,6 +252,7 @@ impl DiscordClient {
 struct Handler {
     agent_client: Arc<AgentApiClient>,
     listen_channel_id: u64,
+    chat_link_preserve_achievements: bool,
 }
 
 #[serenity::async_trait]
@@ -261,7 +264,10 @@ impl EventHandler for Handler {
             let message_text = format!("{}: {}", msg.author.name, msg.content);
             let message_text = message_text.replace('\\', "\\\\");
             let message_text = message_text.replace('\'', "\\'");
-            let command = format!("/silent-command game.print('[Discord] {}')", message_text);
+            let command = match self.chat_link_preserve_achievements {
+                true => format!("[Discord] {}", message_text),
+                false => format!("/silent-command game.print('[Discord] {}')", message_text),
+            };
             if let Err(e) = self.agent_client.rcon_command(command).await {
                 error!(
                     "Couldn't send message via agent_client rcon_command: {:?}",

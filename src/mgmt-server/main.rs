@@ -62,11 +62,16 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 Ok(s) => Some(s.parse()?),
                 Err(_) => None,
             };
+            let chat_link_preserve_achievements = match std::env::var("DISCORD_CHAT_LINK_PRESERVE_ACHIEVEMENTS") {
+                Ok(s) => s.parse()?,
+                Err(_) => true,
+            };
             Some(
                 DiscordClient::new(
                     discord_bot_token,
                     alert_channel_id,
                     chat_link_channel_id,
+                    chat_link_preserve_achievements,
                     Arc::clone(&agent_client),
                     Arc::clone(&event_broker),
                 )

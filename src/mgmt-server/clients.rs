@@ -27,10 +27,7 @@ use uuid::Uuid;
 use crate::{
     error::{Error, Result},
     events::{
-        broker::EventBroker, Event, TopicName, CHAT_TOPIC_NAME, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME,
-        OPERATION_TOPIC_NAME, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY,
-        STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC,
-        STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
+        broker::EventBroker, Event, TopicName, CHAT_TOPIC_NAME, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME, OPERATION_TOPIC_NAME, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_CHAT_DISCORD_ECHO_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC, STDOUT_TOPIC_SYSTEMLOG_CATEGORY
     },
 };
 
@@ -631,6 +628,8 @@ fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item 
 
 fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String>) {
     lazy_static! {
+        static ref CHAT_DISCORD_ECHO_RE: Regex =
+            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] <server>: \[Discord\] (.+)$").unwrap();
         static ref CHAT_RE: Regex =
             Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();
         static ref JOIN_RE: Regex =
@@ -642,7 +641,15 @@ fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String
         static ref RPC_RE: Regex = Regex::new(r"^FCTRL_RPC (.+)$").unwrap();
     }
 
-    if let Some(chat_captures) = CHAT_RE.captures(message) {
+    if let Some(chat_captures) = CHAT_DISCORD_ECHO_RE.captures(message) {
+        // echo from achievement-preserve setting discord chat link
+        // tag separately and not as regular chat
+        let _timestamp = chat_captures.get(1).unwrap().as_str().to_string();
+        tags.insert(
+            TopicName(STDOUT_TOPIC_NAME.to_string()),
+            STDOUT_TOPIC_CHAT_DISCORD_ECHO_CATEGORY.to_string(),
+        );
+    } else if let Some(chat_captures) = CHAT_RE.captures(message) {
         let _timestamp = chat_captures.get(1).unwrap().as_str().to_string();
         let user = chat_captures.get(2).unwrap().as_str().to_string();
         let msg = chat_captures.get(3).unwrap().as_str().to_string();
