@@ -40,6 +40,27 @@ pub async fn status(
     }))
 }
 
+#[post("/server/control/create", data = "<savefile>")]
+pub async fn create_savefile<'a>(
+    host: HostHeader<'a>,
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+    ws: &State<Arc<WebSocketServer>>,
+    savefile: Json<ServerControlCreatePostRequest>,
+) -> Result<WsStreamingResponder> {
+    let (id, sub) = agent_client.save_create(savefile.into_inner().savefile).await?;
+
+    let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
+
+    let ws = Arc::clone(&ws);
+    let path = resp.path.clone();
+    tokio::spawn(async move {
+        ws.stream_at(path, sub, Duration::from_secs(300)).await;
+    });
+
+    Ok(resp)
+}
+
 #[post("/server/control/start", data = "<savefile>")]
 pub async fn start_server(
     _a: AuthorizedUser,
@@ -96,7 +117,7 @@ pub async fn upgrade_install<'a>(
     Ok(resp)
 }
 
-#[get("/server/savefile")]
+#[get("/server/savefiles")]
 pub async fn get_savefiles(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
@@ -112,25 +133,14 @@ pub async fn get_savefiles(
     Ok(Json(ret))
 }
 
-#[put("/server/savefile/<id>")]
-pub async fn create_savefile<'a>(
-    host: HostHeader<'a>,
+#[get("/server/savefiles/<id>")]
+pub async fn get_savefile(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
-    ws: &State<Arc<WebSocketServer>>,
     id: String,
-) -> Result<WsStreamingResponder> {
-    let (id, sub) = agent_client.save_create(id).await?;
-
-    let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
-
-    let ws = Arc::clone(&ws);
-    let path = resp.path.clone();
-    tokio::spawn(async move {
-        ws.stream_at(path, sub, Duration::from_secs(300)).await;
-    });
-
-    Ok(resp)
+) -> Result<Option<WsStreamingResponder>> {
+    // TODO not implemented
+    Err(crate::error::Error::NotImplemented)
 }
 
 #[get("/server/config/adminlist")]

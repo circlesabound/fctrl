@@ -1,6 +1,6 @@
 <div class="navbar-item has-dropdown" [ngClass]="{'is-active': notificationsExpanded}" (clickOutside)="notificationsExpanded = false">
   <a class="navbar-link" (click)="notificationsExpanded = !notificationsExpanded">
-    Notifications
+    Notifications ({{operationService.notifications.length}})
   </a>
 
   <div class="navbar-dropdown is-right">

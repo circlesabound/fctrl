@@ -308,8 +308,16 @@ impl AgentController {
                             self.save_create(save_name, operation_id).await
                         }
 
+                        AgentRequest::SaveGet(save_name) => {
+                            todo!()
+                        }
+
                         AgentRequest::SaveList => {
                             self.save_list(operation_id).await;
+                        }
+
+                        AgentRequest::SaveSet(save_name, bytes) => {
+                            todo!()
                         }
 
                         // **************

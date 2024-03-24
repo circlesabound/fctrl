@@ -8,14 +8,26 @@
   <input type="text" [(ngModel)]="installVersionString">
   <button (click)="installVersion()">Install</button>
 </p>
-<p>
-  Saves:
-  <select [(ngModel)]="selectedSave">
-    <option disabled selected style="display:none"></option>
-    <option *ngFor="let name of saves">{{name}}</option>
-  </select>
-  <button (click)="startServer()">Start</button>
-  <button (click)="deleteSave()">Delete</button>
-  <input type="text" [(ngModel)]="createSaveName">
-  <button (click)="createSave()">Create</button>
-</p>
+
+<h3>Saves:</h3>
+
+<!-- TODO fix dropdown placement -->
+<mat-form-field>
+  <mat-label>Existing save files</mat-label>
+  <mat-select placeholder="Select a save" [(value)]="selectedSave" (selectionChange)="saveSelectionChange($event)">
+    <mat-option *ngFor="let name of saves" [value]="name">{{name}}</mat-option>
+  </mat-select>
+  <span matTextSuffix>.zip</span>
+</mat-form-field>
+<button mat-raised-button [disabled]="!saveIsSelected" (click)="startServer()">Start</button>
+<a [href]="saveDownloadHref" [download]="saveDownloadName"><button [disabled]="!saveIsSelected">Download</button></a>
+<button mat-raised-button [disabled]="!saveIsSelected" (click)="deleteSave()">Delete</button>
+
+<h4>Create new save file</h4>
+<mat-form-field>
+  <mat-label>Name</mat-label>
+  <input matInput type="text" class="right-align" [(ngModel)]="createSaveName">
+  <span matTextSuffix>.zip</span>
+</mat-form-field>
+
+<button mat-raised-button (click)="createSave()">Create</button>

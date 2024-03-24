@@ -67,13 +67,17 @@ pub enum AgentRequest {
     // *********************************
     //
     //
-    /// Create a save file with the requested name.
+    /// Create a new save file with the requested name.
     /// This will overwrite any existing save file of that name.
     ///
     /// **This is a long-running operation.**
     SaveCreate(String),
+    /// Gets the save file zip from the server
+    SaveGet(String),
     /// Get a list of the save files present on the server.
     SaveList,
+    /// Upserts a save file with the requested name
+    SaveSet(String, SaveBytes),
 
     // *********************************
     // * Mod management                *
@@ -204,6 +208,9 @@ pub struct Save {
     pub name: String,
     pub last_modified: DateTime<Utc>,
 }
+
+#[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
+pub struct SaveBytes(pub Vec<u8>);
 
 #[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
 pub struct ModSettingsBytes(pub Vec<u8>);

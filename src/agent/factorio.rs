@@ -18,10 +18,6 @@ pub struct Factorio {
     pub version: String,
 }
 
-impl Factorio {
-    //
-}
-
 pub struct VersionManager {
     install_dir: PathBuf,
     pub versions: HashMap<String, Factorio>,

@@ -36,7 +36,8 @@ impl DiscordClient {
         event_broker: Arc<EventBroker>,
     ) -> Result<DiscordClient> {
         let cache = Arc::new(Cache::new());
-        let mut client_builder = serenity::Client::builder(&bot_token, GatewayIntents::all()); // BUG figure out gateway intents
+        let gateway_intents = GatewayIntents::default() | GatewayIntents::MESSAGE_CONTENT;
+        let mut client_builder = serenity::Client::builder(&bot_token, gateway_intents);
         if let Some(chat_link_channel_id) = chat_link_channel_id {
             let handler = Handler {
                 agent_client: Arc::clone(&agent_client),

@@ -2,10 +2,13 @@ import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { forwardRef, NgModule, Provider } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BrowserModule, Title } from '@angular/platform-browser';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations'
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
-import { DashboardComponent } from './dashboard/dashboard.component';
 import { ServerConfigComponent } from './server-config/server-config.component';
 import { ModsComponent } from './mods/mods.component';
 import { LogsComponent } from './logs/logs.component';
@@ -26,7 +29,6 @@ import { ModObjectComponent } from './mods/mod-list/mod-object/mod-object.compon
 import { FactorioModPortalApiModule } from './factorio-mod-portal-api/factorio-mod-portal-api.module';
 import { environment } from 'src/environments/environment';
 import { ClickOutsideModule } from 'ng-click-outside';
-import { StatusComponent } from './dashboard/status/status.component';
 import { ChatComponent } from './logs/chat/chat.component';
 import { SystemComponent } from './logs/system/system.component';
 import { Dashboard2Component } from './dashboard2/dashboard2.component';
@@ -44,7 +46,6 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
 @NgModule({
   declarations: [
     AppComponent,
-    DashboardComponent,
     ServerConfigComponent,
     ModsComponent,
     LogsComponent,
@@ -59,7 +60,6 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
     NotificationsComponent,
     EditableListComponent,
     ModObjectComponent,
-    StatusComponent,
     ChatComponent,
     SystemComponent,
     Dashboard2Component,
@@ -69,9 +69,13 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
   ],
   imports: [
     BrowserModule,
+    BrowserAnimationsModule,
     AppRoutingModule,
     FormsModule,
     HttpClientModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
     MgmtServerRestApiModule.forRoot({ rootUrl: `${window.location.protocol}//${environment.backendHost}/api/v0` }),
     FactorioModPortalApiModule.forRoot({ rootUrl: `${window.location.protocol}//${environment.backendHost}/proxy` }),
     FontAwesomeModule,
