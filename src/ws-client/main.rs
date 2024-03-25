@@ -233,10 +233,13 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
         }),
         "ConfigServerSettingsSet" => {
             let json = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
-            Some(AgentRequestWithId {
-                operation_id,
-                message: AgentRequest::ConfigServerSettingsSet { json },
-            })
+            match serde_json::from_str(&json) {
+                Ok(config) => Some(AgentRequestWithId {
+                    operation_id,
+                    message: AgentRequest::ConfigServerSettingsSet { config },
+                }),
+                Err(_) => None,
+            }
         }
         "RconCommand" => {
             let cmd = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");

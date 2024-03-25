@@ -3,6 +3,7 @@ use std::{
     path::PathBuf,
 };
 
+use fctrl::schema::ServerSettingsConfig;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -388,7 +389,7 @@ impl WhiteList {
     }
 }
 pub struct ServerSettings {
-    pub json: String,
+    pub config: ServerSettingsConfig,
     pub path: PathBuf,
 }
 
@@ -399,10 +400,18 @@ impl ServerSettings {
             Ok(None)
         } else {
             match fs::read_to_string(path).await {
-                Ok(s) => Ok(Some(ServerSettings {
-                    json: s,
-                    path: path.clone(),
-                })),
+                Ok(s) => {
+                    match serde_json::from_str(&s) {
+                        Ok(config) => Ok(Some(ServerSettings {
+                            config,
+                            path: path.clone(),
+                        })),
+                        Err(e) => {
+                            error!("Error deserialising server settings: {:?}", e);
+                            Err(e.into())
+                        }
+                    }
+                },
                 Err(e) => {
                     error!("Error reading server settings: {:?}", e);
                     Err(e.into())
@@ -416,9 +425,9 @@ impl ServerSettings {
             Some(ls) => Ok(ls),
             None => {
                 info!("Generating server settings using defaults");
-                let defaults = ServerSettings::read_default_server_settings(installation).await?;
+                let config = ServerSettings::read_default_server_settings(installation).await?;
                 let s = ServerSettings {
-                    json: defaults,
+                    config,
                     path: SERVER_SETTINGS_PATH.clone(),
                 };
                 if let Err(e) = s.write().await {
@@ -431,9 +440,9 @@ impl ServerSettings {
         }
     }
 
-    pub async fn set(json: String) -> Result<()> {
+    pub async fn set(config: ServerSettingsConfig) -> Result<()> {
         let ss = ServerSettings {
-            json,
+            config,
             path: SERVER_SETTINGS_PATH.clone(),
         };
         ss.write().await
@@ -455,7 +464,9 @@ impl ServerSettings {
             return Err(e.into());
         }
 
-        if let Err(e) = fs::write(&self.path, &self.json).await {
+        let pretty_out = serde_json::to_string_pretty(&self.config)?;
+
+        if let Err(e) = fs::write(&self.path, pretty_out).await {
             error!(
                 "Error writing server settings to {}: {:?}",
                 self.path.display(),
@@ -467,14 +478,14 @@ impl ServerSettings {
         }
     }
 
-    async fn read_default_server_settings(installation: &Factorio) -> Result<String> {
+    async fn read_default_server_settings(installation: &Factorio) -> Result<ServerSettingsConfig> {
         let path = installation
             .path
             .join("factorio")
             .join("data")
             .join("server-settings.example.json");
         match fs::read_to_string(path).await {
-            Ok(s) => Ok(s),
+            Ok(s) => Ok(serde_json::from_str(&s)?),
             Err(e) => {
                 error!("Error reading default server settings: {:?}", e);
                 Err(e.into())

@@ -19,7 +19,8 @@ export class Dashboard2Component implements OnInit {
   saveDownloadName: string;
   saveIsSelected: boolean;
 
-  saves: string[];
+  downloadAvailableVersions: string[] = [];
+  saves: string[] = [];
 
   constructor(
     private apiClient: MgmtServerRestApiService,
@@ -34,7 +35,6 @@ export class Dashboard2Component implements OnInit {
     this.saveDownloadHref = '';
     this.saveDownloadName = '';
     this.saveIsSelected = false;
-    this.saves = [];
   }
 
   ngOnInit(): void {
@@ -56,6 +56,10 @@ export class Dashboard2Component implements OnInit {
     this.apiClient.serverInstallGet().subscribe(s => {
       this.version = s.version;
     });
+  }
+
+  private internalUpdateAvailableVersions(): void {
+    // TODO
   }
 
   saveSelectionChange(selectChangeEvent: MatSelectChange): void {

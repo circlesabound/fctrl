@@ -278,8 +278,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServerConfigServerSettings'
-        '204':
-          description: This response indicates that the server-settings JSON file is not initialised on the server. To remediate, either start the server once to automatically generate it, or manually push one to the server.
     put:
       summary: Pushes a server-settings file to the Factorio server for use.
       requestBody:
@@ -578,7 +576,84 @@ components:
           nullable: true
           type: string
     ServerConfigServerSettings:
-      type: object
+      required:
+        - name
+        - description
+        - tags
+        - visibility
+        - autosave_interval
+        - autosave_only_on_server
+        - non_blocking_saving
+        - game_password
+        - require_user_verification
+        - max_players
+        - ignore_player_limit_for_returning_players
+        - allow_commands
+        - only_admins_can_pause_the_game
+        - max_upload_in_kilobytes_per_second
+        - max_upload_slots
+        - minimum_latency_in_ticks
+        - max_heartbeats_per_second
+        - minimum_segment_size
+        - minimum_segment_size_peer_count
+        - maximum_segment_size
+        - maximum_segment_size_peer_count
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        visibility:
+          required:
+            - public
+            - lan
+          properties:
+            public:
+              type: boolean
+            lan:
+              type: boolean
+        autosave_interval:
+          type: integer
+        autosave_only_on_server:
+          type: boolean
+        non_blocking_saving:
+          type: boolean
+        game_password:
+          type: string
+        require_user_verification:
+          type: boolean
+        max_players:
+          type: integer
+        ignore_player_limit_for_returning_players:
+          type: boolean
+        allow_commands:
+          type: string
+          enum:
+            - "true"
+            - "false"
+            - "admins-only"
+        only_admins_can_pause_the_game:
+          type: boolean
+        max_upload_in_kilobytes_per_second:
+          type: integer
+        max_upload_slots:
+          type: integer
+        minimum_latency_in_ticks:
+          type: integer
+        max_heartbeats_per_second:
+          type: integer
+        minimum_segment_size:
+          type: integer
+        minimum_segment_size_peer_count:
+          type: integer
+        maximum_segment_size:
+          type: integer
+        maximum_segment_size_peer_count:
+          type: integer
     ServerModList:
       type: array
       items:

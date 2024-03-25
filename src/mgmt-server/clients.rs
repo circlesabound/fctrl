@@ -10,10 +10,7 @@ use std::{
 
 use chrono::Utc;
 use fctrl::schema::{
-    AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage,
-    AgentStreamingMessageInner, FactorioVersion, ModObject, ModSettingsBytes, OperationId,
-    OperationStatus, RconConfig, Save, SecretsObject, ServerStartSaveFile, ServerStatus,
-    WhitelistObject,
+    AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, AgentStreamingMessageInner, FactorioVersion, ModObject, ModSettingsBytes, OperationId, OperationStatus, RconConfig, Save, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus, WhitelistObject
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
@@ -296,19 +293,19 @@ impl AgentApiClient {
         .await
     }
 
-    pub async fn config_server_settings_get(&self) -> Result<String> {
+    pub async fn config_server_settings_get(&self) -> Result<ServerSettingsConfig> {
         let request = AgentRequest::ConfigServerSettingsGet;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
-            AgentOutMessage::ConfigServerSettings(json) => Ok(json),
+            AgentOutMessage::ConfigServerSettings(config) => Ok(config),
             m => Err(default_message_handler(m)),
         })
         .await
     }
 
-    pub async fn config_server_settings_set(&self, json: String) -> Result<()> {
-        let request = AgentRequest::ConfigServerSettingsSet { json };
+    pub async fn config_server_settings_set(&self, config: ServerSettingsConfig) -> Result<()> {
+        let request = AgentRequest::ConfigServerSettingsSet { config };
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {

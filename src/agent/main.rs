@@ -378,8 +378,8 @@ impl AgentController {
                             self.config_server_settings_get(operation_id).await;
                         }
 
-                        AgentRequest::ConfigServerSettingsSet { json } => {
-                            self.config_server_settings_set(json, operation_id).await;
+                        AgentRequest::ConfigServerSettingsSet { config } => {
+                            self.config_server_settings_set(config, operation_id).await;
                         }
 
                         AgentRequest::ConfigWhiteListGet => {
@@ -1328,7 +1328,7 @@ impl AgentController {
 
     async fn config_server_settings_get(&self, operation_id: OperationId) {
         if let Ok(Some(ss)) = ServerSettings::read().await {
-            self.reply_success(AgentOutMessage::ConfigServerSettings(ss.json), operation_id)
+            self.reply_success(AgentOutMessage::ConfigServerSettings(ss.config), operation_id)
                 .await;
             return;
         }
@@ -1338,7 +1338,7 @@ impl AgentController {
             match ServerSettings::read_or_apply_default(version).await {
                 Ok(ss) => {
                     self.reply_success(
-                        AgentOutMessage::ConfigServerSettings(ss.json),
+                        AgentOutMessage::ConfigServerSettings(ss.config),
                         operation_id,
                     )
                     .await;
@@ -1359,8 +1359,8 @@ impl AgentController {
         }
     }
 
-    async fn config_server_settings_set(&self, json: String, operation_id: OperationId) {
-        match ServerSettings::set(json).await {
+    async fn config_server_settings_set(&self, config: ServerSettingsConfig, operation_id: OperationId) {
+        match ServerSettings::set(config).await {
             Ok(_) => {
                 self.reply_success(AgentOutMessage::Ok, operation_id).await;
             }

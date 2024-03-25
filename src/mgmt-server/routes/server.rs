@@ -7,7 +7,7 @@ use std::{
 use factorio_mod_settings_parser::ModSettings;
 use fctrl::schema::{
     mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject,
-    ServerStartSaveFile, ServerStatus,
+    ServerStartSaveFile, ServerStatus, ServerSettingsConfig
 };
 use rocket::serde::json::Json;
 use rocket::{get, post, put};
@@ -252,7 +252,7 @@ pub async fn put_secrets(
 pub async fn get_server_settings(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
-) -> Result<Json<String>> {
+) -> Result<Json<ServerSettingsConfig>> {
     let json_str = agent_client.config_server_settings_get().await?;
     Ok(Json(json_str))
 }
@@ -261,9 +261,9 @@ pub async fn get_server_settings(
 pub async fn put_server_settings(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
-    body: String,
+    body: Json<ServerSettingsConfig>,
 ) -> Result<()> {
-    agent_client.config_server_settings_set(body).await
+    agent_client.config_server_settings_set(body.into_inner()).await
 }
 
 #[get("/server/mods/list")]

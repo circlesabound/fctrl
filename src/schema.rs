@@ -121,7 +121,7 @@ pub enum AgentRequest {
     },
     ConfigServerSettingsGet,
     ConfigServerSettingsSet {
-        json: String,
+        config: ServerSettingsConfig,
     },
     ConfigWhiteListGet,
     ConfigWhiteListSet {
@@ -175,7 +175,7 @@ pub enum AgentOutMessage {
     ConfigWhiteList(WhitelistObject),
     ConfigRcon(RconConfig),
     ConfigSecrets(Option<SecretsObject>),
-    ConfigServerSettings(String),
+    ConfigServerSettings(ServerSettingsConfig),
     FactorioVersion(FactorioVersion),
     ModsList(Vec<ModObject>),
     ModSettings(Option<ModSettingsBytes>),
@@ -248,4 +248,50 @@ pub struct AgentStreamingMessage {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum AgentStreamingMessageInner {
     ServerStdout(String),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ServerSettingsConfig {
+    pub name: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub visibility: ServerVisibilityConfig,
+
+    pub autosave_interval: u32,
+    pub autosave_only_on_server: bool,
+    pub non_blocking_saving: bool,
+
+    pub game_password: String,
+    pub require_user_verification: bool,
+    pub max_players: u32,
+    pub ignore_player_limit_for_returning_players: bool,
+
+    pub allow_commands: AllowCommandsValue,
+    pub only_admins_can_pause_the_game: bool,
+
+    pub max_upload_in_kilobytes_per_second: u32,
+    pub max_upload_slots: u32,
+
+    pub minimum_latency_in_ticks: u32,
+    pub max_heartbeats_per_second: u32,
+    pub minimum_segment_size: u32,
+    pub minimum_segment_size_peer_count: u32,
+    pub maximum_segment_size: u32,
+    pub maximum_segment_size_peer_count: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ServerVisibilityConfig {
+    pub public: bool,
+    pub lan: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum AllowCommandsValue {
+    #[serde(rename = "true")]
+    True,
+    #[serde(rename = "false")]
+    False,
+    #[serde(rename = "admins-only")]
+    AdminsOnly,
 }
