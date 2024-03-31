@@ -12,7 +12,7 @@ import { faHistory } from '@fortawesome/free-solid-svg-icons';
   templateUrl: './chat.component.html',
   styleUrls: ['./chat.component.sass']
 })
-export class ChatComponent implements OnInit, OnDestroy {
+export class ChatComponent implements OnDestroy {
   text = '';
 
   streamLogsSub: Option<Subscription>;
@@ -35,10 +35,6 @@ export class ChatComponent implements OnInit, OnDestroy {
   ) {
     this.streamLogsSub = Option.none();
     this.fetchPreviousMarker = Option.none();
-  }
-
-  ngOnInit(): void {
-    this.streamLogs();
   }
 
   ngOnDestroy(): void {
