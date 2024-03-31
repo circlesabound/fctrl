@@ -552,6 +552,7 @@ dependencies = [
  "log",
  "nix",
  "openssl-sys",
+ "rand",
  "rcon",
  "regex",
  "reqwest 0.12.1",

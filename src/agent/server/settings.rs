@@ -6,6 +6,7 @@ use std::{
 use fctrl::schema::ServerSettingsConfig;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -96,10 +97,16 @@ impl Default for LaunchSettings {
             .unwrap()
             .parse()
             .unwrap();
+        // generate random RCON password, 12 length, alphanumeric
+        let rcon_password = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(12)
+            .map(char::from)
+            .collect();
         LaunchSettings {
             server_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), server_port),
             rcon_bind: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), rcon_port),
-            rcon_password: "rcon".to_owned(),
+            rcon_password,
             use_whitelist: false,
         }
     }
