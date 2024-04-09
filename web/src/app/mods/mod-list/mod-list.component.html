@@ -18,6 +18,9 @@
         <th>Version</th>
       </tr>
     </thead>
+    <tbody>
+      <tr *ngFor="let modInfo of modInfoList; let i = index" app-mod-object [(modInfo)]="modInfoList[i]" (removeModInfo)="removeMod($event)"></tr>
+    </tbody>
     <tfoot>
       <tr>
         <td>
@@ -40,9 +43,6 @@
         </td>
       </tr>
     </tfoot>
-    <tbody>
-      <tr *ngFor="let modInfo of modInfoList; let i = index" app-mod-object [(modInfo)]="modInfoList[i]" (removeModInfo)="removeMod($event)"></tr>
-    </tbody>
   </table>
 
   <button id="save-button" class="button is-success" (click)="pushModList()" [ngClass]="{'is-loading': saveButtonLoading}">

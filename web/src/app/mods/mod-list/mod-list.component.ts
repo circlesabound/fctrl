@@ -182,7 +182,7 @@ export class ModListComponent implements OnInit {
         return of(ret);
       }),
       map(infoShort => {
-        const versions = infoShort.releases.map(r => r.version).sort().reverse();
+        const versions = infoShort.releases?.map(r => r.version).sort(compareVersions).reverse();
         const selectedVersion = versions.length === 0 ? '' : versions[0];
         const ret: ModInfo = {
           name: infoShort.name,
