@@ -12,13 +12,7 @@ use log::{debug, error, info};
 use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
 
 use crate::{
-    auth::UserIdentity,
-    clients::AgentApiClient,
-    db::{Cf, Db, Record},
-    discord::DiscordClient,
-    events::broker::EventBroker,
-    rpc::RpcHandler,
-    ws::WebSocketServer,
+    auth::UserIdentity, clients::AgentApiClient, db::{Cf, Db, Record}, discord::DiscordClient, events::broker::EventBroker, link_download::LinkDownloadManager, rpc::RpcHandler, ws::WebSocketServer
 };
 
 mod auth;
@@ -30,6 +24,7 @@ mod discord;
 mod error;
 mod events;
 mod guards;
+mod link_download;
 mod metrics;
 mod routes;
 mod rpc;
@@ -127,6 +122,9 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
+    info!("Creating link download manager");
+    let link_download_manager = Arc::new(LinkDownloadManager::new());
+
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;
     let ws_bind = SocketAddr::new(ws_addr, ws_port);
@@ -144,6 +142,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .manage(event_broker)
         .manage(db)
         .manage(agent_client)
+        .manage(link_download_manager)
         .manage(ws)
         .mount("/", routes![routes::options::options,])
         .mount(
@@ -176,6 +175,8 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::apply_mods_list,
                 routes::server::get_mod_settings,
                 routes::server::put_mod_settings,
+                routes::server::get_mod_settings_dat,
+                routes::server::put_mod_settings_dat,
                 routes::server::send_rcon_command,
                 routes::logs::get,
                 routes::logs::stream,
@@ -189,6 +190,12 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::proxy::mod_portal_short_get,
                 routes::proxy::mod_portal_full_get,
             ],
+        )
+        .mount(
+            "/download",
+            routes![
+                routes::download::download,
+            ]
         )
         .mount("/", FileServer::from(get_dist_path()))
         .register("/api/v0", catchers![catchers::not_found,])

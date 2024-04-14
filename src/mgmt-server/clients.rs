@@ -140,6 +140,17 @@ impl AgentApiClient {
         ack_or_timeout(sub, Duration::from_millis(500), id).await
     }
 
+    pub async fn save_get(&self, savefile_name: String) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+        if savefile_name.trim().is_empty() {
+            return Err(Error::BadRequest("Empty savefile name".to_owned()));
+        }
+
+        let request = AgentRequest::SaveGet(savefile_name);
+        let (id, sub) = self.send_request_and_subscribe(request).await?;
+
+        ack_or_timeout(sub, Duration::from_millis(500), id).await
+    }
+
     pub async fn save_list(&self) -> Result<Vec<Save>> {
         let request = AgentRequest::SaveList;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
@@ -402,6 +413,7 @@ fn default_message_handler(agent_message: AgentOutMessage) -> Error {
         | AgentOutMessage::ModsList(_)
         | AgentOutMessage::ModSettings(_)
         | AgentOutMessage::RconResponse(_)
+        | AgentOutMessage::SaveFile(_)
         | AgentOutMessage::SaveList(_)
         | AgentOutMessage::ServerStatus(_)
         | AgentOutMessage::Ok => Error::AgentCommunicationError,
@@ -413,6 +425,7 @@ fn default_message_handler(agent_message: AgentOutMessage) -> Error {
         AgentOutMessage::NotInstalled => {
             Error::AgentInternalError("Factorio not installed".to_owned())
         }
+        AgentOutMessage::SaveNotFound => Error::SaveNotFound,
     }
 }
 

@@ -126,7 +126,7 @@ paths:
                 $ref: '#/components/schemas/ServerSavefileGetResponse'
   /server/savefiles/{savefile_id}:
     get:
-      summary: Downloads the requested savefile as a zip
+      summary: Generate a link to download the requested savefile as a zip
       parameters:
         - name: savefile_id
           in: path
@@ -136,7 +136,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Savefile zip
+          description: Link ID to download the requested savefile as a zip
           content:
             application/octet-stream:
               schema:
@@ -312,7 +312,7 @@ paths:
           description: Request accepted, check the Location header for a websocket address to connect and monitor progress of the operation.
   /server/mods/settings:
     get:
-      summary: Gets the mod-settings.dat file used by the Factorio server.
+      summary: Gets the mod-settings.dat file used by the Factorio server in JSON format
       responses:
         '200':
           description: The contents of the mod-settings.dat file, converted to a JSON format
@@ -321,7 +321,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ModSettingsObject'
     put:
-      summary: Pushes a mod-settings.dat file to the Factorio server for use
+      summary: Pushes contents of mod-settings.dat file in JSON format to the Factorio server for use
       requestBody:
         required: true
         description: A mod-settings.dat file, converted to a JSON format
@@ -329,6 +329,30 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ModSettingsObject'
+      responses:
+        '200':
+          description: Ok
+  /server/mods/settings-dat:
+    get:
+      summary: Gets the mod-settings.dat file used by the Factorio server.
+      responses:
+        '200':
+          description: The binary contents of the mod-settings.dat file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+    put:
+      summary: Pushes a mod-settings.dat file to the Factorio server for use
+      requestBody:
+        required: true
+        description: A mod-settings.dat file in original binary format
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
       responses:
         '200':
           description: Ok

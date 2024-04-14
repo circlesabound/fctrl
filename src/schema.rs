@@ -26,13 +26,13 @@ pub mod factorio_mod_portal_api {
 #[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
 pub struct OperationId(pub String);
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AgentRequestWithId {
     pub operation_id: OperationId,
     pub message: AgentRequest,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum AgentRequest {
     // *********************************
     // * Installation management       *
@@ -135,7 +135,7 @@ pub enum AgentRequest {
     RconCommand(String),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AgentResponseWithId {
     pub operation_id: OperationId,
     pub status: OperationStatus,
@@ -161,7 +161,7 @@ pub enum OperationStatus {
     Failed,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum AgentOutMessage {
     // Generic responses
     Message(String),
@@ -182,7 +182,9 @@ pub enum AgentOutMessage {
     MissingSecrets,
     NotInstalled,
     RconResponse(String),
+    SaveFile(SaveBytes),
     SaveList(Vec<Save>),
+    SaveNotFound,
     ServerStatus(ServerStatus),
 }
 
@@ -209,11 +211,51 @@ pub struct Save {
     pub last_modified: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
-pub struct SaveBytes(pub Vec<u8>);
+#[derive(Deserialize, Serialize)]
+pub struct SaveBytes {
+    pub multipart_seqnum: Option<u32>,
+    #[serde(with = "base64")]
+    pub bytes: Vec<u8>,
+}
 
-#[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
-pub struct ModSettingsBytes(pub Vec<u8>);
+impl SaveBytes {
+    pub fn new(bytes: Vec<u8>) -> SaveBytes {
+        SaveBytes {
+            multipart_seqnum: None,
+            bytes,
+        }
+    }
+
+    pub fn sentinel(total_num_parts: u32) -> SaveBytes {
+        SaveBytes {
+            multipart_seqnum: Some(total_num_parts),
+            bytes: vec![],
+        }
+    }
+}
+
+impl std::fmt::Debug for SaveBytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.bytes.len() > 16 {
+            let debug_bytes = format!("{:?}...", &self.bytes[..16]);
+            f.debug_struct("SaveBytes")
+                .field("multipart_seqnum", &self.multipart_seqnum)
+                .field("bytes", &debug_bytes)
+                .finish()
+        } else {
+            f.debug_struct("SaveBytes")
+                .field("multipart_seqnum", &self.multipart_seqnum)
+                .field("bytes", &self.bytes)
+                .finish()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ModSettingsBytes {
+    #[serde(with = "base64")]
+    pub bytes: Vec<u8>,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ModObject {
@@ -294,4 +336,22 @@ pub enum AllowCommandsValue {
     False,
     #[serde(rename = "admins-only")]
     AdminsOnly,
+}
+
+mod base64 {
+    use base64::Engine;
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
+        let base64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(v);
+        String::serialize(&base64, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let base64 = String::deserialize(d)?;
+        base64::engine::general_purpose::STANDARD_NO_PAD
+            .decode(base64.as_bytes())
+            .map_err(|e| serde::de::Error::custom(e))
+    }
 }

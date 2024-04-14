@@ -20,6 +20,7 @@
   <span matTextSuffix>.zip</span>
 </mat-form-field>
 <button mat-raised-button [disabled]="!saveIsSelected" (click)="startServer()">Start</button>
+<!-- TODO integrate with link generation -->
 <a [href]="saveDownloadHref" [download]="saveDownloadName"><button [disabled]="!saveIsSelected">Download</button></a>
 <button mat-raised-button [disabled]="!saveIsSelected" (click)="deleteSave()">Delete</button>
 

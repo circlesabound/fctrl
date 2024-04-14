@@ -66,7 +66,10 @@ export class Dashboard2Component implements OnInit {
     // update download link
     this.saveIsSelected = true;
     this.saveDownloadName = selectChangeEvent.value + ".zip";
-    this.saveDownloadHref = "/server/savefiles/" + this.saveDownloadName;
+    this.saveDownloadHref = "api/v0/server/savefiles/" + selectChangeEvent.value;
+    // this.apiClient.serverSavefilesSavefileIdGet({ savefile_id: selectChangeEvent.value }).subscribe(s => {
+      //
+    // })
   }
 
   startServer(): void {

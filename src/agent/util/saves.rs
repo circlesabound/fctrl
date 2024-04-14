@@ -1,13 +1,28 @@
 use std::path::{Path, PathBuf};
 
-use fctrl::schema::Save;
+use fctrl::schema::{Save, SaveBytes};
 use log::warn;
 use tokio::fs;
 
 use crate::{consts::*, error::Result};
 
-pub fn get_savefile_path(save_name: &str) -> PathBuf {
-    SAVEFILE_DIR.join(format!("{}.zip", save_name))
+pub fn get_savefile_path(save_name: impl AsRef<str>) -> PathBuf {
+    SAVEFILE_DIR.join(format!("{}.zip", save_name.as_ref()))
+}
+
+pub async fn get_savefile(save_name: impl AsRef<str>) -> Result<Option<SaveBytes>> {
+    if !SAVEFILE_DIR.is_dir() {
+        return Ok(None);
+    }
+
+    let savefiles = list_savefiles().await?;
+    match savefiles.into_iter().find(|s| s.name == save_name.as_ref()) {
+        Some(s) => {
+            let bytes = fs::read(get_savefile_path(s.name)).await?;
+            Ok(Some(SaveBytes::new(bytes)))
+        },
+        None => Ok(None),
+    }
 }
 
 pub async fn list_savefiles() -> Result<Vec<Save>> {

@@ -6,17 +6,20 @@ use std::{
 
 use factorio_mod_settings_parser::ModSettings;
 use fctrl::schema::{
-    mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject,
-    ServerStartSaveFile, ServerStatus, ServerSettingsConfig
+    mgmt_server_rest::*, AgentOutMessage, AgentResponseWithId, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
-use rocket::serde::json::Json;
+use log::{error, info};
+use rocket::{response::stream::ByteStream, serde::json::Json};
 use rocket::{get, post, put};
 use rocket::{http::Status, State};
+use tokio_stream::StreamExt;
 
 use crate::{
-    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, ws::WebSocketServer,
+    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, link_download::{LinkDownloadManager, LinkDownloadTarget}, ws::WebSocketServer
 };
 use crate::{error::Result, routes::WsStreamingResponder};
+
+use super::LinkDownloadResponder;
 
 #[get("/server/control")]
 pub async fn status(
@@ -134,13 +137,48 @@ pub async fn get_savefiles(
 }
 
 #[get("/server/savefiles/<id>")]
-pub async fn get_savefile(
+pub async fn get_savefile<'a>(
+    host: HostHeader<'a>,
     _a: AuthorizedUser,
+    link_download_manager: &State<Arc<LinkDownloadManager>>,
+    id: String,
+) -> Result<LinkDownloadResponder> {
+    let link_id = link_download_manager.create_link(LinkDownloadTarget::Savefile { id }).await;
+    Ok(LinkDownloadResponder::new(host, link_id))
+}
+
+pub async fn get_savefile_real(
     agent_client: &State<Arc<AgentApiClient>>,
     id: String,
-) -> Result<Option<WsStreamingResponder>> {
-    // TODO not implemented
-    Err(crate::error::Error::NotImplemented)
+) -> Result<ByteStream![Vec<u8>]> {
+    let (_operation_id, sub) = agent_client.save_get(id).await?;
+    // TODO figure out how to properly handle errors
+    let s = sub.filter_map(|event| {
+        match serde_json::from_str::<AgentResponseWithId>(&event.content) {
+            Ok(m) => {
+                match m.content {
+                    AgentOutMessage::SaveFile(sb) => {
+                        if sb.bytes.len() == 0 {
+                            info!("get_savefile completed with total multiparts = {:?}", sb.multipart_seqnum);
+                            None
+                        } else {
+                            Some(sb.bytes)
+                        }
+                    }
+                    c => {
+                        error!("Expected AgentOutMessage::SaveFile during get_savefile, got something else: {:?}", c);
+                        None
+                    },
+                }
+            }
+            Err(e) => {
+                error!("Error deserialising event content during get_savefile: {:?}", e);
+                None
+            }
+        }
+    });
+
+    Ok(ByteStream::from(s))
 }
 
 #[get("/server/config/adminlist")]
@@ -318,12 +356,12 @@ pub async fn apply_mods_list<'a>(
 pub async fn get_mod_settings(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
-) -> Result<Json<String>> {
-    let bytes = agent_client.mod_settings_get().await?;
-    let ms = ModSettings::try_from(bytes.0.as_ref())?;
-    let json_str = serde_json::to_string(&ms)?;
+) -> Result<Json<ModSettings>> {
+    let ms_bytes = agent_client.mod_settings_get().await?;
+    let ms = ModSettings::try_from(ms_bytes.bytes.as_ref())?;
+    // let json_str = serde_json::to_string(&ms)?;
 
-    Ok(Json(json_str))
+    Ok(Json(ms))
 }
 
 #[put("/server/mods/settings", data = "<body>")]
@@ -334,7 +372,25 @@ pub async fn put_mod_settings(
 ) -> Result<()> {
     let ms: ModSettings = serde_json::from_str(&body)?;
     let bytes = ms.try_into()?;
-    agent_client.mod_settings_set(ModSettingsBytes(bytes)).await
+    agent_client.mod_settings_set(ModSettingsBytes { bytes }).await
+}
+
+#[get("/server/mods/settings-dat")]
+pub async fn get_mod_settings_dat(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+) -> Result<Vec<u8>> {
+    let ms_bytes = agent_client.mod_settings_get().await?;
+    Ok(ms_bytes.bytes)
+}
+
+#[put("/server/mods/settings-dat", data = "<body>")]
+pub async fn put_mod_settings_dat(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+    body: Vec<u8>,
+) -> Result<()> {
+    agent_client.mod_settings_set(ModSettingsBytes { bytes: body } ).await
 }
 
 #[post("/server/rcon", data = "<body>")]

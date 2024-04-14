@@ -8,7 +8,6 @@ export class BearerAuthInterceptor implements HttpInterceptor {
   constructor(private cfg: ApiRequestConfiguration) { }
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    console.log('intercepting http request');
     req = this.cfg.apply(req);
     return next.handle(req);
   }
@@ -25,7 +24,6 @@ export class ApiRequestConfiguration {
   }
 
   useBearerAuth(accessToken: string): void {
-    console.log('setting bearer auth');
     this.nextAuthHeader = Option.some('Authorization');
     this.nextAuthValue = Option.some(`Bearer ${accessToken}`);
   }

@@ -28,8 +28,10 @@ pub enum Error {
 
     // Specific errors
     DiscordAlertingDisabled,
+    InvalidLink,
     ModSettingsNotInitialised,
     ModSettingsParseError(factorio_mod_settings_parser::Error),
+    SaveNotFound,
     SecretsNotInitialised,
 
     // Generic wrappers around external error types
@@ -127,6 +129,8 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::AuthInvalid
             | Error::AuthRefreshUnavailable
             | Error::MetricInvalidKey(_) => Status::BadRequest,
+            Error::SaveNotFound
+            | Error::InvalidLink => Status::NotFound,
             Error::ModSettingsNotInitialised | Error::SecretsNotInitialised => Status::NoContent,
         };
 

@@ -10,11 +10,40 @@ use rocket::{
 use crate::{guards::HostHeader, ws::WebSocketServer};
 
 pub mod auth;
+pub mod download;
 pub mod logs;
 pub mod metrics;
 pub mod options;
 pub mod proxy;
 pub mod server;
+
+pub struct LinkDownloadResponder {
+    pub link_id: String,
+    full_uri: String,
+}
+
+impl LinkDownloadResponder {
+    fn new(
+        host: HostHeader,
+        link_id: String,
+    ) -> LinkDownloadResponder {
+        let path = format!("/download/{}", link_id);
+        let full_uri = format!("{}{}", host.hostname, path);
+        LinkDownloadResponder {
+            link_id,
+            full_uri,
+        }
+    }
+}
+
+impl<'r> Responder<'r, 'static> for LinkDownloadResponder {
+    fn respond_to(self, _: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
+        Response::build()
+            .status(Status::Accepted)
+            .header(Header::new("Location", self.full_uri))
+            .ok()
+    }
+}
 
 pub struct WsStreamingResponder {
     pub path: String,

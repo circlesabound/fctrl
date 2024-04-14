@@ -48,6 +48,8 @@ mod factorio;
 mod server;
 mod util;
 
+const MAX_WS_PAYLOAD_BYTES: usize = 8000000;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -309,7 +311,7 @@ impl AgentController {
                         }
 
                         AgentRequest::SaveGet(save_name) => {
-                            todo!()
+                            self.save_get(save_name, operation_id).await
                         }
 
                         AgentRequest::SaveList => {
@@ -993,6 +995,31 @@ impl AgentController {
         }
     }
 
+    async fn save_get(&self, save_name: String, operation_id: OperationId) {
+        match util::saves::get_savefile(&save_name).await {
+            Ok(Some(savebytes)) => {
+                self.long_running_ack(&operation_id).await;
+                let chunks = savebytes.bytes.chunks(MAX_WS_PAYLOAD_BYTES);
+                let mut i = 0;
+                for chunk in chunks {
+                    let msg = AgentOutMessage::SaveFile(SaveBytes {
+                        multipart_seqnum: Some(i),
+                        bytes: chunk.to_vec(),
+                    });
+                    self.reply(msg, &operation_id).await;
+                    i += 1;
+                }
+                self.reply_success(AgentOutMessage::SaveFile(SaveBytes::sentinel(i)), operation_id).await;
+            },
+            Ok(None) => self.reply_failed(
+                AgentOutMessage::SaveNotFound,
+                operation_id).await,
+            Err(e) => self.reply_failed(
+                AgentOutMessage::Error(format!("Failed to get save: {:?}", e)),
+                operation_id).await,
+        }
+    }
+
     async fn save_list(&self, operation_id: OperationId) {
         match util::saves::list_savefiles().await {
             Ok(saves) => {
@@ -1090,7 +1117,7 @@ impl AgentController {
                     match s.try_into() {
                         Ok(bytes) => {
                             self.reply_success(
-                                AgentOutMessage::ModSettings(Some(ModSettingsBytes(bytes))),
+                                AgentOutMessage::ModSettings(Some(ModSettingsBytes { bytes })),
                                 operation_id,
                             )
                             .await;
@@ -1122,11 +1149,11 @@ impl AgentController {
         }
     }
 
-    async fn mod_settings_set(&self, bytes: ModSettingsBytes, operation_id: OperationId) {
+    async fn mod_settings_set(&self, ms_bytes: ModSettingsBytes, operation_id: OperationId) {
         match ModManager::read_or_apply_default().await {
             Ok(mut m) => {
                 // Validate by attempting to parse
-                match ModSettings::try_from(bytes.0.as_ref()) {
+                match ModSettings::try_from(ms_bytes.bytes.as_ref()) {
                     Ok(ms) => {
                         m.settings = Some(ms);
                         if let Err(e) = m.apply_metadata_only().await {
