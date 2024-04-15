@@ -14,15 +14,14 @@
 <!-- TODO fix dropdown placement -->
 <mat-form-field>
   <mat-label>Existing save files</mat-label>
-  <mat-select placeholder="Select a save" [(value)]="selectedSave" (selectionChange)="saveSelectionChange($event)">
+  <mat-select placeholder="Select a save" [(value)]="selectedSave">
     <mat-option *ngFor="let name of saves" [value]="name">{{name}}</mat-option>
   </mat-select>
   <span matTextSuffix>.zip</span>
 </mat-form-field>
-<button mat-raised-button [disabled]="!saveIsSelected" (click)="startServer()">Start</button>
-<!-- TODO integrate with link generation -->
-<a [href]="saveDownloadHref" [download]="saveDownloadName"><button [disabled]="!saveIsSelected">Download</button></a>
-<button mat-raised-button [disabled]="!saveIsSelected" (click)="deleteSave()">Delete</button>
+<button mat-raised-button [disabled]="selectedSave === ''" (click)="startServer()">Start</button>
+<button mat-raised-button [disabled]="selectedSave === ''" (click)="downloadSave()">Download</button>
+<button mat-raised-button [disabled]="selectedSave === ''" (click)="deleteSave()">Delete</button>
 
 <h4>Create new save file</h4>
 <mat-form-field>

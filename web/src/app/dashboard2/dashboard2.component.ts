@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { OperationService } from '../operation.service';
 import { MatSelectChange } from '@angular/material/select';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-dashboard2',
@@ -15,9 +16,6 @@ export class Dashboard2Component implements OnInit {
   selectedSave: string;
   createSaveName: string;
   installVersionString: string;
-  saveDownloadHref: string;
-  saveDownloadName: string;
-  saveIsSelected: boolean;
 
   downloadAvailableVersions: string[] = [];
   saves: string[] = [];
@@ -32,9 +30,6 @@ export class Dashboard2Component implements OnInit {
     this.selectedSave = '';
     this.createSaveName = '';
     this.installVersionString = '';
-    this.saveDownloadHref = '';
-    this.saveDownloadName = '';
-    this.saveIsSelected = false;
   }
 
   ngOnInit(): void {
@@ -60,16 +55,6 @@ export class Dashboard2Component implements OnInit {
 
   private internalUpdateAvailableVersions(): void {
     // TODO
-  }
-
-  saveSelectionChange(selectChangeEvent: MatSelectChange): void {
-    // update download link
-    this.saveIsSelected = true;
-    this.saveDownloadName = selectChangeEvent.value + ".zip";
-    this.saveDownloadHref = "api/v0/server/savefiles/" + selectChangeEvent.value;
-    // this.apiClient.serverSavefilesSavefileIdGet({ savefile_id: selectChangeEvent.value }).subscribe(s => {
-      //
-    // })
   }
 
   startServer(): void {
@@ -112,6 +97,22 @@ export class Dashboard2Component implements OnInit {
         );
       }
     });
+  }
+
+  downloadSave(): void {
+    // 2-part download process to allow us to use native browser download experience
+    // first, we generate a temporary download link that does not require authentication token
+    this.apiClient.serverSavefilesSavefileIdGet$Response({ savefile_id: this.selectedSave }).subscribe(resp => {
+      const location = resp.headers.get('Location');
+      if (location !== null) {
+        // then we create an invisible element with that link destination and trigger a click on it
+        const a = document.createElement('a');
+        a.href = window.location.protocol + '//' + environment.backendHost + location;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    })
   }
 
   deleteSave(): void {

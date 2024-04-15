@@ -18,20 +18,16 @@ pub mod proxy;
 pub mod server;
 
 pub struct LinkDownloadResponder {
-    pub link_id: String,
-    full_uri: String,
+    path: String,
 }
 
 impl LinkDownloadResponder {
     fn new(
-        host: HostHeader,
         link_id: String,
     ) -> LinkDownloadResponder {
         let path = format!("/download/{}", link_id);
-        let full_uri = format!("{}{}", host.hostname, path);
         LinkDownloadResponder {
-            link_id,
-            full_uri,
+            path,
         }
     }
 }
@@ -40,8 +36,34 @@ impl<'r> Responder<'r, 'static> for LinkDownloadResponder {
     fn respond_to(self, _: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
         Response::build()
             .status(Status::Accepted)
-            .header(Header::new("Location", self.full_uri))
+            .header(Header::new("Location", self.path))
             .ok()
+    }
+}
+
+#[derive(Responder)]
+pub struct DownloadResponder<T> {
+    inner: T,
+    content_disposition: ContentDisposition,
+}
+
+impl<T> DownloadResponder<T> {
+    pub fn new(content: T, download_filename: String) -> DownloadResponder<T> {
+        DownloadResponder {
+            inner: content,
+            content_disposition: ContentDisposition(download_filename),
+        }
+    }
+}
+
+struct ContentDisposition(String);
+
+impl From<ContentDisposition> for Header<'static> {
+    fn from(value: ContentDisposition) -> Self {
+        Header::new(
+            "Content-Disposition", 
+            format!("attachment; filename={}", value.0)
+        )
     }
 }
 

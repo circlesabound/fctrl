@@ -16,13 +16,10 @@ export class OauthRedirectComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    // TODO clean out logs
     let ss = this.route.snapshot;
     if (ss.queryParamMap.has('code')) {
       let code = ss.queryParamMap.get('code')!;
-      console.log(`code is ${code}`);
       this.authDiscordService.codeToToken(code).subscribe(s => {
-        console.log(`Got token = ${s}. Redirecting to dashboard`);
         this.router.navigate(['dashboard']);
       });
     }

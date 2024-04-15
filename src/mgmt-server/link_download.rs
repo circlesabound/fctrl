@@ -1,11 +1,18 @@
-use std::collections::HashMap;
-use chrono::{DateTime, Utc};
+use std::{collections::HashMap, sync::Arc};
+use chrono::{DateTime, Duration, Utc};
 use log::info;
-use tokio::sync::RwLock;
+use tokio::{select, sync::RwLock};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+const CLEANUP_INTERVAL: Duration = Duration::minutes(15);
+const LINK_EXPIRY: Duration = Duration::minutes(60);
+
+type LinkMap = Arc<RwLock<HashMap<String, (LinkDownloadTarget, DateTime<Utc>)>>>;
+
 pub struct LinkDownloadManager {
-    links: RwLock<HashMap<String, (LinkDownloadTarget, DateTime<Utc>)>>,
+    links: LinkMap,
+    _cleanup_task_ct: CancellationToken,
 }
 
 #[derive(Clone, Debug)]
@@ -14,10 +21,17 @@ pub enum LinkDownloadTarget {
 }
 
 impl LinkDownloadManager {
-    pub fn new() -> LinkDownloadManager {
-        // TODO periodic job to expire out links
+    pub async fn new() -> LinkDownloadManager {
+        let links = LinkMap::default();
+        let links_clone = Arc::clone(&links);
+        let cancellation_token = CancellationToken::new();
+        let _cleanup_task_ct = cancellation_token.clone();
+        tokio::spawn(async move {
+            Self::cleanup_job(links_clone, cancellation_token).await;
+        });
         LinkDownloadManager {
-            links: RwLock::new(HashMap::new()),
+            links,
+            _cleanup_task_ct,
         }
     }
 
@@ -32,5 +46,26 @@ impl LinkDownloadManager {
     pub async fn get_link(&self, link: String) -> Option<LinkDownloadTarget> {
         let r_guard = self.links.read().await;
         r_guard.get(&link).map(|(target, _dt)| target.clone())
+    }
+
+    async fn cleanup_job(links: LinkMap, cancellation_token: CancellationToken) {
+        loop {
+            select! {
+                _ = cancellation_token.cancelled() => {
+                    break;
+                }
+                _ = tokio::time::sleep(CLEANUP_INTERVAL.to_std().unwrap()) => {
+                    let mut w_guard = links.write().await;
+                    let now = Utc::now();
+                    w_guard.retain(|link, (target, dt)| {
+                        let should_remove = now - *dt > LINK_EXPIRY;
+                        if should_remove {
+                            info!("Expiring download link: {} -> {:?}", link, target);
+                        }
+                        !should_remove
+                    });
+                }
+            }
+        }
     }
 }

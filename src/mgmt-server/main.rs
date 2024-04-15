@@ -123,7 +123,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     info!("Creating link download manager");
-    let link_download_manager = Arc::new(LinkDownloadManager::new());
+    let link_download_manager = Arc::new(LinkDownloadManager::new().await);
 
     let ws_port = std::env::var("MGMT_SERVER_WS_PORT")?.parse()?;
     let ws_addr = std::env::var("MGMT_SERVER_WS_ADDRESS")?.parse()?;

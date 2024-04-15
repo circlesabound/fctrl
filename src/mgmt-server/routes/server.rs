@@ -6,16 +6,14 @@ use std::{
 
 use factorio_mod_settings_parser::ModSettings;
 use fctrl::schema::{
-    mgmt_server_rest::*, AgentOutMessage, AgentResponseWithId, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
+    mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
-use log::{error, info};
-use rocket::{response::stream::ByteStream, serde::json::Json};
+use rocket::serde::json::Json;
 use rocket::{get, post, put};
 use rocket::{http::Status, State};
-use tokio_stream::StreamExt;
 
 use crate::{
-    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, link_download::{LinkDownloadManager, LinkDownloadTarget}, ws::WebSocketServer
+    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, link_download::{LinkDownloadManager, LinkDownloadTarget}, routes::ContentDisposition, ws::WebSocketServer
 };
 use crate::{error::Result, routes::WsStreamingResponder};
 
@@ -138,47 +136,12 @@ pub async fn get_savefiles(
 
 #[get("/server/savefiles/<id>")]
 pub async fn get_savefile<'a>(
-    host: HostHeader<'a>,
     _a: AuthorizedUser,
     link_download_manager: &State<Arc<LinkDownloadManager>>,
     id: String,
 ) -> Result<LinkDownloadResponder> {
     let link_id = link_download_manager.create_link(LinkDownloadTarget::Savefile { id }).await;
-    Ok(LinkDownloadResponder::new(host, link_id))
-}
-
-pub async fn get_savefile_real(
-    agent_client: &State<Arc<AgentApiClient>>,
-    id: String,
-) -> Result<ByteStream![Vec<u8>]> {
-    let (_operation_id, sub) = agent_client.save_get(id).await?;
-    // TODO figure out how to properly handle errors
-    let s = sub.filter_map(|event| {
-        match serde_json::from_str::<AgentResponseWithId>(&event.content) {
-            Ok(m) => {
-                match m.content {
-                    AgentOutMessage::SaveFile(sb) => {
-                        if sb.bytes.len() == 0 {
-                            info!("get_savefile completed with total multiparts = {:?}", sb.multipart_seqnum);
-                            None
-                        } else {
-                            Some(sb.bytes)
-                        }
-                    }
-                    c => {
-                        error!("Expected AgentOutMessage::SaveFile during get_savefile, got something else: {:?}", c);
-                        None
-                    },
-                }
-            }
-            Err(e) => {
-                error!("Error deserialising event content during get_savefile: {:?}", e);
-                None
-            }
-        }
-    });
-
-    Ok(ByteStream::from(s))
+    Ok(LinkDownloadResponder::new(link_id))
 }
 
 #[get("/server/config/adminlist")]
