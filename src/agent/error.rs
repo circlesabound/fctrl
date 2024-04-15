@@ -23,9 +23,9 @@ pub enum Error {
     Aggregate(Vec<Error>),
 
     // Generic wrappers around external error types
+    FactorioDatFileSerde(factorio_file_parser::Error),
     Io(std::io::Error),
     Json(serde_json::error::Error),
-    ModSettingsSerde(factorio_mod_settings_parser::Error),
     Rcon(rcon::Error),
     Reqwest(reqwest::Error),
     TomlDe(toml::de::Error),
@@ -52,9 +52,9 @@ impl From<serde_json::error::Error> for Error {
     }
 }
 
-impl From<factorio_mod_settings_parser::Error> for Error {
-    fn from(e: factorio_mod_settings_parser::Error) -> Self {
-        Error::ModSettingsSerde(e)
+impl From<factorio_file_parser::Error> for Error {
+    fn from(e: factorio_file_parser::Error) -> Self {
+        Error::FactorioDatFileSerde(e)
     }
 }
 

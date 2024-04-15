@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use chrono::Utc;
-use factorio_mod_settings_parser::ModSettings;
+use factorio_file_parser::ModSettings;
 use fctrl::schema::*;
 use futures::Sink;
 use futures_util::{

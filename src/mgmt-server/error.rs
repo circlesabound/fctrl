@@ -27,10 +27,10 @@ pub enum Error {
     Rpc(String),
 
     // Specific errors
+    FactorioDatFileParseError(factorio_file_parser::Error),
     DiscordAlertingDisabled,
     InvalidLink,
     ModSettingsNotInitialised,
-    ModSettingsParseError(factorio_mod_settings_parser::Error),
     SaveNotFound,
     SecretsNotInitialised,
 
@@ -51,9 +51,9 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<factorio_mod_settings_parser::Error> for Error {
-    fn from(e: factorio_mod_settings_parser::Error) -> Self {
-        Error::ModSettingsParseError(e)
+impl From<factorio_file_parser::Error> for Error {
+    fn from(e: factorio_file_parser::Error) -> Self {
+        Error::FactorioDatFileParseError(e)
     }
 }
 
@@ -121,7 +121,7 @@ impl<'r> Responder<'r, 'static> for Error {
             | Error::Io(_)
             | Error::Json(_)
             | Error::Reqwest(_)
-            | Error::ModSettingsParseError(_)
+            | Error::FactorioDatFileParseError(_)
             | Error::Misconfiguration(_)
             | Error::NotImplemented
             | Error::Rpc(_) => Status::InternalServerError,

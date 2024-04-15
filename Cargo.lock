@@ -550,9 +550,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "factorio-mod-settings-parser"
-version = "0.1.0"
-source = "git+https://github.com/circlesabound/factorio-mod-settings-parser?rev=a9fecd6#a9fecd61ba6851430e1b324c336278d95c8e31d8"
+name = "factorio-file-parser"
+version = "0.2.0"
+source = "git+https://github.com/circlesabound/factorio-file-parser?rev=172a700#172a700e391570dac510603b9c5062bcfb536312"
 dependencies = [
  "serde",
 ]
@@ -567,7 +567,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "env_logger",
- "factorio-mod-settings-parser",
+ "factorio-file-parser",
  "futures",
  "futures-util",
  "http 1.0.0",

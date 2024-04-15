@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use factorio_mod_settings_parser::ModSettings;
+use factorio_file_parser::ModSettings;
 use futures::future;
 use lazy_static::lazy_static;
 use log::{debug, error, info};

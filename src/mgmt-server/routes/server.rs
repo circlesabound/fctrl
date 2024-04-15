@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use factorio_mod_settings_parser::ModSettings;
+use factorio_file_parser::ModSettings;
 use fctrl::schema::{
     mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
@@ -13,7 +13,7 @@ use rocket::{get, post, put};
 use rocket::{http::Status, State};
 
 use crate::{
-    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, link_download::{LinkDownloadManager, LinkDownloadTarget}, routes::ContentDisposition, ws::WebSocketServer
+    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, link_download::{LinkDownloadManager, LinkDownloadTarget}, ws::WebSocketServer
 };
 use crate::{error::Result, routes::WsStreamingResponder};
 

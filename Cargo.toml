@@ -13,7 +13,7 @@ bytes = "1.0"
 chrono = { version = "0.4.37", features = [ "serde" ] }
 derive_more = "0.99"
 env_logger = "0.11.3"
-factorio-mod-settings-parser = { git = "https://github.com/circlesabound/factorio-mod-settings-parser", rev = "a9fecd6" }
+factorio-file-parser = { git = "https://github.com/circlesabound/factorio-file-parser", rev = "172a700" }
 futures = "0.3"
 futures-util = "0.3"
 http = "1.0"
