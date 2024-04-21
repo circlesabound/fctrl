@@ -1,7 +1,8 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::{collections::HashMap, time::Duration};
 
-use fctrl::schema::ServerStatus;
+use fctrl::schema::{InternalServerState, ServerStatus};
 use futures::{pin_mut, StreamExt};
 use log::{error, info, warn};
 use serenity::gateway::ActivityData;
@@ -13,6 +14,7 @@ use serenity::{
 };
 use tokio::{sync::mpsc, task::JoinHandle};
 
+use crate::SERVERSTATE_TOPIC_NAME;
 use crate::{
     clients::AgentApiClient,
     error::{Error, Result},
@@ -184,7 +186,8 @@ impl DiscordClient {
     ) {
         let chat_tx = send_msg_tx.clone();
         let join_tx = send_msg_tx.clone();
-        let leave_tx = send_msg_tx;
+        let leave_tx = send_msg_tx.clone();
+        let statechange_tx = send_msg_tx;
 
         let chat_sub = event_broker
             .subscribe(TopicName::new(CHAT_TOPIC_NAME), |_| true)
@@ -192,10 +195,7 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(chat_sub);
             while let Some(event) = chat_sub.next().await {
-                let message = event
-                    .tags
-                    .get(&TopicName::new(CHAT_TOPIC_NAME))
-                    .unwrap();
+                let message = event.tags.get(&TopicName::new(CHAT_TOPIC_NAME)).unwrap();
                 if let Err(e) = chat_tx.send(message.clone()) {
                     error!("Error sending line through mpsc channel: {:?}", e);
                     break;
@@ -231,10 +231,7 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(leave_sub);
             while let Some(event) = leave_sub.next().await {
-                let user = event
-                    .tags
-                    .get(&TopicName::new(LEAVE_TOPIC_NAME))
-                    .unwrap();
+                let user = event.tags.get(&TopicName::new(LEAVE_TOPIC_NAME)).unwrap();
                 let message = format!("**{} has left the server**", user);
                 if let Err(e) = leave_tx.send(message) {
                     error!("Error sending line through mpsc channel: {:?}", e);
@@ -244,6 +241,43 @@ impl DiscordClient {
 
             error!(
                 "Discord chat link g2d leave subscriber is finishing, this should never happen!"
+            );
+        });
+
+        let statechange_sub = event_broker
+            .subscribe(TopicName::new(SERVERSTATE_TOPIC_NAME), |state| {
+                // we only care about "server started" and "server stopped"
+                if let Ok(state) = InternalServerState::from_str(state) {
+                    match state {
+                        InternalServerState::InGame
+                        | InternalServerState::Closed => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            })
+            .await;
+        tokio::spawn(async move {
+            pin_mut!(statechange_sub);
+            while let Some(event) = statechange_sub.next().await {
+                let state = event.tags.get(&TopicName::new(SERVERSTATE_TOPIC_NAME)).unwrap();
+                if let Ok(iss) = InternalServerState::from_str(state) {
+                    let message = match iss {
+                        InternalServerState::InGame => Some(format!("**Server started**")),
+                        InternalServerState::Closed => Some(format!("**Server stopped**")),
+                        _ => None,
+                    };
+                    if let Some(message) = message {
+                        if let Err(e) = statechange_tx.send(message) {
+                            error!("Error sending line through mpsc channel: {:?}", e);
+                        }
+                    }
+                }
+            }
+
+            error!(
+                "Discord chat link g2d statechange subscriber is finishing, this should never happen!"
             );
         });
     }
