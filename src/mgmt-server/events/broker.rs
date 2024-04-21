@@ -124,7 +124,7 @@ mod tests {
 
         let broker = EventBroker::new();
 
-        let topic = TopicName("test_tag".to_owned());
+        let topic = TopicName::new("test_tag");
         let test_event_tags = [(topic.clone(), "yes".to_owned())]
             .iter()
             .cloned()
@@ -150,7 +150,7 @@ mod tests {
 
         let broker = EventBroker::new();
 
-        let topic = TopicName("test_tag".to_owned());
+        let topic = TopicName::new("test_tag");
         let test_event_tags = [(topic.clone(), "yes".to_owned())]
             .iter()
             .cloned()
@@ -175,7 +175,7 @@ mod tests {
 
         let broker = EventBroker::new();
 
-        let topic = TopicName("test_tag".to_owned());
+        let topic = TopicName::new("test_tag");
         let test_event_tags = [(topic.clone(), "yes".to_owned())]
             .iter()
             .cloned()

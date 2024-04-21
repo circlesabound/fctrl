@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use strum_macros::{AsRefStr, EnumString};
 
 // ******************************************
 // * mgmt-server REST API schemas           *
@@ -338,6 +339,21 @@ pub enum AllowCommandsValue {
     AdminsOnly,
 }
 
+/// Internal state of the Factorio multiplayer server as tracked by output logs
+#[derive(Clone, Debug, EnumString, AsRefStr)]
+pub enum InternalServerState {
+    Ready,
+    PreparedToHostGame,
+    CreatingGame,
+    InGame,
+    InGameSavingMap,
+    DisconnectingScheduled,
+    Disconnecting,
+    Disconnected,
+    Closed,
+}
+
+/// module for serde to handle binary fields
 mod base64 {
     use base64::Engine;
     use serde::{Deserialize, Serialize};
@@ -353,5 +369,44 @@ mod base64 {
         base64::engine::general_purpose::STANDARD_NO_PAD
             .decode(base64.as_bytes())
             .map_err(|e| serde::de::Error::custom(e))
+    }
+}
+
+pub mod regex {
+    use lazy_static::lazy_static;
+    use regex::Regex;
+
+    lazy_static! {
+        // echo from achievement-preserve setting discord chat link
+        pub static ref CHAT_DISCORD_ECHO_RE: Regex = Regex::new(
+            r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] <server>: \[Discord\] (.+)$"
+        ).unwrap();
+        // chat message from process stdout
+        pub static ref CHAT_RE: Regex = Regex::new(
+            r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$"
+        ).unwrap();
+        // player join event from process stdout
+        pub static ref JOIN_RE: Regex = Regex::new(
+            r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+) joined the game$"
+        ).unwrap();
+        // player leave event from process stdout
+        pub static ref LEAVE_RE: Regex = Regex::new(
+            r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$"
+        ).unwrap();
+        pub static ref MOD_FILENAME_RE: Regex = Regex::new(
+            r"^(.+)_(\d+\.\d+\.\d+)\.zip$"
+        ).unwrap();
+        // RCON interface up event from process stdout
+        pub static ref RCON_READY_RE: Regex = Regex::new(
+            r"Starting RCON interface at IP ADDR:\(\{\d+\.\d+\.\d+\.\d+:(\d+)\}\)"
+        ).unwrap();
+        // FCTRL_RPC event from process stdout
+        pub static ref RPC_RE: Regex = Regex::new(
+            r"^FCTRL_RPC (.+)$"
+        ).unwrap();
+        // server internal state change from process stdout
+        pub static ref STATE_CHANGE_RE: Regex = Regex::new(
+            r"changing state from\(([a-zA-Z]+)\) to\(([a-zA-Z]+)\)"
+        ).unwrap();
     }
 }

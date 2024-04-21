@@ -71,7 +71,7 @@ pub async fn stream<'a>(
 
     // TODO proper category -> topicname/tagvalue mapping
     let sub = event_broker
-        .subscribe(TopicName(STDOUT_TOPIC_NAME.to_string()), move |tag_value| {
+        .subscribe(TopicName::new(STDOUT_TOPIC_NAME), move |tag_value| {
             tag_value == category
         })
         .await;

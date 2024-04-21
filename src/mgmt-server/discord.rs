@@ -187,14 +187,14 @@ impl DiscordClient {
         let leave_tx = send_msg_tx;
 
         let chat_sub = event_broker
-            .subscribe(TopicName(CHAT_TOPIC_NAME.to_string()), |_| true)
+            .subscribe(TopicName::new(CHAT_TOPIC_NAME), |_| true)
             .await;
         tokio::spawn(async move {
             pin_mut!(chat_sub);
             while let Some(event) = chat_sub.next().await {
                 let message = event
                     .tags
-                    .get(&TopicName(CHAT_TOPIC_NAME.to_string()))
+                    .get(&TopicName::new(CHAT_TOPIC_NAME))
                     .unwrap();
                 if let Err(e) = chat_tx.send(message.clone()) {
                     error!("Error sending line through mpsc channel: {:?}", e);
@@ -206,14 +206,14 @@ impl DiscordClient {
         });
 
         let join_sub = event_broker
-            .subscribe(TopicName(JOIN_TOPIC_NAME.to_string()), |_| true)
+            .subscribe(TopicName::new(JOIN_TOPIC_NAME), |_| true)
             .await;
         tokio::spawn(async move {
             pin_mut!(join_sub);
             while let Some(event) = join_sub.next().await {
                 let user = event
                     .tags
-                    .get(&TopicName(JOIN_TOPIC_NAME.to_string()))
+                    .get(&TopicName::new(JOIN_TOPIC_NAME))
                     .unwrap();
                 let message = format!("**{} has joined the server**", user);
                 if let Err(e) = join_tx.send(message) {
@@ -226,14 +226,14 @@ impl DiscordClient {
         });
 
         let leave_sub = event_broker
-            .subscribe(TopicName(LEAVE_TOPIC_NAME.to_string()), |_| true)
+            .subscribe(TopicName::new(LEAVE_TOPIC_NAME), |_| true)
             .await;
         tokio::spawn(async move {
             pin_mut!(leave_sub);
             while let Some(event) = leave_sub.next().await {
                 let user = event
                     .tags
-                    .get(&TopicName(LEAVE_TOPIC_NAME.to_string()))
+                    .get(&TopicName::new(LEAVE_TOPIC_NAME))
                     .unwrap();
                 let message = format!("**{} has left the server**", user);
                 if let Err(e) = leave_tx.send(message) {

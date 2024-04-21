@@ -1,21 +1,17 @@
 use std::{
-    collections::HashMap,
-    pin::Pin,
-    sync::{
+    collections::HashMap, pin::Pin, str::FromStr, sync::{
         atomic::{AtomicBool, AtomicU8, Ordering},
         Arc,
-    },
-    time::Duration,
+    }, time::Duration
 };
 
 use chrono::Utc;
 use fctrl::schema::{
-    AgentOutMessage, AgentRequest, AgentRequestWithId, AgentResponseWithId, AgentStreamingMessage, AgentStreamingMessageInner, FactorioVersion, ModObject, ModSettingsBytes, OperationId, OperationStatus, RconConfig, Save, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus, WhitelistObject
+    regex::*,
+    *,
 };
 use futures::{future, pin_mut, Future, SinkExt, Stream, StreamExt};
-use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
-use regex::Regex;
 use stream_cancel::Valved;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
@@ -24,7 +20,8 @@ use uuid::Uuid;
 use crate::{
     error::{Error, Result},
     events::{
-        broker::EventBroker, Event, TopicName, CHAT_TOPIC_NAME, JOIN_TOPIC_NAME, LEAVE_TOPIC_NAME, OPERATION_TOPIC_NAME, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_CHAT_DISCORD_ECHO_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY, STDOUT_TOPIC_NAME, STDOUT_TOPIC_RPC, STDOUT_TOPIC_SYSTEMLOG_CATEGORY
+        broker::EventBroker,
+        *,
     },
 };
 
@@ -374,7 +371,7 @@ impl AgentApiClient {
         };
         let mut tags = HashMap::new();
         tags.insert(
-            TopicName(OUTGOING_TOPIC_NAME.to_owned()),
+            TopicName::new(OUTGOING_TOPIC_NAME),
             self.ws_addr.to_string(),
         );
         let timestamp = Utc::now();
@@ -388,7 +385,7 @@ impl AgentApiClient {
         let id_clone = id.clone();
         let subscriber = self
             .event_broker
-            .subscribe(TopicName(OPERATION_TOPIC_NAME.to_owned()), move |v| {
+            .subscribe(TopicName::new(OPERATION_TOPIC_NAME), move |v| {
                 v == id_clone.0
             })
             .await;
@@ -439,7 +436,7 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
     let (ws_write, mut ws_read) = ws_stream.split();
 
     let outgoing_stream = event_broker
-        .subscribe(TopicName(OUTGOING_TOPIC_NAME.to_owned()), move |s| {
+        .subscribe(TopicName::new(OUTGOING_TOPIC_NAME), move |s| {
             ws_addr.to_string() == s
         })
         .await;
@@ -533,7 +530,7 @@ fn tag_incoming_message(s: String) -> Option<Event> {
     if let Ok(response_with_id) = serde_json::from_str::<AgentResponseWithId>(&s) {
         let mut tags = HashMap::new();
         tags.insert(
-            TopicName(OPERATION_TOPIC_NAME.to_string()),
+            TopicName::new(OPERATION_TOPIC_NAME),
             response_with_id.operation_id.into(),
         );
         let event = Event {
@@ -637,67 +634,78 @@ fn fuse_agent_response_stream(s: impl Stream<Item = Event>) -> impl Stream<Item 
 }
 
 fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String>) {
-    lazy_static! {
-        static ref CHAT_DISCORD_ECHO_RE: Regex =
-            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] <server>: \[Discord\] (.+)$").unwrap();
-        static ref CHAT_RE: Regex =
-            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[CHAT\] ([^:]+): (.+)$").unwrap();
-        static ref JOIN_RE: Regex =
-            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[JOIN\] ([^:]+) joined the game$")
-                .unwrap();
-        static ref LEAVE_RE: Regex =
-            Regex::new(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[LEAVE\] ([^:]+) left the game$")
-                .unwrap();
-        static ref RPC_RE: Regex = Regex::new(r"^FCTRL_RPC (.+)$").unwrap();
-    }
-
     if let Some(chat_captures) = CHAT_DISCORD_ECHO_RE.captures(message) {
         // echo from achievement-preserve setting discord chat link
         // tag separately and not as regular chat
         let _timestamp = chat_captures.get(1).unwrap().as_str().to_string();
         tags.insert(
-            TopicName(STDOUT_TOPIC_NAME.to_string()),
-            STDOUT_TOPIC_CHAT_DISCORD_ECHO_CATEGORY.to_string(),
+            TopicName::new(STDOUT_TOPIC_NAME),
+            StdoutTopicCategory::ChatDiscordEcho.to_string(),
         );
     } else if let Some(chat_captures) = CHAT_RE.captures(message) {
         let _timestamp = chat_captures.get(1).unwrap().as_str().to_string();
         let user = chat_captures.get(2).unwrap().as_str().to_string();
         let msg = chat_captures.get(3).unwrap().as_str().to_string();
         tags.insert(
-            TopicName(STDOUT_TOPIC_NAME.to_string()),
-            STDOUT_TOPIC_CHAT_CATEGORY.to_string(),
+            TopicName::new(STDOUT_TOPIC_NAME),
+            StdoutTopicCategory::Chat.to_string(),
         );
         tags.insert(
-            TopicName(CHAT_TOPIC_NAME.to_string()),
+            TopicName::new(CHAT_TOPIC_NAME),
             format!("{}: {}", user, msg),
         );
     } else if let Some(join_captures) = JOIN_RE.captures(message) {
         let _timestamp = join_captures.get(1).unwrap().as_str().to_string();
         let user = join_captures.get(2).unwrap().as_str().to_string();
         tags.insert(
-            TopicName(STDOUT_TOPIC_NAME.to_string()),
-            STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string(),
+            TopicName::new(STDOUT_TOPIC_NAME),
+            StdoutTopicCategory::JoinLeave.to_string(),
         );
-        tags.insert(TopicName(JOIN_TOPIC_NAME.to_string()), user);
+        tags.insert(
+            TopicName::new(JOIN_TOPIC_NAME), 
+            user
+        );
     } else if let Some(leave_captures) = LEAVE_RE.captures(message) {
         let _timestamp = leave_captures.get(1).unwrap().as_str().to_string();
         let user = leave_captures.get(2).unwrap().as_str().to_string();
         tags.insert(
-            TopicName(STDOUT_TOPIC_NAME.to_string()),
-            STDOUT_TOPIC_JOINLEAVE_CATEGORY.to_string(),
+            TopicName::new(STDOUT_TOPIC_NAME),
+            StdoutTopicCategory::JoinLeave.to_string(),
         );
-        tags.insert(TopicName(LEAVE_TOPIC_NAME.to_string()), user);
+        tags.insert(
+            TopicName::new(LEAVE_TOPIC_NAME), 
+            user
+        );
     } else if let Some(rpc_captures) = RPC_RE.captures(message) {
         tags.insert(
-            TopicName(STDOUT_TOPIC_NAME.to_string()),
-            STDOUT_TOPIC_RPC.to_string(),
+            TopicName::new(STDOUT_TOPIC_NAME),
+            StdoutTopicCategory::Rpc.to_string(),
         );
         let rpc_command = rpc_captures.get(1).unwrap().as_str().to_string();
-        tags.insert(TopicName(RPC_TOPIC_NAME.to_string()), rpc_command);
+        tags.insert(
+            TopicName::new(RPC_TOPIC_NAME), 
+            rpc_command
+        );
+    } else if let Some(state_change_captures) = STATE_CHANGE_RE.captures(message) {
+        if let Ok(to) = InternalServerState::from_str(state_change_captures.get(2).unwrap().as_str()) {
+            // bad cases already logged on agent side, can ignore
+            tags.insert(
+                TopicName::new(STDOUT_TOPIC_NAME),
+                StdoutTopicCategory::ServerState.to_string(),
+            );
+            tags.insert(
+                TopicName::new(SERVERSTATE_TOPIC_NAME),
+                to.as_ref().to_string(),
+            );
+            tags.insert(
+                TopicName::new(STDOUT_TOPIC_NAME),
+                StdoutTopicCategory::SystemLog.to_string(),
+            );
+        }
     } else {
         tags.insert(
-            TopicName(STDOUT_TOPIC_NAME.to_string()),
-            STDOUT_TOPIC_SYSTEMLOG_CATEGORY.to_string(),
+            TopicName::new(STDOUT_TOPIC_NAME),
+                StdoutTopicCategory::SystemLog.to_string(),
         );
     }
 }

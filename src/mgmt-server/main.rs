@@ -3,10 +3,7 @@
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use auth::{AuthnManager, AuthnProvider, AuthzManager};
-use events::{
-    TopicName, RPC_TOPIC_NAME, STDOUT_TOPIC_CHAT_CATEGORY, STDOUT_TOPIC_JOINLEAVE_CATEGORY,
-    STDOUT_TOPIC_NAME, STDOUT_TOPIC_SYSTEMLOG_CATEGORY,
-};
+use events::*;
 use futures::{pin_mut, StreamExt};
 use log::{debug, error, info};
 use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
@@ -221,26 +218,20 @@ async fn create_log_ingestion_subscriber(
     db: Arc<Db>,
 ) -> crate::error::Result<()> {
     let stdout_sub = event_broker
-        .subscribe(TopicName(STDOUT_TOPIC_NAME.to_string()), |_| true)
+        .subscribe(TopicName::new(STDOUT_TOPIC_NAME), |_| true)
         .await;
     tokio::spawn(async move {
         pin_mut!(stdout_sub);
         while let Some(event) = stdout_sub.next().await {
             // Map to the right CF
-            if let Some(tag_value) = event.tags.get(&TopicName(STDOUT_TOPIC_NAME.to_string())) {
-                let opt_cf = match tag_value.as_str() {
-                    STDOUT_TOPIC_CHAT_CATEGORY => Some(STDOUT_TOPIC_CHAT_CATEGORY),
-                    STDOUT_TOPIC_JOINLEAVE_CATEGORY => Some(STDOUT_TOPIC_JOINLEAVE_CATEGORY),
-                    STDOUT_TOPIC_SYSTEMLOG_CATEGORY => Some(STDOUT_TOPIC_SYSTEMLOG_CATEGORY),
-                    _ => None,
-                };
-
-                if let Some(cf) = opt_cf {
+            if let Some(tag_value) = event.tags.get(&TopicName::new(STDOUT_TOPIC_NAME)) {
+                let category = tag_value.as_str();
+                if should_write_stdout_category_to_db(category) {
                     let record = Record {
                         key: event.timestamp.to_rfc3339(),
                         value: event.content,
                     };
-                    if let Err(e) = db.write(&Cf(cf.to_string()), &record) {
+                    if let Err(e) = db.write(&Cf(category.to_string()), &record) {
                         error!("Error writing to db: {:?}", e);
                     }
                 }
@@ -255,6 +246,13 @@ async fn create_log_ingestion_subscriber(
     Ok(())
 }
 
+fn should_write_stdout_category_to_db(category: impl AsRef<str>) -> bool {
+    let category = category.as_ref();
+    category == StdoutTopicCategory::Chat.as_ref()
+        || category == StdoutTopicCategory::JoinLeave.as_ref()
+        || category == StdoutTopicCategory::SystemLog.as_ref()
+}
+
 async fn create_rpc_subscriber(
     agent_client: Arc<AgentApiClient>,
     event_broker: Arc<EventBroker>,
@@ -262,13 +260,13 @@ async fn create_rpc_subscriber(
     discord: Arc<Option<DiscordClient>>,
 ) -> crate::error::Result<()> {
     let rpc_sub = event_broker
-        .subscribe(TopicName(RPC_TOPIC_NAME.to_string()), |_| true)
+        .subscribe(TopicName::new(RPC_TOPIC_NAME), |_| true)
         .await;
     tokio::spawn(async move {
         pin_mut!(rpc_sub);
         let rpc_handler = Arc::new(RpcHandler::new(agent_client, db, discord));
         while let Some(mut event) = rpc_sub.next().await {
-            if let Some(command) = event.tags.remove(&TopicName(RPC_TOPIC_NAME.to_string())) {
+            if let Some(command) = event.tags.remove(&TopicName::new(RPC_TOPIC_NAME)) {
                 let rpc_handler = Arc::clone(&rpc_handler);
                 tokio::spawn(async move {
                     debug!("handling rpc command: {}", command);

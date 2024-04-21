@@ -8,7 +8,6 @@ use factorio_file_parser::ModSettings;
 use futures::future;
 use lazy_static::lazy_static;
 use log::{debug, error, info};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -18,7 +17,7 @@ use crate::{
     util::downloader,
 };
 
-use fctrl::schema::*;
+use fctrl::schema::{regex::*, *};
 
 use super::settings::Secrets;
 
@@ -269,10 +268,6 @@ impl Mod {
         // Per https://wiki.factorio.com/Tutorial:Mod_structure, mod zip files must be named with the pattern:
         // {mod-name}_{version-number}.zip
         // No support for unzipped mods (yet?)
-        lazy_static! {
-            static ref MOD_FILENAME_RE: Regex = Regex::new(r"^(.+)_(\d+\.\d+\.\d+)\.zip$").unwrap();
-        }
-
         if let Some(captures) = MOD_FILENAME_RE.captures(s) {
             let name = captures.get(1).unwrap().as_str().to_string();
             let version = captures.get(2).unwrap().as_str().to_string();

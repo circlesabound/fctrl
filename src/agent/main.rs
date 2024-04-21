@@ -899,17 +899,17 @@ impl AgentController {
                 server_state,
                 player_count,
             } => match server_state {
-                server::InternalServerState::Ready
-                | server::InternalServerState::PreparedToHostGame
-                | server::InternalServerState::CreatingGame => ServerStatus::PreGame,
-                server::InternalServerState::InGame
-                | server::InternalServerState::InGameSavingMap => {
+                InternalServerState::Ready
+                | InternalServerState::PreparedToHostGame
+                | InternalServerState::CreatingGame => ServerStatus::PreGame,
+                InternalServerState::InGame
+                | InternalServerState::InGameSavingMap => {
                     ServerStatus::InGame { player_count }
                 }
-                server::InternalServerState::DisconnectingScheduled
-                | server::InternalServerState::Disconnecting
-                | server::InternalServerState::Disconnected
-                | server::InternalServerState::Closed => ServerStatus::PostGame,
+                InternalServerState::DisconnectingScheduled
+                | InternalServerState::Disconnecting
+                | InternalServerState::Disconnected
+                | InternalServerState::Closed => ServerStatus::PostGame,
             },
         };
         self.reply_success(AgentOutMessage::ServerStatus(status), operation_id)

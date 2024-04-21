@@ -9,21 +9,18 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
 };
-use regex::Regex;
-use strum_macros::EnumString;
 use tokio::io::AsyncBufReadExt;
 use tokio::process::*;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::error::{Error, Result};
-use fctrl::schema::ServerStartSaveFile;
+use fctrl::schema::*;
 
 use settings::*;
 
@@ -289,18 +286,4 @@ impl StartableShortLivedInstance {
 
 pub struct StoppedShortLivedInstance {
     pub exit_status: ExitStatus,
-}
-
-/// Internal state of the Factorio multiplayer server as tracked by output logs
-#[derive(Clone, Debug, EnumString)]
-pub enum InternalServerState {
-    Ready,
-    PreparedToHostGame,
-    CreatingGame,
-    InGame,
-    InGameSavingMap,
-    DisconnectingScheduled,
-    Disconnecting,
-    Disconnected,
-    Closed,
 }

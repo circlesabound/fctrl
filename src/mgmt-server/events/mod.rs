@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use strum_macros::{AsRefStr, Display, EnumString};
 
 pub mod broker;
 
@@ -15,17 +16,38 @@ pub struct Event {
 #[derive(
     Clone, Debug, Deserialize, Eq, derive_more::From, Hash, derive_more::Into, PartialEq, Serialize,
 )]
-pub struct TopicName(pub String);
+pub struct TopicName {
+    pub name: String,
+}
 
-pub const OPERATION_TOPIC_NAME: &str = "operation";
-pub const STDOUT_TOPIC_NAME: &str = "stdout";
-pub const STDOUT_TOPIC_CHAT_CATEGORY: &str = "chat";
-pub const STDOUT_TOPIC_CHAT_DISCORD_ECHO_CATEGORY: &str = "chat_discord_echo";
-pub const STDOUT_TOPIC_JOINLEAVE_CATEGORY: &str = "joinleave";
-pub const STDOUT_TOPIC_RPC: &str = "rpc";
-pub const STDOUT_TOPIC_SYSTEMLOG_CATEGORY: &str = "systemlog";
+impl TopicName {
+    pub fn new(name: impl Into<String>) -> TopicName {
+        TopicName {
+            name: name.into(),
+        }
+    }
+}
 
-pub const CHAT_TOPIC_NAME: &str = "chat";
-pub const JOIN_TOPIC_NAME: &str = "join";
-pub const LEAVE_TOPIC_NAME: &str = "leave";
-pub const RPC_TOPIC_NAME: &str = "rpc";
+pub const OPERATION_TOPIC_NAME: &'static str =      "operation";
+pub const STDOUT_TOPIC_NAME: &'static str =         "stdout";
+pub const CHAT_TOPIC_NAME: &'static str =           "chat";
+pub const JOIN_TOPIC_NAME: &'static str =           "join";
+pub const LEAVE_TOPIC_NAME: &'static str =          "leave";
+pub const RPC_TOPIC_NAME: &'static str =            "rpc";
+pub const SERVERSTATE_TOPIC_NAME: &'static str =    "serverstate";
+
+#[derive(EnumString, AsRefStr, Display)]
+pub enum StdoutTopicCategory {
+    #[strum(serialize = "chat")]
+    Chat,
+    #[strum(serialize = "chat_discord_echo")]
+    ChatDiscordEcho,
+    #[strum(serialize = "joinleave")]
+    JoinLeave,
+    #[strum(serialize = "rpc")]
+    Rpc,
+    #[strum(serialize = "serverstate")]
+    ServerState,
+    #[strum(serialize = "systemlog")]
+    SystemLog,
+}
