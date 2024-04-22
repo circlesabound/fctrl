@@ -15,6 +15,7 @@
         <th></th>
         <th>Mod internal name</th>
         <th>Mod title</th>
+        <th>Link</th>
         <th>Version</th>
       </tr>
     </thead>
@@ -33,7 +34,10 @@
           <input class="input is-static" type="text" [value]="displayPrefetchTitle()" readonly>
         </td>
         <td>
-          <div class="select" style="min-width: 50%;">
+          <p><a *ngIf="displayPrefetchTitle() !== ''" class="icon" href="https://mods.factorio.com/mod/{{addModName}}" target="_blank"><fa-icon class="fa-external-link" [icon]="linkIcon"></fa-icon></a></p>
+        </td>
+        <td>
+          <div *ngIf="displayPrefetchTitle() !== ''" class="select" style="min-width: 50%;">
             <select style="min-width: 100%;">
               <option class="dropdown-item" *ngFor="let version of getVersionsToAdd()" (click)="setSelectedVersionToAdd(version)">
                 {{version}}

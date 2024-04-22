@@ -322,7 +322,6 @@ pub async fn get_mod_settings(
 ) -> Result<Json<ModSettings>> {
     let ms_bytes = agent_client.mod_settings_get().await?;
     let ms = ModSettings::try_from(ms_bytes.bytes.as_ref())?;
-    // let json_str = serde_json::to_string(&ms)?;
 
     Ok(Json(ms))
 }
@@ -341,10 +340,10 @@ pub async fn put_mod_settings(
 #[get("/server/mods/settings-dat")]
 pub async fn get_mod_settings_dat(
     _a: AuthorizedUser,
-    agent_client: &State<Arc<AgentApiClient>>,
-) -> Result<Vec<u8>> {
-    let ms_bytes = agent_client.mod_settings_get().await?;
-    Ok(ms_bytes.bytes)
+    link_download_manager: &State<Arc<LinkDownloadManager>>,
+) -> Result<LinkDownloadResponder> {
+    let link_id = link_download_manager.create_link(LinkDownloadTarget::ModSettingsDat).await;
+    Ok(LinkDownloadResponder::new(link_id))
 }
 
 #[put("/server/mods/settings-dat", data = "<body>")]

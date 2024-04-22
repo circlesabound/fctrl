@@ -18,6 +18,7 @@ pub struct LinkDownloadManager {
 #[derive(Clone, Debug)]
 pub enum LinkDownloadTarget {
     Savefile { id: String },
+    ModSettingsDat,
 }
 
 impl LinkDownloadManager {

@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
-import { faCheck, faSave } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faDownload, faSave, faUpload } from '@fortawesome/free-solid-svg-icons';
 import { delay, tap } from 'rxjs/operators';
 import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-mod-settings',
@@ -15,6 +16,10 @@ export class ModSettingsComponent implements OnInit {
   showTickIcon = false;
   saveIcon = faSave;
   tickIcon = faCheck;
+  downloadIcon = faDownload;
+  uploadIcon = faUpload;
+
+  useEditor = false;
 
   monacoOptions = {
     theme: 'vs-light',
@@ -26,7 +31,26 @@ export class ModSettingsComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    this.fetchModSettings();
+    if (this.useEditor) {
+      this.fetchModSettings();
+    }
+  }
+
+  downloadModSettingsDat(): void {
+    this.apiClient.serverModsSettingsDatGet$Response().subscribe(resp => {
+      const location = resp.headers.get('Location');
+      if (location !== null) {
+        const a = document.createElement('a');
+        a.href = window.location.protocol + '//' + environment.backendHost + location;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    })
+  }
+
+  uploadModSettingsDat(): void {
+    // TODO
   }
 
   fetchModSettings(): void {

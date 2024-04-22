@@ -8,6 +8,9 @@
   <p>{{modInfo.title}}</p>
 </td>
 <td>
+  <p><a class="icon" href="https://mods.factorio.com/mod/{{modInfo.name}}" target="_blank"><fa-icon class="fa-external-link" [icon]="linkIcon"></fa-icon></a></p>
+</td>
+<td>
   <div class="select is-small" style="min-width: 50%;">
     <select style="min-width: 100%;" [(ngModel)]="modInfo.selectedVersion">
       <option class="dropdown-item" *ngFor="let version of modInfo.versions" [ngValue]="version" (click)="setSelectedVersion(version)">

@@ -567,6 +567,7 @@ dependencies = [
 name = "fctrl"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "base64 0.22.0",
  "bincode",
  "bytes",

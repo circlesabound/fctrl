@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{clients::AgentApiClient, error::{Error, Result}, link_download::{LinkDownloadManager, LinkDownloadTarget}};
 
 use fctrl::schema::{AgentOutMessage, AgentResponseWithId};
+use futures::{stream, Stream};
 use log::{error, info};
 use rocket::{get, response::stream::ByteStream, State};
 use tokio_stream::StreamExt;
@@ -16,22 +17,32 @@ pub async fn download(
     link_id: String,
 ) -> Result<DownloadResponder<ByteStream![Vec<u8>]>> {
     match link_download_manager.get_link(link_id).await {
-        Some(target) => match target {
-            LinkDownloadTarget::Savefile { id } => download_savefile(
-                agent_client,
-                id,
-            ).await,
+        Some(target) => {
+            let source_stream;
+            let download_filename;
+            match target {
+                LinkDownloadTarget::Savefile { id } => {
+                    download_filename = format!("{}.zip", &id);
+                    source_stream = download_save(agent_client, id).await?;
+
+                }
+                LinkDownloadTarget::ModSettingsDat => {
+                    download_filename = "mod-settings.dat".to_owned();
+                    source_stream = download_mod_settings_dat(agent_client).await?;
+                }
+            }
+
+            Ok(DownloadResponder::new(ByteStream::from(source_stream), download_filename))
         }
         None => Err(Error::InvalidLink)
     }
 }
 
-pub async fn download_savefile(
+async fn download_save(
     agent_client: &State<Arc<AgentApiClient>>,
     id: String,
-) -> Result<DownloadResponder<ByteStream![Vec<u8>]>> {
+) -> Result<Box<dyn Stream<Item = Vec<u8>> + Unpin + Send>> {
     let (_operation_id, sub) = agent_client.save_get(id.clone()).await?;
-    let download_filename = format!("{}.zip", &id);
     // TODO figure out how to properly handle errors
     let s = sub.filter_map(|event| {
         match serde_json::from_str::<AgentResponseWithId>(&event.content) {
@@ -58,5 +69,12 @@ pub async fn download_savefile(
         }
     });
 
-    Ok(DownloadResponder::new(ByteStream::from(s), download_filename))
+    Ok(Box::new(s))
+}
+
+async fn download_mod_settings_dat(
+    agent_client: &State<Arc<AgentApiClient>>,
+) -> Result<Box<dyn Stream<Item = Vec<u8>> + Unpin + Send>> {
+    let bytes = agent_client.mod_settings_get().await?;
+    Ok(Box::new(Box::pin(stream::once(async { bytes.bytes }))))
 }

@@ -1,11 +1,29 @@
 <h1 class="title is-1">Mod settings</h1>
-<div class="editor-container">
-  <ngx-monaco-editor [options]="monacoOptions" [(ngModel)]="text" style="height:100%;"></ngx-monaco-editor>
+
+<div>
+  <button id="download-dat-button" class="button" (click)="downloadModSettingsDat()">
+    <span class="icon is-small">
+      <fa-icon class="fa-fw" [icon]="downloadIcon"></fa-icon>
+    </span>
+    <span>Download</span>
+  </button>
+  <button id="upload-dat-button" class="button" (click)="uploadModSettingsDat()">
+    <span class="icon is-small">
+      <fa-icon class="fa-fw" [icon]="uploadIcon"></fa-icon>
+    </span>
+    <span>Upload</span>
+  </button>
 </div>
 
-<button id="save-button" class="button is-success" (click)="pushModSettings()" [ngClass]="{'is-loading': saveButtonLoading}">
-  <span class="icon is-small">
-    <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
-  </span>
-  <span>Save</span>
-</button>
+<div *ngIf="useEditor">
+  <div class="editor-container">
+    <ngx-monaco-editor [options]="monacoOptions" [(ngModel)]="text" style="height:100%;"></ngx-monaco-editor>
+  </div>
+
+  <button id="save-button" class="button is-success" (click)="pushModSettings()" [ngClass]="{'is-loading': saveButtonLoading}">
+    <span class="icon is-small">
+      <fa-icon class="fa-fw" [icon]="showTickIcon ? tickIcon : saveIcon"></fa-icon>
+    </span>
+    <span>Save</span>
+  </button>
+</div>

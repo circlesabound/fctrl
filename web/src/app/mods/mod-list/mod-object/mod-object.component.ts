@@ -1,6 +1,5 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { faAngleDown, faTimes } from '@fortawesome/free-solid-svg-icons';
-import { Option } from 'prelude-ts';
+import { faTimes, faExternalLink } from '@fortawesome/free-solid-svg-icons';
 import { ModInfo } from '../mod-info';
 
 @Component({
@@ -15,6 +14,7 @@ export class ModObjectComponent implements OnInit {
   @Output() removeModInfo = new EventEmitter<ModInfo>();
 
   removeIcon = faTimes;
+  linkIcon = faExternalLink;
 
   constructor() { }
 

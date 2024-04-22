@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { faCheck, faPlus, faSave } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faPlus, faSave, faExternalLink } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
 import { EMPTY, Observable, of, Subject, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, expand, map, reduce, switchMap } from 'rxjs/operators';
@@ -27,6 +27,7 @@ export class ModListComponent implements OnInit {
   addIcon = faPlus;
   saveIcon = faSave;
   tickIcon = faCheck;
+  linkIcon = faExternalLink;
 
   ready = false;
 
@@ -98,7 +99,8 @@ export class ModListComponent implements OnInit {
                 versions: remoteInfo.releases?.map((r: { version: any; }) => r.version).sort(compareVersions).reverse() ?? [],
               });
             }
-            this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
+            // sort by friendly name, since this is what the in-game mod manager does
+            this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.title));
 
             this.ready = true;
           });
@@ -146,7 +148,7 @@ export class ModListComponent implements OnInit {
   addMod(): void {
     this.addModPrefetch.ifSome(info => {
       this.modInfoList.push(info);
-      this.modInfoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name));
+      this.modInfoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.title));
     });
     this.addModPrefetch = Option.none();
     this.addModName = '';

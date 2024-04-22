@@ -1,4 +1,5 @@
 #![feature(decl_macro)]
+#![feature(type_alias_impl_trait)]
 
 use std::{io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
