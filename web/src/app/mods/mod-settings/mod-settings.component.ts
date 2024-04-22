@@ -11,13 +11,17 @@ import { environment } from 'src/environments/environment';
 })
 export class ModSettingsComponent implements OnInit {
   text = '';
+  fileToUpload: File | null = null;
+
+  uploadModSettingsButtonLoading = false;
+  uploadModSettingsButtonShowTickIcon = false;
+  uploadIcon = faUpload;
 
   saveButtonLoading = false;
   showTickIcon = false;
   saveIcon = faSave;
   tickIcon = faCheck;
   downloadIcon = faDownload;
-  uploadIcon = faUpload;
 
   useEditor = false;
 
@@ -50,7 +54,22 @@ export class ModSettingsComponent implements OnInit {
   }
 
   uploadModSettingsDat(): void {
-    // TODO
+    if (this.fileToUpload === null) {
+      return;
+    }
+
+    this.uploadModSettingsButtonLoading = true;
+    this.apiClient.serverModsSettingsDatPut({
+      body: this.fileToUpload
+    }).pipe(
+      tap(() => {
+        this.uploadModSettingsButtonLoading = false;
+        this.uploadModSettingsButtonShowTickIcon = true;
+      }),
+      delay(3000),
+    ).subscribe(() => {
+      this.showTickIcon = false;
+    })
   }
 
   fetchModSettings(): void {

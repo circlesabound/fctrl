@@ -1,13 +1,31 @@
 use std::path::{Path, PathBuf};
 
 use fctrl::schema::{Save, SaveBytes};
-use log::warn;
+use log::{error, info, warn};
 use tokio::fs;
 
 use crate::{consts::*, error::Result};
 
 pub fn get_savefile_path(save_name: impl AsRef<str>) -> PathBuf {
     SAVEFILE_DIR.join(format!("{}.zip", save_name.as_ref()))
+}
+
+pub async fn delete_savefile(save_name: impl AsRef<str>) -> Result<()> {
+    let path = get_savefile_path(save_name.as_ref());
+    match fs::remove_file(path).await {
+        Ok(()) => {
+            info!("Successfully deleted savefile `{}`", save_name.as_ref());
+            Ok(())
+        },
+        Err(e) => {
+            error!("Failed to delete savefile `{}`: {:?}", save_name.as_ref(), e);
+            Err(e.into())
+        },
+    }
+}
+
+pub async fn exists_savefile(save_name: impl AsRef<str>) -> Result<bool> {
+    Ok(list_savefiles().await?.into_iter().find(|s| s.name == save_name.as_ref()).is_some())
 }
 
 pub async fn get_savefile(save_name: impl AsRef<str>) -> Result<Option<SaveBytes>> {
@@ -41,6 +59,20 @@ pub async fn list_savefiles() -> Result<Vec<Save>> {
     }
 
     Ok(ret)
+}
+
+pub async fn set_savefile(save_name: impl AsRef<str>, savebytes: SaveBytes) -> Result<()> {
+    let bytes_length = savebytes.bytes.len();
+    match fs::write(get_savefile_path(save_name.as_ref()), savebytes.bytes).await {
+        Ok(()) => {
+            info!("Successfully set savefile `{}`, wrote {} bytes", save_name.as_ref(), bytes_length);
+            Ok(())
+        },
+        Err(e) => {
+            error!("Failed to set savefile `{}`: {:?}", save_name.as_ref(), e);
+            Err(e.into())
+        }
+    }
 }
 
 fn parse_from_path<P: AsRef<Path>>(path: P) -> Result<Save> {

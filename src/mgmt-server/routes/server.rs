@@ -6,9 +6,9 @@ use std::{
 
 use factorio_file_parser::ModSettings;
 use fctrl::schema::{
-    mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
+    mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SaveBytes, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
-use rocket::serde::json::Json;
+use rocket::{delete, serde::json::Json};
 use rocket::{get, post, put};
 use rocket::{http::Status, State};
 
@@ -134,6 +134,15 @@ pub async fn get_savefiles(
     Ok(Json(ret))
 }
 
+#[delete("/server/savefiles/<id>")]
+pub async fn delete_savefile(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+    id: String,
+) -> Result<()> {
+    agent_client.save_delete(id).await
+}
+
 #[get("/server/savefiles/<id>")]
 pub async fn get_savefile<'a>(
     _a: AuthorizedUser,
@@ -142,6 +151,21 @@ pub async fn get_savefile<'a>(
 ) -> Result<LinkDownloadResponder> {
     let link_id = link_download_manager.create_link(LinkDownloadTarget::Savefile { id }).await;
     Ok(LinkDownloadResponder::new(link_id))
+}
+
+#[put("/server/savefiles/<id>", data = "<body>")]
+pub async fn put_savefile(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+    id: String,
+    body: Vec<u8>,
+) -> Result<()> {
+    let savebytes = SaveBytes {
+        multipart_seqnum: None,
+        bytes: body,
+    };
+    agent_client.save_put(id, savebytes).await?;
+    Ok(())
 }
 
 #[get("/server/config/adminlist")]

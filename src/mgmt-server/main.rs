@@ -7,7 +7,7 @@ use auth::{AuthnManager, AuthnProvider, AuthzManager};
 use events::*;
 use futures::{pin_mut, StreamExt};
 use log::{debug, error, info};
-use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
+use rocket::{async_trait, catchers, data::ToByteUnit, fairing::Fairing, fs::FileServer, routes};
 
 use crate::{
     auth::UserIdentity, clients::AgentApiClient, db::{Cf, Db, Record}, discord::DiscordClient, events::broker::EventBroker, link_download::LinkDownloadManager, rpc::RpcHandler, ws::WebSocketServer
@@ -157,6 +157,8 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::upgrade_install,
                 routes::server::get_install,
                 routes::server::get_savefile,
+                routes::server::delete_savefile,
+                routes::server::put_savefile,
                 routes::server::get_savefiles,
                 routes::server::get_adminlist,
                 routes::server::put_adminlist,

@@ -6,6 +6,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations'
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { NgxMatFileInputModule } from '@angular-material-components/file-input';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
@@ -87,6 +88,7 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
         },
       }
     }),
+    NgxMatFileInputModule,
     ClickOutsideModule,
   ],
   providers: [

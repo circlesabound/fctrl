@@ -15,6 +15,7 @@
   },
   "private": true,
   "dependencies": {
+    "@angular-material-components/file-input": "^16.0.1",
     "@angular/animations": "~17.0.8",
     "@angular/cdk": "^17.0.4",
     "@angular/common": "~17.0.8",
@@ -72,5 +73,15 @@
     "protractor": "~7.0.0",
     "ts-node": "~10.9.2",
     "typescript": "~5.2.0"
+  },
+  "overrides": {
+    "@angular-material-components/file-input": {
+      "@angular/cdk": ">=16.0.0",
+      "@angular/common": ">=16.0.0",
+      "@angular/core": ">=16.0.0",
+      "@angular/forms": ">=16.0.0",
+      "@angular/material": ">=16.0.0",
+      "@angular/platform-browser": ">=16.0.0"
+    }
   }
 }

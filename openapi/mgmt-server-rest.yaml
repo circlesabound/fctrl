@@ -130,7 +130,7 @@ paths:
       parameters:
         - name: savefile_id
           in: path
-          description: Name of the savefile to be uploaded to the server
+          description: Name of the savefile to be retrieved
           required: true
           schema:
             type: string
@@ -142,7 +142,19 @@ paths:
               schema:
                 type: string
                 format: binary
-    post:
+    delete:
+      summary: Delete the savefile from the server
+      parameters:
+        - name: savefile_id
+          in: path
+          description: Name of the savefile to be delete
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ok
+    put:
       summary: Pushes a savefile to the server for use
       parameters:
         - name: savefile_id

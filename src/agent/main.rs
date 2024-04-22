@@ -317,6 +317,10 @@ impl AgentController {
                             self.save_create(save_name, operation_id).await
                         }
 
+                        AgentRequest::SaveDelete(save_name) => {
+                            self.save_delete(save_name, operation_id).await
+                        }
+
                         AgentRequest::SaveGet(save_name) => {
                             self.save_get(save_name, operation_id).await
                         }
@@ -326,7 +330,7 @@ impl AgentController {
                         }
 
                         AgentRequest::SaveSet(save_name, bytes) => {
-                            todo!()
+                            self.save_set(save_name, bytes, operation_id).await;
                         }
 
                         // **************
@@ -1010,6 +1014,20 @@ impl AgentController {
         }
     }
 
+    async fn save_delete(&self, save_name: String, operation_id: OperationId) {
+        match util::saves::exists_savefile(&save_name).await {
+            Ok(true) => {
+                if let Err(e) = util::saves::delete_savefile(&save_name).await {
+                    self.reply_failed(AgentOutMessage::Error(format!("Failed to delete save: {:?}", e)), operation_id).await;
+                } else {
+                    self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                }
+            },
+            Ok(false) => self.reply_failed(AgentOutMessage::Error(format!("Savefile with name {} does not exist", save_name)), operation_id).await,
+            Err(e) => self.reply_failed(AgentOutMessage::Error(format!("Failed to list saves: {:?}", e)), operation_id).await,
+        }
+    }
+
     async fn save_get(&self, save_name: String, operation_id: OperationId) {
         match util::saves::get_savefile(&save_name).await {
             Ok(Some(savebytes)) => {
@@ -1048,6 +1066,22 @@ impl AgentController {
                 )
                 .await;
             }
+        }
+    }
+
+    async fn save_set(&self, save_name: String, savebytes: SaveBytes, operation_id: OperationId) {
+        match util::saves::exists_savefile(&save_name).await {
+            Ok(false) => {
+                if let Err(e) = util::saves::set_savefile(&save_name, savebytes).await {
+                    self.reply_failed(AgentOutMessage::Error(format!("Failed to set savefile with name `{}`: {:?}", &save_name, e)), operation_id).await
+                } else {
+                    self.reply_success(AgentOutMessage::Ok, operation_id).await
+                }
+            },
+            Ok(true) => self.reply_failed(AgentOutMessage::Error(format!("Savefile with name {} already exists", &save_name)), operation_id).await,
+            Err(e) => self.reply_failed(
+                AgentOutMessage::Error(format!("Failed to read saves: {:?}", e)),
+                operation_id).await,
         }
     }
 

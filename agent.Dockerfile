@@ -48,5 +48,5 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y ca-certificates
-COPY --from=builder /usr/src/app/target/release /usr/local/bin
+COPY --from=builder /usr/src/app/target/release/agent /usr/local/bin/agent
 ENTRYPOINT [ "/usr/local/bin/agent" ]

@@ -81,6 +81,8 @@ pub enum AgentRequest {
     ///
     /// **This is a long-running operation.**
     SaveCreate(String),
+    /// Delete the save file from the server with the requested name
+    SaveDelete(String),
     /// Gets the save file zip from the server
     SaveGet(String),
     /// Get a list of the save files present on the server.

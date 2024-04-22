@@ -134,10 +134,7 @@ impl AgentApiClient {
         .await
     }
 
-    pub async fn save_create(
-        &self,
-        savefile_name: String,
-    ) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+    pub async fn save_create(&self, savefile_name: String) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
         if savefile_name.trim().is_empty() {
             return Err(Error::BadRequest("Empty savefile name".to_owned()));
         }
@@ -146,6 +143,20 @@ impl AgentApiClient {
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
         ack_or_timeout(sub, Duration::from_millis(500), id).await
+    }
+
+    pub async fn save_delete(&self, savefile_name: String) -> Result<()> {
+        if savefile_name.trim().is_empty() {
+            return Err(Error::BadRequest("Empty savefile name".to_owned()));
+        }
+
+        let request = AgentRequest::SaveDelete(savefile_name);
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(10000), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        }).await
     }
 
     pub async fn save_get(&self, savefile_name: String) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
@@ -157,6 +168,20 @@ impl AgentApiClient {
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
         ack_or_timeout(sub, Duration::from_millis(500), id).await
+    }
+
+    pub async fn save_put(&self, savefile_name: String, savebytes: SaveBytes) -> Result<()> {
+        if savefile_name.trim().is_empty() {
+            return Err(Error::BadRequest("Empty savefile name".to_owned()));
+        }
+
+        let request = AgentRequest::SaveSet(savefile_name, savebytes);
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(10000), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
+            m => Err(default_message_handler(m)),
+        }).await
     }
 
     pub async fn save_list(&self) -> Result<Vec<Save>> {

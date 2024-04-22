@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { OperationService } from '../operation.service';
-import { MatSelectChange } from '@angular/material/select';
 import { environment } from 'src/environments/environment';
 
 @Component({
@@ -41,7 +40,11 @@ export class Dashboard2Component implements OnInit {
       this.status = s.game_status;
       this.playerCount = s.player_count;
     });
+    this.internalUpdateSaves();
     this.internalUpdateVersion();
+  }
+
+  private internalUpdateSaves(): void {
     this.apiClient.serverSavefilesGet().subscribe(s => {
       this.saves = s.map(x => x.name);
     });
@@ -90,6 +93,7 @@ export class Dashboard2Component implements OnInit {
           `Create save "${payload.body.savefile}"`,
           async () => {
             console.debug('Create save success');
+            this.internalUpdateSaves();
           },
           async err => {
             console.warn(`Create save error: ${err}`);
@@ -116,7 +120,16 @@ export class Dashboard2Component implements OnInit {
   }
 
   deleteSave(): void {
-    // TODO no endpoint for this
+    this.apiClient.serverSavefilesSavefileIdDelete({
+      savefile_id: this.selectedSave
+    }).subscribe({
+      next: (_) => {
+        this.internalUpdateSaves();
+      },
+      error: (e) => {
+        alert('Error deleting save: ' + e);
+      }
+    })
   }
 
   installVersion(): void {

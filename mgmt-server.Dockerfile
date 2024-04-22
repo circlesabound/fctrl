@@ -57,6 +57,6 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y ca-certificates
-COPY --from=builder /usr/src/app/target/release /usr/local/bin
+COPY --from=builder /usr/src/app/target/release/mgmt-server /usr/local/bin/mgmt-server
 COPY --from=web-builder /app/web/dist/web /app/web/dist/web
 ENTRYPOINT [ "/usr/local/bin/mgmt-server" ]
