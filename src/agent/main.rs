@@ -277,6 +277,13 @@ impl AgentController {
                     debug!("Got incoming message from {}: {}", self.peer_addr, json);
                     let operation_id = msg.operation_id;
                     match msg.message {
+                        // *******************
+                        // Internal versioning
+                        // *******************
+                        AgentRequest::BuildVersion => {
+                            self.build_version(operation_id).await;
+                        }
+
                         // ***********************
                         // Installation management
                         // ***********************
@@ -503,6 +510,14 @@ impl AgentController {
                 AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
             }
         }
+    }
+
+    async fn build_version(&self, operation_id: OperationId) {
+        let version = BuildVersion {
+            timestamp: fctrl::util::version::BUILD_TIMESTAMP.to_owned(),
+            commit_hash: fctrl::util::version::GIT_SHA.unwrap_or("-").to_owned(),
+        };
+        self.reply_success(AgentOutMessage::AgentBuildVersion(version), operation_id).await;
     }
 
     async fn version_install(

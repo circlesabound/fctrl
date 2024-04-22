@@ -65,6 +65,17 @@ impl AgentApiClient {
         }
     }
 
+    pub async fn build_version(&self) -> Result<BuildVersion> {
+        let request = AgentRequest::BuildVersion;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::AgentBuildVersion(v) => Ok(v),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
     pub async fn version_install(
         &self,
         version: FactorioVersion,
@@ -399,7 +410,8 @@ impl AgentApiClient {
 /// "Default" handler for incoming messages from agent, to handle errors
 fn default_message_handler(agent_message: AgentOutMessage) -> Error {
     match agent_message {
-        AgentOutMessage::ConfigAdminList(_)
+        AgentOutMessage::AgentBuildVersion(_)
+        | AgentOutMessage::ConfigAdminList(_)
         | AgentOutMessage::ConfigBanList(_)
         | AgentOutMessage::ConfigRcon { .. }
         | AgentOutMessage::ConfigSecrets(_)

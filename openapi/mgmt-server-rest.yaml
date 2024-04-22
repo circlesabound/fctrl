@@ -476,6 +476,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MetricsPaginationObject'
+  /buildinfo:
+    get:
+      summary: Gets build information for all components
+      responses:
+        '200':
+          description: Build information for mgmt-server and attached agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildInfoObject'
 
 components:
   schemas:
@@ -775,3 +785,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MetricsDataPoint'
+    BuildInfoObject:
+      properties:
+        agent:
+          $ref: '#/components/schemas/BuildVersion'
+        mgmt_server:
+          $ref: '#/components/schemas/BuildVersion'
+    BuildVersion:
+      required:
+        - commit_hash
+        - timestamp
+      properties:
+        commit_hash:
+          description: Git commit hash
+          type: string
+          example: e7e2f09
+        timestamp:
+          description: Timestamp of the build
+          type: string
+          example: tba

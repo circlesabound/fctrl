@@ -10,10 +10,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM rustlang/rust:nightly AS cache
 WORKDIR /usr/src/app
-COPY rust-toolchain.toml .
-RUN cargo install cargo-chef --version 0.1.66
 RUN apt-get update \
     && apt-get install -y clang
+COPY rust-toolchain.toml .
+RUN cargo install cargo-chef --version 0.1.66
 COPY --from=prepare /usr/src/app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
@@ -40,6 +40,8 @@ COPY Cargo.lock .
 COPY openapi openapi
 COPY tests tests
 COPY src src
+ARG GIT_COMMIT_HASH=-
+ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
 RUN cargo build --release --bin agent
 
 FROM debian:bookworm-slim AS runtime

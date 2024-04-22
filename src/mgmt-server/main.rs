@@ -148,6 +148,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::auth::info,
                 routes::auth::discord_grant,
                 routes::auth::discord_refresh,
+                routes::buildinfo::buildinfo,
                 routes::server::status,
                 routes::server::create_savefile,
                 routes::server::start_server,

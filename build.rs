@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proj_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("openapi");
     for entry in fs::read_dir(proj_dir).unwrap() {
         let entry = entry.unwrap();
@@ -22,6 +22,13 @@ fn main() {
         }
     }
     println!("cargo:rerun-if-changed=openapi");
+
+    vergen::EmitBuilder::builder()
+        .fail_on_error()
+        .build_timestamp()
+        .emit()?;
+
+    Ok(())
 }
 
 /// Given an OpenAPI spec file, generate models at {openapi_doc_name}.rs

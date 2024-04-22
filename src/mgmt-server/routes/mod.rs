@@ -10,6 +10,7 @@ use rocket::{
 use crate::{guards::HostHeader, ws::WebSocketServer};
 
 pub mod auth;
+pub mod buildinfo;
 pub mod download;
 pub mod logs;
 pub mod metrics;

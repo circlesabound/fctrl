@@ -36,6 +36,14 @@ pub struct AgentRequestWithId {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum AgentRequest {
     // *********************************
+    // * Internal build information    *
+    // *********************************
+    //
+    //
+    /// Get the build info for the agent
+    BuildVersion,
+
+    // *********************************
     // * Installation management       *
     // *********************************
     //
@@ -170,6 +178,7 @@ pub enum AgentOutMessage {
     Ok,
 
     // Structured operation responses
+    AgentBuildVersion(BuildVersion),
     ConflictingOperation,
     ConfigAdminList(Vec<String>),
     ConfigBanList(Vec<String>),
@@ -187,6 +196,12 @@ pub enum AgentOutMessage {
     SaveList(Vec<Save>),
     SaveNotFound,
     ServerStatus(ServerStatus),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BuildVersion {
+    pub timestamp: String,
+    pub commit_hash: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

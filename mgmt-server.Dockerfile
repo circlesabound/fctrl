@@ -10,10 +10,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM rustlang/rust:nightly AS cache
 WORKDIR /usr/src/app
-COPY rust-toolchain.toml .
-RUN cargo install cargo-chef --version 0.1.66
 RUN apt-get update \
     && apt-get install -y clang
+COPY rust-toolchain.toml .
+RUN cargo install cargo-chef --version 0.1.66
 COPY --from=prepare /usr/src/app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
@@ -26,7 +26,7 @@ RUN apt-get update \
     && NODE_MAJOR=20 \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
 RUN apt-get update \
-    && apt-get install -y clang nodejs openjdk-17-jre-headless
+    && apt-get install -y clang nodejs openjdk-17-jre-headless libgit2-1.5
 COPY openapitools.json .
 COPY package-lock.json .
 COPY package.json .
@@ -40,6 +40,8 @@ COPY Cargo.lock .
 COPY openapi openapi
 COPY tests tests
 COPY src src
+ARG GIT_COMMIT_HASH=-
+ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
 RUN cargo build --release --bin mgmt-server
 
 FROM node:lts-alpine AS web-builder
