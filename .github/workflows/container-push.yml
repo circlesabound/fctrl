@@ -13,10 +13,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: docker-compose build
-      run: docker-compose -f docker-compose.yml -f docker-compose.ci.yml build
+      run: docker-compose -f docker-compose.yml -f docker-compose.ci.yml build --build-arg GIT_COMMIT_HASH=${{ github.sha }}
       env:
         DOCKER_BUILDKIT: 1
-        GIT_COMMIT_HASH: ${{ github.sha }}
     - name: login to registry
       run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u circlesabound --password-stdin
     - name: push agent
