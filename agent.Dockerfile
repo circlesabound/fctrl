@@ -42,9 +42,9 @@ COPY tests tests
 COPY src src
 ARG GIT_COMMIT_HASH=-
 ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
-RUN cargo build --release --bin agent
+RUN cargo build --release --bin agent --bin mgmt-server
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim AS agent-runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y ca-certificates

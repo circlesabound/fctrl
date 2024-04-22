@@ -26,7 +26,7 @@ RUN apt-get update \
     && NODE_MAJOR=20 \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
 RUN apt-get update \
-    && apt-get install -y clang nodejs openjdk-17-jre-headless libgit2-1.5
+    && apt-get install -y clang nodejs openjdk-17-jre-headless
 COPY openapitools.json .
 COPY package-lock.json .
 COPY package.json .
@@ -42,7 +42,7 @@ COPY tests tests
 COPY src src
 ARG GIT_COMMIT_HASH=-
 ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
-RUN cargo build --release --bin mgmt-server
+RUN cargo build --release --bin agent --bin mgmt-server
 
 FROM node:lts-alpine AS web-builder
 WORKDIR /app/web
@@ -53,7 +53,7 @@ COPY web /app/web
 COPY openapi /app/openapi
 RUN npm run build -- --configuration production
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim AS mgmt-server-runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y ca-certificates
