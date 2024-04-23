@@ -1,10 +1,14 @@
-use std::{io::SeekFrom, path::{Path, PathBuf}};
+use std::{convert::TryFrom, io::SeekFrom, path::{Path, PathBuf}};
 
+use async_zip::tokio::read::fs::ZipFileReader;
+use factorio_file_parser::SaveHeader;
 use fctrl::schema::{Save, SaveBytes};
+use futures::AsyncReadExt;
 use log::{error, info, warn};
-use tokio::{fs::{self, OpenOptions}, io::{AsyncSeekExt, AsyncWriteExt}};
+use tokio::{fs::{self, OpenOptions}, io::{AsyncSeekExt, AsyncWriteExt, BufReader}};
+use tokio_util::compat::TokioAsyncReadCompatExt;
 
-use crate::{consts::*, error::Result};
+use crate::{consts::*, error::{Error, Result}};
 
 pub fn get_savefile_path(save_name: impl AsRef<str>) -> PathBuf {
     SAVEFILE_DIR.join(format!("{}.zip", save_name.as_ref()))
@@ -95,6 +99,28 @@ pub async fn set_savefile(save_name: impl AsRef<str>, savebytes: SaveBytes) -> R
     }
 }
 
+pub async fn read_header(save_name: impl AsRef<str>) -> Result<SaveHeader> {
+    // 1. open zip
+    let reader = ZipFileReader::new(get_savefile_path(save_name.as_ref())).await?;
+    for index in 0..reader.file().entries().len() {
+        let entry = reader.file().entries().get(index).unwrap();
+        // 2. locate level-init.dat and read into memory
+        if let Ok(filename_str) = entry.filename().as_str() {
+            if filename_str.ends_with("level-init.dat") {
+                let mut entry_reader = reader.reader_without_entry(index).await?;
+                let mut buf = vec![];
+                entry_reader.read_to_end(&mut buf).await?;
+                // 3. Parse as SaveHeader
+                let save_header = SaveHeader::try_from(buf.as_ref())?;
+                return Ok(save_header);
+            }
+        } else {
+            warn!("unable to convert zip entry filename '{:?}' to UTF-8, skipping", entry.filename());
+        }
+    }
+    Err(Error::HeaderNotFound)
+}
+
 fn parse_from_path<P: AsRef<Path>>(path: P) -> Result<Save> {
     if let Some(ext) = path.as_ref().extension() {
         if ext == "zip" {
@@ -115,4 +141,11 @@ fn parse_from_path<P: AsRef<Path>>(path: P) -> Result<Save> {
     }
 
     Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid save file").into())
+}
+
+fn sanitise_file_path(path: impl AsRef<str>) -> PathBuf {
+    path.as_ref().replace('\\', "/")
+        .split('/')
+        .map(sanitize_filename::sanitize)
+        .collect()
 }

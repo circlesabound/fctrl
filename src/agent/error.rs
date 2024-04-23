@@ -19,6 +19,9 @@ pub enum Error {
     RconEmptyCommand,
     RconNotConnected,
 
+    // SaveHeader
+    HeaderNotFound,
+
     // Generic
     Aggregate(Vec<Error>),
 
@@ -30,6 +33,7 @@ pub enum Error {
     Reqwest(reqwest::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
+    Zip(async_zip::error::ZipError),
 }
 
 impl std::error::Error for Error {}
@@ -79,5 +83,11 @@ impl From<toml::de::Error> for Error {
 impl From<toml::ser::Error> for Error {
     fn from(e: toml::ser::Error) -> Self {
         Error::TomlSer(e)
+    }
+}
+
+impl From<async_zip::error::ZipError> for Error {
+    fn from(e: async_zip::error::ZipError) -> Self {
+        Error::Zip(e)
     }
 }

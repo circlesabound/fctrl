@@ -207,6 +207,21 @@ impl AgentApiClient {
         .await
     }
 
+    pub async fn mod_list_extract_from_save(&self, savefile_name: String) -> Result<Vec<ModObject>> {
+        if savefile_name.trim().is_empty() {
+            return Err(Error::BadRequest("Empty savefile name".to_owned()));
+        }
+
+        let request = AgentRequest::ModListExtractFromSave(savefile_name);
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::ModsList(mods) => Ok(mods),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
     pub async fn mod_list_set(
         &self,
         mods: Vec<ModObject>,

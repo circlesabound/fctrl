@@ -144,13 +144,30 @@ pub async fn delete_savefile(
 }
 
 #[get("/server/savefiles/<id>")]
-pub async fn get_savefile<'a>(
+pub async fn get_savefile(
     _a: AuthorizedUser,
     link_download_manager: &State<Arc<LinkDownloadManager>>,
     id: String,
 ) -> Result<LinkDownloadResponder> {
     let link_id = link_download_manager.create_link(LinkDownloadTarget::Savefile { id }).await;
     Ok(LinkDownloadResponder::new(link_id))
+}
+
+#[get("/server/savefiles/<id>/mods")]
+pub async fn extract_mod_list_from_savefile(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+    id: String,
+) -> Result<Json<Vec<ModObject>>> {
+    let mod_list = agent_client.mod_list_extract_from_save(id).await?;
+    let resp = mod_list
+        .into_iter()
+        .map(|mo| ModObject {
+            name: mo.name,
+            version: mo.version,
+        })
+        .collect();
+    Ok(Json(resp))
 }
 
 #[put("/server/savefiles/<id>", data = "<body>")]

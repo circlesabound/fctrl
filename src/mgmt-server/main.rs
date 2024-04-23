@@ -157,6 +157,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::upgrade_install,
                 routes::server::get_install,
                 routes::server::get_savefile,
+                routes::server::extract_mod_list_from_savefile,
                 routes::server::delete_savefile,
                 routes::server::put_savefile,
                 routes::server::get_savefiles,

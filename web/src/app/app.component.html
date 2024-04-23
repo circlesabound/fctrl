@@ -43,3 +43,10 @@
     <router-outlet></router-outlet>
   </div>
 </section>
+
+<footer class="footer">
+  <div class="content has-text-centered has-text-grey">
+    <p class="is-size-7 py-0 my-0">agent: {{agentBuildInfo?.commit_hash}}&#64;{{agentBuildInfo?.timestamp}}</p>
+    <p class="is-size-7 py-0 my-0">mgmt-server: {{agentBuildInfo?.commit_hash}}&#64;{{mgmtServerBuildInfo?.timestamp}}</p>
+  </div>
+</footer>

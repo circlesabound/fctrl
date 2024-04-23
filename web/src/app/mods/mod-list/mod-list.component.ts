@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { faCheck, faPlus, faSave, faExternalLink } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faPlus, faSave, faExternalLink, faRefresh } from '@fortawesome/free-solid-svg-icons';
 import { Option } from 'prelude-ts';
 import { EMPTY, Observable, of, Subject, timer } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, expand, map, reduce, switchMap } from 'rxjs/operators';
@@ -9,6 +9,7 @@ import { MgmtServerRestApiService } from 'src/app/mgmt-server-rest-api/services'
 import { OperationService } from 'src/app/operation.service';
 import { ModInfo } from './mod-info';
 import { compareVersions } from 'compare-versions';
+import { ServerModList } from 'src/app/mgmt-server-rest-api/models';
 
 @Component({
   selector: 'app-mod-list',
@@ -23,11 +24,18 @@ export class ModListComponent implements OnInit {
   addModPrefetch: ModInfo | null;
 
   saveButtonLoading = false;
-  showTickIcon = false;
+  saveShowTickIcon = false;
+  syncButtonLoading = false;
+  syncShowTickIcon = false;
   addIcon = faPlus;
   saveIcon = faSave;
   tickIcon = faCheck;
   linkIcon = faExternalLink;
+  syncIcon = faRefresh;
+
+  syncModalActive = false;
+  syncSelectedSavename: string | null;
+  savenames: string[];
 
   ready = false;
 
@@ -37,10 +45,13 @@ export class ModListComponent implements OnInit {
     private operationService: OperationService,
   ) {
     this.addModPrefetch = null;
+    this.syncSelectedSavename = null;
+    this.savenames = [];
   }
 
   ngOnInit(): void {
     this.fetchModList();
+    this.fetchSavenames();
     this.addModNameSubject.pipe(
       debounceTime(300),
       distinctUntilChanged(),
@@ -73,41 +84,44 @@ export class ModListComponent implements OnInit {
 
   fetchModList(): void {
     this.apiClient.serverModsListGet().subscribe(modList => {
-      if (modList.length === 0) {
-        this.modInfoList = [];
-        this.ready = true;
-      } else {
-        let namelist = modList.map(mo => mo.name);
-        let all = this.fetchModListInfoSinglePage(namelist, 1)
-          .pipe(
-            expand((data, _) => {
-              return data.nextPage.match({
-                Some: nextPage => this.fetchModListInfoSinglePage(namelist, nextPage),
-                None: () => EMPTY,
-              });
-            }),
-            reduce((acc: ModInfoBatch[], data) => {
-              return acc.concat(data.results);
-            }, []),
-          )
-          .subscribe(modInfoBatch => {
-            const infoList: ModInfo[] = [];
-            for (const remoteInfo of modInfoBatch) {
-              infoList.push({
-                name: remoteInfo.name ?? '<undefined>',
-                title: remoteInfo.title ?? '<undefined>',
-                summary: remoteInfo.summary ?? '<undefined>',
-                selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
-                versions: remoteInfo.releases?.map((r: { version: any; }) => r.version).sort(compareVersions).reverse() ?? [],
-              });
-            }
-            // sort by friendly name, since this is what the in-game mod manager does
-            this.modInfoList = infoList.sort((lhs, rhs) => lhs.title.localeCompare(rhs.title));
-
-            this.ready = true;
-          });
-      }
+      this.updateModList(modList);
     });
+  }
+
+  updateModList(modList: ServerModList): void {
+    if (modList.length === 0) {
+      this.modInfoList = [];
+      this.ready = true;
+    } else {
+      let namelist = modList.map(mo => mo.name);
+      let all = this.fetchModListInfoSinglePage(namelist, 1)
+        .pipe(
+          expand((data, _) => {
+            return data.nextPage.match({
+              Some: nextPage => this.fetchModListInfoSinglePage(namelist, nextPage),
+              None: () => EMPTY,
+            });
+          }),
+          reduce((acc: ModInfoBatch[], data) => {
+            return acc.concat(data.results);
+          }, []),
+        )
+        .subscribe(modInfoBatch => {
+          const infoList: ModInfo[] = [];
+          for (const remoteInfo of modInfoBatch) {
+            infoList.push({
+              name: remoteInfo.name ?? '<undefined>',
+              title: remoteInfo.title ?? '<undefined>',
+              summary: remoteInfo.summary ?? '<undefined>',
+              selectedVersion: modList.find(mo => mo.name === remoteInfo.name)?.version ?? '',
+              versions: remoteInfo.releases?.map((r: { version: any; }) => r.version).sort(compareVersions).reverse() ?? [],
+            });
+          }
+          // sort by friendly name, since this is what the in-game mod manager does
+          this.modInfoList = infoList.sort((lhs, rhs) => lhs.title.localeCompare(rhs.title));
+          this.ready = true;
+        });
+    }
   }
 
   pushModList(): void {
@@ -130,9 +144,9 @@ export class ModListComponent implements OnInit {
           async () => {
             console.log('push mod list succeeded');
             this.saveButtonLoading = false;
-            this.showTickIcon = true;
+            this.saveShowTickIcon = true;
             timer(3000).subscribe(_ => {
-              this.showTickIcon = false;
+              this.saveShowTickIcon = false;
             });
           },
           async err => {
@@ -145,6 +159,19 @@ export class ModListComponent implements OnInit {
         this.saveButtonLoading = false;
       }
     });
+  }
+
+  syncModsWithSave(savefile_id: string): void {
+    this.apiClient.serverSavefilesSavefileIdModsGet({ savefile_id }).subscribe(resp => {
+      this.updateModList(resp);
+      this.syncModalActive = false;
+    })
+  }
+
+  fetchSavenames(): void {
+    this.apiClient.serverSavefilesGet().subscribe(resp => {
+      this.savenames = resp.map(sf => sf.name);
+    })
   }
 
   addMod(): void {

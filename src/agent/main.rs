@@ -340,6 +340,10 @@ impl AgentController {
                             self.mod_list_get(operation_id).await;
                         }
 
+                        AgentRequest::ModListExtractFromSave(save_name) => {
+                            self.mod_list_extract_from_save(save_name, operation_id).await;
+                        }
+
                         AgentRequest::ModListSet(mod_list) => {
                             self.mod_list_set(mod_list, operation_id).await;
                         }
@@ -1099,6 +1103,36 @@ impl AgentController {
                 )
                 .await;
             }
+        }
+    }
+
+    async fn mod_list_extract_from_save(&self, save_name: String, operation_id: OperationId) {
+        match util::saves::exists_savefile(&save_name).await {
+            Ok(true) => {
+                match util::saves::read_header(&save_name).await {
+                    Ok(header) => {
+                        let base_mod_name = header.base_mod;
+                        let ret = header.mods.into_iter().filter(|shm| {
+                            shm.name == base_mod_name
+                        }).map(|shm| {
+                            ModObject {
+                                name: shm.name,
+                                version: shm.version.to_string(),
+                            }
+                        }).collect();
+                        self.reply_success(AgentOutMessage::ModsList(ret), operation_id).await;
+                    },
+                    Err(e) => self.reply_failed(
+                        AgentOutMessage::Error(format!("Failed to read savefile header: {:?}", e)),
+                        operation_id
+                    ).await,
+                }
+            },
+            Ok(false) => self.reply_failed(AgentOutMessage::SaveNotFound, operation_id).await,
+            Err(e) => self.reply_failed(
+                AgentOutMessage::Error(format!("Failed to read savefile: {:?}", e)),
+                operation_id
+            ).await,
         }
     }
 

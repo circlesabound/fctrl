@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use factorio_file_parser::SaveHeader;
 use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, EnumString};
 
@@ -97,6 +98,8 @@ pub enum AgentRequest {
     //
     /// Get a list of mods installed on the server.
     ModListGet,
+    /// Extract a list of mods from an existing savefile.
+    ModListExtractFromSave(String),
     /// Applies the desired mod list on the server.
     ///
     /// **This is a long-running operation.**

@@ -4,6 +4,8 @@ import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { faChartBar, faCogs, faTerminal, faWrench } from '@fortawesome/free-solid-svg-icons';
 import { filter, map, mergeMap } from 'rxjs/operators';
 import { OperationService } from './operation.service';
+import { MgmtServerRestApiService } from './mgmt-server-rest-api/services';
+import { BuildInfoObject, BuildVersion } from './mgmt-server-rest-api/models';
 
 @Component({
   selector: 'app-root',
@@ -18,11 +20,15 @@ export class AppComponent implements OnInit {
   navModsIcon = faWrench;
   navLogsIcon = faTerminal;
 
+  agentBuildInfo: BuildVersion | undefined = undefined;
+  mgmtServerBuildInfo: BuildVersion | undefined = undefined;
+
   constructor(
     private router: Router,
     private activatedRoute: ActivatedRoute,
     private title: Title,
     private operationService: OperationService,
+    private apiClient: MgmtServerRestApiService,
   ) { }
 
   ngOnInit(): void {
@@ -38,6 +44,11 @@ export class AppComponent implements OnInit {
       }),
       mergeMap((route) => route.data)
     ).subscribe((event) => this.title.setTitle(event.title));
+
+    this.apiClient.buildinfoGet().subscribe(bi => {
+      this.agentBuildInfo = bi.agent;
+      this.mgmtServerBuildInfo = bi.mgmt_server;
+    });
   }
 
   public onBurgerClick(): void {
