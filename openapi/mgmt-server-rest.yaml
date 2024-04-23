@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: fctrl mgmt-server REST API
   description: REST API exposed by fctrl mgmt-server
-  version: 0.1.0
+  version: 0.1.1
 
 servers:
   - url: /api/v1
@@ -567,6 +567,7 @@ components:
       properties:
         version:
           type: string
+          nullable: true
           description: Version of Factorio installed on the server.
     ServerInstallPostRequest:
       required:

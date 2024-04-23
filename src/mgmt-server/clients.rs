@@ -90,12 +90,13 @@ impl AgentApiClient {
         ack_or_timeout(sub, Duration::from_millis(500), id).await
     }
 
-    pub async fn version_get(&self) -> Result<FactorioVersion> {
+    pub async fn version_get(&self) -> Result<Option<FactorioVersion>> {
         let request = AgentRequest::VersionGet;
         let (_id, sub) = self.send_request_and_subscribe(request).await?;
 
         response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
-            AgentOutMessage::FactorioVersion(v) => Ok(v),
+            AgentOutMessage::FactorioVersion(v) => Ok(Some(v)),
+            AgentOutMessage::NotInstalled => Ok(None),
             m => Err(default_message_handler(m)),
         })
         .await

@@ -87,8 +87,8 @@ pub async fn get_install(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
 ) -> Result<Json<ServerInstallGetResponse>> {
-    let version = agent_client.version_get().await?;
-    Ok(Json(ServerInstallGetResponse { version: version.0 }))
+    let version = agent_client.version_get().await?.map(|v| v.0);
+    Ok(Json(ServerInstallGetResponse { version }))
 }
 
 #[post("/server/install", data = "<body>")]

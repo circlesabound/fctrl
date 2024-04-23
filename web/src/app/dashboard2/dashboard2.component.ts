@@ -12,7 +12,7 @@ import { concat, of } from 'rxjs';
   styleUrls: ['./dashboard2.component.sass'],
 })
 export class Dashboard2Component implements OnInit {
-  version: string;
+  installedVersion: string | null;
   status: string;
   playerCount: number;
   selectedSave: string;
@@ -33,7 +33,7 @@ export class Dashboard2Component implements OnInit {
     private apiClient: MgmtServerRestApiService,
     private operationService: OperationService,
   ) {
-    this.version = 'not installed';
+    this.installedVersion = null;
     this.status = '';
     this.playerCount = 0;
     this.selectedSave = '';
@@ -47,12 +47,16 @@ export class Dashboard2Component implements OnInit {
   }
 
   private internalUpdateAll(): void {
+    this.internalUpdateVersion();
+    this.internalUpdateSaves();
+    this.internalUpdateGameStatus();
+  }
+
+  private internalUpdateGameStatus(): void {
     this.apiClient.serverControlGet().subscribe(s => {
       this.status = s.game_status;
       this.playerCount = s.player_count;
     });
-    this.internalUpdateSaves();
-    this.internalUpdateVersion();
   }
 
   private internalUpdateSaves(): void {
@@ -63,7 +67,7 @@ export class Dashboard2Component implements OnInit {
 
   private internalUpdateVersion(): void {
     this.apiClient.serverInstallGet().subscribe(s => {
-      this.version = s.version;
+      this.installedVersion = s.version;
     });
   }
 

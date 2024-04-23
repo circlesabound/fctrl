@@ -6,7 +6,7 @@
 </p>
 <p>Players: {{playerCount}}</p>
 <p>
-  Version: {{version}}
+  Version: {{installedVersion ?? 'not installed'}}
   <input type="text" [(ngModel)]="installVersionString">
   <button (click)="installVersion()">Install</button>
 </p>

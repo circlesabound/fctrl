@@ -703,7 +703,7 @@ impl AgentController {
         {
             match vm.versions.values().next() {
                 None => {
-                    self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                    self.reply_success(AgentOutMessage::NotInstalled, operation_id)
                         .await;
                 }
                 Some(v) => {
