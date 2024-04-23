@@ -20,7 +20,7 @@ export class ModListComponent implements OnInit {
 
   addModName = '';
   private addModNameSubject = new Subject<string>();
-  addModPrefetch: Option<ModInfo> = Option.none();
+  addModPrefetch: ModInfo | null;
 
   saveButtonLoading = false;
   showTickIcon = false;
@@ -35,7 +35,9 @@ export class ModListComponent implements OnInit {
     private apiClient: MgmtServerRestApiService,
     private modPortalClient: FactorioModPortalApiService,
     private operationService: OperationService,
-  ) {}
+  ) {
+    this.addModPrefetch = null;
+  }
 
   ngOnInit(): void {
     this.fetchModList();
@@ -44,7 +46,7 @@ export class ModListComponent implements OnInit {
       distinctUntilChanged(),
       switchMap((name) => this.prefetchModToAdd(name)),
     ).subscribe(mi => {
-      this.addModPrefetch = Option.some(mi);
+      this.addModPrefetch = mi;
     });
   }
 
@@ -100,7 +102,7 @@ export class ModListComponent implements OnInit {
               });
             }
             // sort by friendly name, since this is what the in-game mod manager does
-            this.modInfoList = infoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.title));
+            this.modInfoList = infoList.sort((lhs, rhs) => lhs.title.localeCompare(rhs.title));
 
             this.ready = true;
           });
@@ -146,11 +148,11 @@ export class ModListComponent implements OnInit {
   }
 
   addMod(): void {
-    this.addModPrefetch.ifSome(info => {
-      this.modInfoList.push(info);
-      this.modInfoList.sort((lhs, rhs) => lhs.name.localeCompare(rhs.title));
-    });
-    this.addModPrefetch = Option.none();
+    if (this.addModPrefetch !== null) {
+      this.modInfoList.push(this.addModPrefetch);
+      this.modInfoList.sort((lhs, rhs) => lhs.title.localeCompare(rhs.title));
+    }
+    this.addModPrefetch = null;
     this.addModName = '';
   }
 
@@ -195,22 +197,6 @@ export class ModListComponent implements OnInit {
         };
         return ret;
       }));
-  }
-
-  getVersionsToAdd(): string[] {
-    return this.addModPrefetch.map(mi => mi.versions).getOrElse([]);
-  }
-
-  getSelectedVersionToAdd(): string {
-    return this.addModPrefetch.map(mi => mi.selectedVersion).getOrElse('');
-  }
-
-  setSelectedVersionToAdd(version: string): void {
-    this.addModPrefetch.ifSome(mi => mi.selectedVersion = version);
-  }
-
-  displayPrefetchTitle(): string {
-    return this.addModPrefetch.map(mi => mi.title).getOrElse('');
   }
 
 }

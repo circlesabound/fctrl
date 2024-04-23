@@ -28,10 +28,4 @@ export class ModObjectComponent implements OnInit {
     this.removeModInfo.emit(this.modInfo);
   }
 
-  // TODO possibly not needed anymore with ngModel bind, need to test
-  setSelectedVersion(version: string): void {
-    this.modInfo.selectedVersion = version;
-    this.modInfoChange.emit(this.modInfo);
-  }
-
 }

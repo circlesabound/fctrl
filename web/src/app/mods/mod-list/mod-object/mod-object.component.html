@@ -13,7 +13,7 @@
 <td>
   <div class="select is-small" style="min-width: 50%;">
     <select style="min-width: 100%;" [(ngModel)]="modInfo.selectedVersion">
-      <option class="dropdown-item" *ngFor="let version of modInfo.versions" [ngValue]="version" (click)="setSelectedVersion(version)">
+      <option class="dropdown-item" *ngFor="let version of modInfo.versions" [ngValue]="version">
         {{version}}
       </option>
     </select>

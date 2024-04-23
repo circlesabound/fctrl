@@ -31,15 +31,15 @@
           <input class="input" type="text" placeholder="Name" [(ngModel)]="addModName" (input)="bufferedPrefetchModToAdd(addModName)">
         </td>
         <td>
-          <input class="input is-static" type="text" [value]="displayPrefetchTitle()" readonly>
+          <input *ngIf="addModPrefetch" class="input is-static" type="text" [value]="addModPrefetch.title" readonly>
         </td>
         <td>
-          <p><a *ngIf="displayPrefetchTitle() !== ''" class="icon" href="https://mods.factorio.com/mod/{{addModName}}" target="_blank"><fa-icon class="fa-external-link" [icon]="linkIcon"></fa-icon></a></p>
+          <p><a *ngIf="addModPrefetch" class="icon" href="https://mods.factorio.com/mod/{{addModName}}" target="_blank"><fa-icon class="fa-external-link" [icon]="linkIcon"></fa-icon></a></p>
         </td>
         <td>
-          <div *ngIf="displayPrefetchTitle() !== ''" class="select" style="min-width: 50%;">
-            <select style="min-width: 100%;">
-              <option class="dropdown-item" *ngFor="let version of getVersionsToAdd()" (click)="setSelectedVersionToAdd(version)">
+          <div *ngIf="addModPrefetch" class="select" style="min-width: 50%;">
+            <select style="min-width: 100%;" [(ngModel)]="addModPrefetch.selectedVersion">
+              <option class="dropdown-item" *ngFor="let version of addModPrefetch.versions ?? []" value="{{version}}">
                 {{version}}
               </option>
             </select>
