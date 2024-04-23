@@ -49,8 +49,8 @@ async fn download_save(
             Ok(m) => {
                 match m.content {
                     AgentOutMessage::SaveFile(sb) => {
-                        if sb.bytes.len() == 0 {
-                            info!("get_savefile completed with total multiparts = {:?}", sb.multipart_seqnum);
+                        if sb.is_sentinel() {
+                            info!("get_savefile completed with total multipart length = {:?}", sb.multipart_start);
                             None
                         } else {
                             Some(sb.bytes)

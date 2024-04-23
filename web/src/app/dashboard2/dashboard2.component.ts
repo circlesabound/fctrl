@@ -2,6 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { OperationService } from '../operation.service';
 import { environment } from 'src/environments/environment';
+import { faCheck, faUpload } from '@fortawesome/free-solid-svg-icons';
+import { delay, switchMap, tap } from 'rxjs/operators';
+import { concat, of } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard2',
@@ -16,8 +19,15 @@ export class Dashboard2Component implements OnInit {
   createSaveName: string;
   installVersionString: string;
 
+  uploadSavefileButtonLoading = false;
+  uploadSavefileButtonShowTickIcon = false;
+  uploadIcon = faUpload;
+  tickIcon = faCheck;
+
   downloadAvailableVersions: string[] = [];
   saves: string[] = [];
+
+  savefileToUpload: File | null;
 
   constructor(
     private apiClient: MgmtServerRestApiService,
@@ -29,6 +39,7 @@ export class Dashboard2Component implements OnInit {
     this.selectedSave = '';
     this.createSaveName = '';
     this.installVersionString = '';
+    this.savefileToUpload = null;
   }
 
   ngOnInit(): void {
@@ -57,7 +68,7 @@ export class Dashboard2Component implements OnInit {
   }
 
   private internalUpdateAvailableVersions(): void {
-    // TODO
+    // TODO implement for install version dropdown
   }
 
   startServer(): void {
@@ -158,4 +169,68 @@ export class Dashboard2Component implements OnInit {
     });
   }
 
+  uploadSavefile(): void {
+    if (this.savefileToUpload === null) {
+      return;
+    }
+
+    this.uploadSavefileButtonLoading = true;
+
+    // trim ".zip" from end of filename
+    let savefile_id = this.savefileToUpload.name.split('.').slice(0, -1).join('.')
+
+    let totalSize = this.savefileToUpload.size;
+    let chunkSizeBytes = 2 * 1000 * 1000; // 2 MB
+    let offset = 0;
+    let offsetsObservableArray = [];
+
+    while (offset <= totalSize) {
+      console.debug("preparing observable for chunk from " + offset);
+      let currentChunkSize = Math.min(chunkSizeBytes, totalSize - offset);
+
+      if (currentChunkSize === 0) {
+        // finalise with sentinel
+        offsetsObservableArray.push(this.apiClient.serverSavefilesSavefileIdPut({
+          body: new Blob(),
+          savefile_id,
+          "Content-Range": `bytes ${offset}-${offset}/${totalSize}`,
+        }).pipe(
+          tap({
+            complete: () => this.uploadSavefileButtonShowTickIcon = true,
+            error: e => alert('Error uploading save: ' + JSON.stringify(e)),
+            finalize: () => this.uploadSavefileButtonLoading = false,
+          }),
+        ));
+        console.debug("prepared sentinel");
+        break;
+      }
+
+      let observable = of([offset, currentChunkSize]).pipe(
+        switchMap(([offset, chunkSize]) => {
+          let chunk = this.savefileToUpload!.slice(offset, offset + chunkSize);
+          return this.apiClient.serverSavefilesSavefileIdPut({
+            body: chunk,
+            savefile_id,
+            "Content-Range": `bytes ${offset}-${offset + chunkSize}/${totalSize}`,
+          });
+        }),
+        tap({
+          complete: () => this.uploadSavefileButtonShowTickIcon = true,
+          error: e => alert('Error uploading save: ' + JSON.stringify(e)),
+          finalize: () => this.uploadSavefileButtonLoading = false,
+        }),
+      );
+      offsetsObservableArray.push(observable);
+      offset += currentChunkSize;
+    }
+
+    // do them in order
+    concat(...offsetsObservableArray).pipe(
+      delay(3000),
+    ).subscribe(() => {
+      this.uploadSavefileButtonShowTickIcon = false
+      this.internalUpdateSaves();
+    });
+
+  }
 }

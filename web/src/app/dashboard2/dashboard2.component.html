@@ -1,3 +1,5 @@
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block" rel="stylesheet">
+
 <p>
   Status: {{status}}
   <button (click)="stopServer()">Stop</button>
@@ -31,3 +33,17 @@
 </mat-form-field>
 
 <button mat-raised-button (click)="createSave()">Create</button>
+
+<mat-form-field>
+  <ngx-mat-file-input [(ngModel)]="savefileToUpload" [multiple]="false" [accept]="'.zip'">
+  </ngx-mat-file-input>
+</mat-form-field>
+<button id="upload-dat-button" class="button"
+  (click)="uploadSavefile()"
+  [disabled]="savefileToUpload === null"
+  [ngClass]="{'is-loading': uploadSavefileButtonLoading}">
+  <span class="icon is-small">
+    <fa-icon class="fa-fw" [icon]="uploadSavefileButtonShowTickIcon ? tickIcon : uploadIcon"></fa-icon>
+  </span>
+  <span>Upload save</span>
+</button>

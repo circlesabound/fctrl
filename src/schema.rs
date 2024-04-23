@@ -231,7 +231,7 @@ pub struct Save {
 
 #[derive(Deserialize, Serialize)]
 pub struct SaveBytes {
-    pub multipart_seqnum: Option<u32>,
+    pub multipart_start: Option<usize>,
     #[serde(with = "base64")]
     pub bytes: Vec<u8>,
 }
@@ -239,16 +239,20 @@ pub struct SaveBytes {
 impl SaveBytes {
     pub fn new(bytes: Vec<u8>) -> SaveBytes {
         SaveBytes {
-            multipart_seqnum: None,
+            multipart_start: None,
             bytes,
         }
     }
 
-    pub fn sentinel(total_num_parts: u32) -> SaveBytes {
+    pub fn sentinel(total_length: usize) -> SaveBytes {
         SaveBytes {
-            multipart_seqnum: Some(total_num_parts),
+            multipart_start: Some(total_length),
             bytes: vec![],
         }
+    }
+
+    pub fn is_sentinel(&self) -> bool {
+        self.bytes.len() == 0
     }
 }
 
@@ -257,12 +261,12 @@ impl std::fmt::Debug for SaveBytes {
         if self.bytes.len() > 16 {
             let debug_bytes = format!("{:?}...", &self.bytes[..16]);
             f.debug_struct("SaveBytes")
-                .field("multipart_seqnum", &self.multipart_seqnum)
+                .field("multipart_start", &self.multipart_start)
                 .field("bytes", &debug_bytes)
                 .finish()
         } else {
             f.debug_struct("SaveBytes")
-                .field("multipart_seqnum", &self.multipart_seqnum)
+                .field("multipart_start", &self.multipart_start)
                 .field("bytes", &self.bytes)
                 .finish()
         }
@@ -393,6 +397,7 @@ pub mod regex {
     use lazy_static::lazy_static;
     use regex::Regex;
 
+    // ***** agent stream message regular expressions *****
     lazy_static! {
         // echo from achievement-preserve setting discord chat link
         pub static ref CHAT_DISCORD_ECHO_RE: Regex = Regex::new(
@@ -424,6 +429,14 @@ pub mod regex {
         // server internal state change from process stdout
         pub static ref STATE_CHANGE_RE: Regex = Regex::new(
             r"changing state from\(([a-zA-Z]+)\) to\(([a-zA-Z]+)\)"
+        ).unwrap();
+    }
+
+    // ***** other misc expressions *****
+    lazy_static! {
+        // Content-Range header value
+        pub static ref CONTENT_RANGE_RE: Regex = Regex::new(
+            r"^bytes (\d+)-(\d+)/(\d+)$"
         ).unwrap();
     }
 }

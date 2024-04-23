@@ -1035,12 +1035,13 @@ impl AgentController {
                 let chunks = savebytes.bytes.chunks(MAX_WS_PAYLOAD_BYTES);
                 let mut i = 0;
                 for chunk in chunks {
+                    let chunk_len = chunk.len();
                     let msg = AgentOutMessage::SaveFile(SaveBytes {
-                        multipart_seqnum: Some(i),
+                        multipart_start: Some(i),
                         bytes: chunk.to_vec(),
                     });
                     self.reply(msg, &operation_id).await;
-                    i += 1;
+                    i += chunk_len;
                 }
                 self.reply_success(AgentOutMessage::SaveFile(SaveBytes::sentinel(i)), operation_id).await;
             },
@@ -1070,18 +1071,10 @@ impl AgentController {
     }
 
     async fn save_set(&self, save_name: String, savebytes: SaveBytes, operation_id: OperationId) {
-        match util::saves::exists_savefile(&save_name).await {
-            Ok(false) => {
-                if let Err(e) = util::saves::set_savefile(&save_name, savebytes).await {
-                    self.reply_failed(AgentOutMessage::Error(format!("Failed to set savefile with name `{}`: {:?}", &save_name, e)), operation_id).await
-                } else {
-                    self.reply_success(AgentOutMessage::Ok, operation_id).await
-                }
-            },
-            Ok(true) => self.reply_failed(AgentOutMessage::Error(format!("Savefile with name {} already exists", &save_name)), operation_id).await,
-            Err(e) => self.reply_failed(
-                AgentOutMessage::Error(format!("Failed to read saves: {:?}", e)),
-                operation_id).await,
+        if let Err(e) = util::saves::set_savefile(&save_name, savebytes).await {
+            self.reply_failed(AgentOutMessage::Error(format!("Failed to set savefile with name `{}`: {:?}", &save_name, e)), operation_id).await
+        } else {
+            self.reply_success(AgentOutMessage::Ok, operation_id).await
         }
     }
 

@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::{io::SeekFrom, path::{Path, PathBuf}};
 
 use fctrl::schema::{Save, SaveBytes};
 use log::{error, info, warn};
-use tokio::fs;
+use tokio::{fs::{self, OpenOptions}, io::{AsyncSeekExt, AsyncWriteExt}};
 
 use crate::{consts::*, error::Result};
 
@@ -63,14 +63,34 @@ pub async fn list_savefiles() -> Result<Vec<Save>> {
 
 pub async fn set_savefile(save_name: impl AsRef<str>, savebytes: SaveBytes) -> Result<()> {
     let bytes_length = savebytes.bytes.len();
-    match fs::write(get_savefile_path(save_name.as_ref()), savebytes.bytes).await {
-        Ok(()) => {
-            info!("Successfully set savefile `{}`, wrote {} bytes", save_name.as_ref(), bytes_length);
-            Ok(())
-        },
-        Err(e) => {
-            error!("Failed to set savefile `{}`: {:?}", save_name.as_ref(), e);
-            Err(e.into())
+    if let Some(start_byte) = savebytes.multipart_start {
+        // partial file write
+        let filename = get_savefile_path(save_name.as_ref());
+        // create if not exist
+        let mut file = OpenOptions::new().write(true).create(true).open(filename).await?;
+        if savebytes.is_sentinel() {
+            // finalise and trim down to size
+            file.set_len(start_byte as u64).await?;
+            info!("Successfully finalised savefile `{}`, final length {} bytes", save_name.as_ref(), start_byte);
+        } else {
+            // seek to correct write location before writing
+            file.seek(SeekFrom::Start(start_byte as u64)).await?;
+            file.write_all(&savebytes.bytes).await?;
+            file.flush().await?;
+            info!("Successfully wrote to savefile `{}`, wrote {} bytes from offset {}", save_name.as_ref(), savebytes.bytes.len(), start_byte);
+        }
+        Ok(())
+    } else {
+        // write the whole file
+        match fs::write(get_savefile_path(save_name.as_ref()), savebytes.bytes).await {
+            Ok(()) => {
+                info!("Successfully set savefile `{}`, wrote {} bytes", save_name.as_ref(), bytes_length);
+                Ok(())
+            },
+            Err(e) => {
+                error!("Failed to set savefile `{}`: {:?}", save_name.as_ref(), e);
+                Err(e.into())
+            }
         }
     }
 }

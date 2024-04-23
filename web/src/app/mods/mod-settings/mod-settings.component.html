@@ -1,4 +1,5 @@
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block" rel="stylesheet">
+
 <h1 class="title is-1">Mod settings</h1>
 
 <div>
@@ -12,9 +13,12 @@
     <ngx-mat-file-input [(ngModel)]="fileToUpload" [multiple]="false" [accept]="'.dat'">
     </ngx-mat-file-input>
   </mat-form-field>
-  <button id="upload-dat-button" class="button" (click)="uploadModSettingsDat()" [disabled]="fileToUpload === null">
+  <button id="upload-dat-button" class="button"
+    (click)="uploadModSettingsDat()"
+    [disabled]="fileToUpload === null"
+    [ngClass]="{'is-loading': uploadModSettingsButtonLoading}">
     <span class="icon is-small">
-      <fa-icon class="fa-fw" [icon]="uploadIcon"></fa-icon>
+      <fa-icon class="fa-fw" [icon]="uploadModSettingsButtonShowTickIcon ? tickIcon : uploadIcon"></fa-icon>
     </span>
     <span>Upload</span>
   </button>

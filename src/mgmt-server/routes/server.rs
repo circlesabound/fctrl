@@ -8,12 +8,12 @@ use factorio_file_parser::ModSettings;
 use fctrl::schema::{
     mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SaveBytes, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
-use rocket::{delete, serde::json::Json};
+use rocket::{data::ToByteUnit, delete, serde::json::Json, Data};
 use rocket::{get, post, put};
 use rocket::{http::Status, State};
 
 use crate::{
-    auth::AuthorizedUser, clients::AgentApiClient, guards::HostHeader, link_download::{LinkDownloadManager, LinkDownloadTarget}, ws::WebSocketServer
+    auth::AuthorizedUser, clients::AgentApiClient, guards::{ContentLengthHeader, ContentRangeHeader, HostHeader}, link_download::{LinkDownloadManager, LinkDownloadTarget}, ws::WebSocketServer
 };
 use crate::{error::Result, routes::WsStreamingResponder};
 
@@ -158,11 +158,14 @@ pub async fn put_savefile(
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
     id: String,
-    body: Vec<u8>,
+    body: Data<'_>,
+    content_length: ContentLengthHeader,
+    content_range: ContentRangeHeader,
 ) -> Result<()> {
+    let chunk_stream = body.open(content_length.length.bytes());
     let savebytes = SaveBytes {
-        multipart_seqnum: None,
-        bytes: body,
+        multipart_start: Some(content_range.start),
+        bytes: chunk_stream.into_bytes().await?.into_inner(),
     };
     agent_client.save_put(id, savebytes).await?;
     Ok(())

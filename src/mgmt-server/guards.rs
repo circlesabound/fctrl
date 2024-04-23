@@ -1,3 +1,4 @@
+use fctrl::schema::regex::CONTENT_RANGE_RE;
 use log::error;
 use rocket::{
     http::Status,
@@ -27,6 +28,81 @@ impl<'r> FromRequest<'r> for HostHeader<'r> {
                 }
             }
             None => Outcome::Forward(Status::InternalServerError),
+        }
+    }
+}
+
+pub struct ContentLengthHeader {
+    pub length: usize,
+}
+
+#[derive(Debug)]
+pub enum ContentLengthHeaderError {
+    Missing,
+    Format,
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ContentLengthHeader {
+    type Error = ContentLengthHeaderError;
+
+    async fn from_request(request: &'r rocket::Request<'_>) -> Outcome<Self, Self::Error> {
+        match request.headers().get_one("Content-Length") {
+            Some(h) => {
+                if let Ok(length) = h.parse::<usize>() {
+                    Outcome::Success(ContentLengthHeader {
+                        length,
+                    })
+                } else {
+                    Outcome::Error((Status::BadRequest, ContentLengthHeaderError::Format))
+                }
+            },
+            None => Outcome::Error((Status::BadRequest, ContentLengthHeaderError::Missing)),
+        }
+    }
+}
+
+pub struct ContentRangeHeader {
+    pub start: usize,
+    pub end: usize,
+    pub length: usize,
+}
+
+#[derive(Debug)]
+pub enum ContentRangeHeaderError {
+    Missing,
+    Format,
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ContentRangeHeader {
+    type Error = ContentRangeHeaderError;
+
+    async fn from_request(request: &'r rocket::Request<'_>) -> Outcome<Self, Self::Error> {
+        match request.headers().get_one("Content-Range") {
+            Some(h) => {
+                if let Some(captures) = CONTENT_RANGE_RE.captures(h) {
+                    if let Some(start) = captures.get(1) {
+                        if let Ok(start) = start.as_str().parse::<usize>() {
+                            if let Some(end) = captures.get(2) {
+                                if let Ok(end) = end.as_str().parse::<usize>() {
+                                    if let Some(length) = captures.get(3) {
+                                        if let Ok(length) = length.as_str().parse::<usize>() {
+                                            return Outcome::Success(ContentRangeHeader {
+                                                start,
+                                                end,
+                                                length,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Outcome::Error((Status::BadRequest, ContentRangeHeaderError::Format))
+            },
+            None => Outcome::Error((Status::BadRequest, ContentRangeHeaderError::Missing)),
         }
     }
 }

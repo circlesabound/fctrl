@@ -6,4 +6,4 @@ else
     GIT_COMMIT_HASH="$(git rev-parse HEAD)-dirty"
 fi
 
-env DOCKER_BUILDKIT=1 docker-compose -f docker-compose.yml -f docker-compose.local.yml build --build-arg GIT_COMMIT_HASH=$GIT_COMMIT_HASH
+env DOCKER_BUILDKIT=1 docker compose -f docker-compose.yml -f docker-compose.local.yml build --build-arg GIT_COMMIT_HASH=$GIT_COMMIT_HASH

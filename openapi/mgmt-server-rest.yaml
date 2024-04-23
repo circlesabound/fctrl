@@ -163,6 +163,11 @@ paths:
           required: true
           schema:
             type: string
+        - name: Content-Range
+          in: header
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
