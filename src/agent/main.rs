@@ -1113,7 +1113,7 @@ impl AgentController {
                     Ok(header) => {
                         let base_mod_name = header.base_mod;
                         let ret = header.mods.into_iter().filter(|shm| {
-                            shm.name == base_mod_name
+                            shm.name != base_mod_name
                         }).map(|shm| {
                             ModObject {
                                 name: shm.name,
