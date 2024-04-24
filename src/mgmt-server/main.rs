@@ -7,7 +7,7 @@ use auth::{AuthnManager, AuthnProvider, AuthzManager};
 use events::*;
 use futures::{pin_mut, StreamExt};
 use log::{debug, error, info};
-use rocket::{async_trait, catchers, data::ToByteUnit, fairing::Fairing, fs::FileServer, routes};
+use rocket::{async_trait, catchers, fairing::Fairing, fs::FileServer, routes};
 
 use crate::{
     auth::UserIdentity, clients::AgentApiClient, db::{Cf, Db, Record}, discord::DiscordClient, events::broker::EventBroker, link_download::LinkDownloadManager, rpc::RpcHandler, ws::WebSocketServer

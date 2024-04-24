@@ -740,20 +740,22 @@ fn tag_server_stdout_message(message: &str, tags: &mut HashMap<TopicName, String
             rpc_command
         );
     } else if let Some(state_change_captures) = STATE_CHANGE_RE.captures(message) {
-        if let Ok(to) = InternalServerState::from_str(state_change_captures.get(2).unwrap().as_str()) {
-            // bad cases already logged on agent side, can ignore
-            tags.insert(
-                TopicName::new(STDOUT_TOPIC_NAME),
-                StdoutTopicCategory::ServerState.to_string(),
-            );
-            tags.insert(
-                TopicName::new(SERVERSTATE_TOPIC_NAME),
-                to.as_ref().to_string(),
-            );
-            tags.insert(
-                TopicName::new(STDOUT_TOPIC_NAME),
-                StdoutTopicCategory::SystemLog.to_string(),
-            );
+        // bad cases already logged on agent side, can ignore
+        if let Ok(from) = InternalServerState::from_str(state_change_captures.get(1).unwrap().as_str()) {
+            if let Ok(to) = InternalServerState::from_str(state_change_captures.get(2).unwrap().as_str()) {
+                tags.insert(
+                    TopicName::new(STDOUT_TOPIC_NAME),
+                    StdoutTopicCategory::ServerState.to_string(),
+                );
+                tags.insert(
+                    TopicName::new(SERVERSTATE_TOPIC_NAME),
+                    format!("{} {}", from.as_ref(), to.as_ref()),
+                );
+                tags.insert(
+                    TopicName::new(STDOUT_TOPIC_NAME),
+                    StdoutTopicCategory::SystemLog.to_string(),
+                );
+            }
         }
     } else {
         tags.insert(

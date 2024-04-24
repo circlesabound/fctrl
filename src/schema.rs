@@ -364,7 +364,7 @@ pub enum AllowCommandsValue {
 }
 
 /// Internal state of the Factorio multiplayer server as tracked by output logs
-#[derive(Clone, Debug, EnumString, AsRefStr)]
+#[derive(Clone, Debug, PartialEq, EnumString, AsRefStr)]
 pub enum InternalServerState {
     Ready,
     PreparedToHostGame,

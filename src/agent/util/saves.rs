@@ -5,8 +5,7 @@ use factorio_file_parser::SaveHeader;
 use fctrl::schema::{Save, SaveBytes};
 use futures::AsyncReadExt;
 use log::{error, info, warn};
-use tokio::{fs::{self, OpenOptions}, io::{AsyncSeekExt, AsyncWriteExt, BufReader}};
-use tokio_util::compat::TokioAsyncReadCompatExt;
+use tokio::{fs::{self, OpenOptions}, io::{AsyncSeekExt, AsyncWriteExt}};
 
 use crate::{consts::*, error::{Error, Result}};
 

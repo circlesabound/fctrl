@@ -245,12 +245,13 @@ impl DiscordClient {
         });
 
         let statechange_sub = event_broker
-            .subscribe(TopicName::new(SERVERSTATE_TOPIC_NAME), |state| {
-                // we only care about "server started" and "server stopped"
-                if let Ok(state) = InternalServerState::from_str(state) {
-                    match state {
-                        InternalServerState::InGame
-                        | InternalServerState::Closed => true,
+            .subscribe(TopicName::new(SERVERSTATE_TOPIC_NAME), |states_str| {
+                if let Some((from, to)) = parse_serverstate_topic_value(states_str) {
+                    // we only care about "InGame" and "Closed"
+                    // special handling for "InGame" -> "InGameSavingMap" -> "InGame" sequence
+                    match to {
+                        InternalServerState::InGame => from != InternalServerState::InGameSavingMap,
+                        InternalServerState::Closed => true,
                         _ => false,
                     }
                 } else {
@@ -261,9 +262,9 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(statechange_sub);
             while let Some(event) = statechange_sub.next().await {
-                let state = event.tags.get(&TopicName::new(SERVERSTATE_TOPIC_NAME)).unwrap();
-                if let Ok(iss) = InternalServerState::from_str(state) {
-                    let message = match iss {
+                let serverstate_val = event.tags.get(&TopicName::new(SERVERSTATE_TOPIC_NAME)).unwrap();
+                if let Some((_from, to)) = parse_serverstate_topic_value(serverstate_val) {
+                    let message = match to {
                         InternalServerState::InGame => Some(format!("**Server started**")),
                         InternalServerState::Closed => Some(format!("**Server stopped**")),
                         _ => None,
@@ -280,6 +281,27 @@ impl DiscordClient {
                 "Discord chat link g2d statechange subscriber is finishing, this should never happen!"
             );
         });
+    }
+
+
+}
+
+fn parse_serverstate_topic_value(states_str: impl AsRef<str>) -> Option<(InternalServerState, InternalServerState)> {
+    if let Some((from, to)) = states_str.as_ref().split_once(' ') {
+        if let Ok(from) = InternalServerState::from_str(from) {
+            if let Ok(to) = InternalServerState::from_str(to) {
+                Some((from, to))
+            } else {
+                error!("invalid serverstate topic value split to: {}", to);
+                None
+            }
+        } else {
+            error!("invalid serverstate topic value split from: {}", from);
+            None
+        }
+    } else {
+        error!("invalid serverstate topic value: {}", states_str.as_ref());
+        None
     }
 }
 

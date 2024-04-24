@@ -231,7 +231,7 @@ export class Dashboard2Component implements OnInit {
     // do them in order
     concat(...offsetsObservableArray).pipe(
       delay(3000),
-    ).subscribe(() => {
+    ).subscribe().add(() => {
       this.uploadSavefileButtonShowTickIcon = false
       this.internalUpdateSaves();
     });
