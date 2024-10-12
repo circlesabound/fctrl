@@ -47,6 +47,10 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         Ok("true") => {
             info!("Discord integration enabled, setting up Discord client");
             let discord_bot_token = std::env::var("DISCORD_BOT_TOKEN")?;
+            let guild_id = match std::env::var("DISCORD_GUILD_ID") {
+                Ok(s) => Some(s.parse()?),
+                Err(_) => None,
+            };
             let alert_channel_id = match std::env::var("DISCORD_ALERT_CHANNEL_ID") {
                 Ok(s) => Some(s.parse()?),
                 Err(_) => None,
@@ -62,6 +66,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             Some(
                 DiscordClient::new(
                     discord_bot_token,
+                    guild_id,
                     alert_channel_id,
                     chat_link_channel_id,
                     chat_link_preserve_achievements,

@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use factorio_file_parser::SaveHeader;
 use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, EnumString};
 

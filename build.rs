@@ -23,9 +23,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("cargo:rerun-if-changed=openapi");
 
-    vergen::EmitBuilder::builder()
-        .fail_on_error()
-        .build_timestamp()
+    let build = vergen_gitcl::BuildBuilder::default()
+        .build_timestamp(true)
+        .build()?;
+    let git = vergen_gitcl::GitclBuilder::default()
+        .sha(true)
+        .build()?;
+    vergen_gitcl::Emitter::default()
+        .add_instructions(&build)?
+        .add_instructions(&git)?
         .emit()?;
 
     Ok(())

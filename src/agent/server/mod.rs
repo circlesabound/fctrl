@@ -229,6 +229,7 @@ impl StartedInstance {
     }
 }
 
+#[allow(dead_code)]
 pub struct StoppedInstance {
     pub exit_status: ExitStatus,
     pub admin_list: AdminList,

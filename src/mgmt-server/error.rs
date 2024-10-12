@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Error {
     AgentCommunicationError,
     AgentDisconnected,

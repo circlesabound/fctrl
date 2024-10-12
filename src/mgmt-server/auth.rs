@@ -220,7 +220,6 @@ impl AuthzManager {
     }
 
     pub fn authorize(&self, id: &UserIdentity) -> bool {
-        // TODO
         *id == self.admin
     }
 }
@@ -245,6 +244,7 @@ impl From<DiscordUser> for UserIdentity {
     }
 }
 
+#[allow(dead_code)]
 pub struct AuthorizedUser(pub UserIdentity);
 
 #[allow(dead_code)]

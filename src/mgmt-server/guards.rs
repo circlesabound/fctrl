@@ -9,6 +9,7 @@ use crate::auth::{AuthnManager, AuthnProvider, AuthorizedUser, AuthzManager, Use
 
 pub struct HostHeader<'r> {
     pub hostname: &'r str,
+    #[allow(dead_code)]
     pub host: &'r str,
 }
 
@@ -64,7 +65,9 @@ impl<'r> FromRequest<'r> for ContentLengthHeader {
 
 pub struct ContentRangeHeader {
     pub start: usize,
+    #[allow(dead_code)]
     pub end: usize,
+    #[allow(dead_code)]
     pub length: usize,
 }
 

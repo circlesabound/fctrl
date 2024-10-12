@@ -5,6 +5,7 @@ use std::{collections::HashMap, time::Duration};
 use fctrl::schema::{InternalServerState, ServerStatus};
 use futures::{pin_mut, StreamExt};
 use log::{error, info, warn};
+use serenity::all::CreateCommand;
 use serenity::gateway::ActivityData;
 use serenity::{
     client::{Cache, Context, EventHandler},
@@ -32,6 +33,7 @@ pub struct DiscordClient {
 impl DiscordClient {
     pub async fn new(
         bot_token: String,
+        guild_id: Option<u64>,
         alert_channel_id: Option<u64>,
         chat_link_channel_id: Option<u64>,
         chat_link_preserve_achievements: bool,
@@ -42,14 +44,19 @@ impl DiscordClient {
         let gateway_intents = GatewayIntents::default() | GatewayIntents::MESSAGE_CONTENT;
         let mut client_builder = serenity::Client::builder(&bot_token, gateway_intents);
         if let Some(chat_link_channel_id) = chat_link_channel_id {
-            let handler = Handler {
-                agent_client: Arc::clone(&agent_client),
-                listen_channel_id: chat_link_channel_id,
-                chat_link_preserve_achievements,
-            };
-            client_builder = client_builder.event_handler(handler);
+            if let Some(guild_id) = guild_id {
+                let handler = Handler {
+                    guild_id: GuildId::new(guild_id),
+                    agent_client: Arc::clone(&agent_client),
+                    listen_channel_id: chat_link_channel_id,
+                    chat_link_preserve_achievements,
+                };
+                client_builder = client_builder.event_handler(handler);
+            } else {
+                info!("Discord guild id not provided, chat link and command functionality disabled");
+            }
         } else {
-            info!("Discord chat link channel id not provided, chat link functionality will be disabled");
+            info!("Discord chat link channel id not provided, chat link and command functionality will be disabled");
         }
         let mut client = client_builder.await?;
 
@@ -306,6 +313,7 @@ fn parse_serverstate_topic_value(states_str: impl AsRef<str>) -> Option<(Interna
 }
 
 struct Handler {
+    guild_id: GuildId,
     agent_client: Arc<AgentApiClient>,
     listen_channel_id: u64,
     chat_link_preserve_achievements: bool,
@@ -333,7 +341,30 @@ impl EventHandler for Handler {
         }
     }
 
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::Command(command) = interaction {
+            let response = match command.data.name.as_str() {
+                "server-save" => Some(commands::server_save(self.agent_client.as_ref()).await),
+                _ => {
+                    warn!("unimplemented interaction command");
+                    None
+                },
+            };
+            if let Some(response) = response {
+                if let Err(e) = command.create_response(&ctx.http, response).await {
+                    error!("Failed to respond to slash command: {:?}", e);
+                }
+            }
+        }
+    }
+
     async fn ready(&self, ctx: Context, _ready: Ready) {
+        if let Err(e) = self.guild_id.set_commands(&ctx.http, vec![
+            CreateCommand::new("server-save").description("Trigger a server-side save"),
+        ]).await {
+            error!("Error creating slash commands: {:?}", e);
+        }
+
         // update presence info with server status every 15 seconds
         let agent_client = Arc::clone(&self.agent_client);
         tokio::spawn(async move {
@@ -361,5 +392,23 @@ impl EventHandler for Handler {
         });
 
         info!("Discord event handler ready");
+    }
+}
+
+mod commands {
+    use log::error;
+    use serenity::all::{CreateInteractionResponse, CreateInteractionResponseMessage};
+
+    use crate::clients::AgentApiClient;
+
+    pub async fn server_save(agent_client: &AgentApiClient) -> CreateInteractionResponse {
+        if let Err(e) = agent_client.rcon_command("/server-save".to_owned()).await {
+            error!("Couldn't execute RCON command /server-save: {:?}", e);
+            let data = CreateInteractionResponseMessage::new().content("Failed to execute RCON command /server-save");
+            CreateInteractionResponse::Message(data)
+        } else {
+            let data = CreateInteractionResponseMessage::new().content("Ok");
+            CreateInteractionResponse::Message(data)
+        }
     }
 }

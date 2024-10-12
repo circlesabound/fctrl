@@ -141,10 +141,3 @@ fn parse_from_path<P: AsRef<Path>>(path: P) -> Result<Save> {
 
     Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid save file").into())
 }
-
-fn sanitise_file_path(path: impl AsRef<str>) -> PathBuf {
-    path.as_ref().replace('\\', "/")
-        .split('/')
-        .map(sanitize_filename::sanitize)
-        .collect()
-}
