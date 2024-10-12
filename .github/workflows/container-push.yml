@@ -12,8 +12,8 @@ jobs:
       packages: write
     steps:
     - uses: actions/checkout@v4
-    - name: docker-compose build
-      run: docker-compose -f docker-compose.yml -f docker-compose.ci.yml build --build-arg GIT_COMMIT_HASH=${{ github.sha }}
+    - name: docker compose build
+      run: docker compose -f docker-compose.yml -f docker-compose.ci.yml build --build-arg GIT_COMMIT_HASH=${{ github.sha }}
       env:
         DOCKER_BUILDKIT: 1
     - name: login to registry
