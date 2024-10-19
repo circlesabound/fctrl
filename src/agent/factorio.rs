@@ -69,7 +69,7 @@ impl VersionManager {
         );
         info!("Attempting to download version {} from {}", version, uri);
         let xz_bytes =
-            util::downloader::download(&VersionManager::get_download_id(&version), uri).await?;
+            util::downloader::download(&format!("{}.tar.xz", &VersionManager::get_download_id(&version)), uri).await?;
 
         // decompress in memory
         let decompress = XzDecoder::new(xz_bytes.reader());
@@ -105,13 +105,22 @@ impl VersionManager {
         }
     }
 
-    fn get_install_path(&self, version: &str) -> PathBuf {
-        self.install_dir
-            .join(format!("factorio_headless_x64_{}", version))
+    fn get_install_path(&self, version: impl AsRef<str>) -> PathBuf {
+        self.install_dir.join(VersionManager::get_download_id(version))
     }
 
-    fn get_download_id(version: &str) -> String {
-        format!("factorio_headless_x64_{}.tar.xz", version)
+    fn get_download_id(version: impl AsRef<str>) -> String {
+        if VersionManager::is_new_file_scheme(version.as_ref()) {
+            format!("factorio-headless_linux_{}", version.as_ref())
+        } else {
+            format!("factorio_headless_x64_{}", version.as_ref())
+        }
+    }
+
+    /// New naming scheme for dedi server files from 1.2.x onwards.
+    /// Not sure if intentional but handle it anyway
+    fn is_new_file_scheme(version: impl AsRef<str>) -> bool {
+        version.as_ref().starts_with("2.") || version.as_ref().starts_with("1.2")
     }
 }
 

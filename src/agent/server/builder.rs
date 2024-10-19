@@ -1,9 +1,10 @@
 use std::{ffi::OsString, process::Stdio};
 
-use tokio::process::Command;
+use tokio::{fs, io::AsyncWriteExt, process::Command};
+use uuid::Uuid;
 
-use crate::{factorio::Factorio, util};
-use fctrl::schema::ServerStartSaveFile;
+use crate::{factorio::Factorio, util, error::Result};
+use fctrl::schema::{MapSettingsJson, MapGenSettingsJson, ServerStartSaveFile};
 
 use super::{
     mods::ModManager,
@@ -44,16 +45,43 @@ impl ServerBuilder {
         self
     }
 
-    pub fn creating_savefile(mut self, new_savefile_name: String) -> SaveCreatorBuilder {
+    pub async fn creating_savefile(
+        mut self,
+        new_savefile_name: impl AsRef<str>,
+        map_gen_settings: Option<MapGenSettingsJson>,
+        map_settings: Option<MapSettingsJson>,
+    ) -> Result<SaveCreatorBuilder> {
         self.with_cli_args(&[
             &OsString::from("--create"),
-            util::saves::get_savefile_path(&new_savefile_name).as_os_str(),
+            util::saves::get_savefile_path(new_savefile_name.as_ref()).as_os_str(),
         ]);
-        SaveCreatorBuilder {
+        // Create temp file for map-gen-settings json
+        if let Some(MapGenSettingsJson(map_gen_settings_json)) = map_gen_settings {
+            let temp_file_name = std::env::temp_dir().join(format!("map-gen-settings-{}.json", Uuid::new_v4()));
+            let mut f = fs::File::create_new(&temp_file_name).await?;
+            f.write_all(map_gen_settings_json.as_bytes()).await?;
+            f.flush().await?;
+            self.with_cli_args(&[
+                &OsString::from("--map-gen-settings"),
+                temp_file_name.as_os_str(),
+            ]);
+        }
+        // Create temp file for map-settings json
+        if let Some(MapSettingsJson(map_settings_json)) = map_settings {
+            let temp_file_name = std::env::temp_dir().join(format!("map-settings-{}.json", Uuid::new_v4()));
+            let mut f = fs::File::create_new(&temp_file_name).await?;
+            f.write_all(map_settings_json.as_bytes()).await?;
+            f.flush().await?;
+            self.with_cli_args(&[
+                &OsString::from("--map-settings"),
+                temp_file_name.as_os_str(),
+            ]);
+        }
+        Ok(SaveCreatorBuilder {
             cmd_builder: self.cmd_builder,
             stdout_handler: self.stdout_handler,
-            _new_savefile_name: new_savefile_name,
-        }
+            _new_savefile_name: new_savefile_name.as_ref().to_string(),
+        })
     }
 
     pub fn hosting_savefile(

@@ -6,7 +6,7 @@ use std::{
 
 use factorio_file_parser::ModSettings;
 use fctrl::schema::{
-    mgmt_server_rest::*, FactorioVersion, ModSettingsBytes, RconConfig, SaveBytes, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
+    mgmt_server_rest::*, FactorioVersion, MapGenSettingsJson, MapSettingsJson, ModSettingsBytes, RconConfig, SaveBytes, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
 use rocket::{data::ToByteUnit, delete, serde::json::Json, Data};
 use rocket::{get, post, put};
@@ -41,15 +41,28 @@ pub async fn status(
     }))
 }
 
-#[post("/server/control/create", data = "<savefile>")]
+#[post("/server/control/create", data = "<create_request>")]
 pub async fn create_savefile<'a>(
     host: HostHeader<'a>,
     _a: AuthorizedUser,
     agent_client: &State<Arc<AgentApiClient>>,
     ws: &State<Arc<WebSocketServer>>,
-    savefile: Json<ServerControlCreatePostRequest>,
+    create_request: Json<ServerControlCreatePostRequest>,
 ) -> Result<WsStreamingResponder> {
-    let (id, sub) = agent_client.save_create(savefile.into_inner().savefile).await?;
+    let create_request = create_request.into_inner();
+    let map_gen_settings_json = create_request.map_gen_settings
+        .map(|map_gen_settings| serde_json::to_string(&map_gen_settings))
+        .transpose()?
+        .map(|json| MapGenSettingsJson(json));
+    let map_settings_json = create_request.map_settings
+        .map(|map_settings| serde_json::to_string(&map_settings))
+        .transpose()?
+        .map(|json| MapSettingsJson(json));
+    let (id, sub) = agent_client.save_create(
+        create_request.savefile,
+        map_gen_settings_json,
+        map_settings_json,
+    ).await?;
 
     let resp = WsStreamingResponder::new(Arc::clone(&ws), host, id);
 

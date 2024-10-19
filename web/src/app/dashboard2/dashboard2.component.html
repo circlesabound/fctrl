@@ -25,20 +25,28 @@
 <button mat-raised-button [disabled]="selectedSave === ''" (click)="downloadSave()">Download</button>
 <button mat-raised-button [disabled]="selectedSave === ''" (click)="deleteSave()">Delete</button>
 
-<h4>Create new save file</h4>
+<!-- <h4>Create new save file</h4>
 <mat-form-field>
   <mat-label>Name</mat-label>
   <input matInput type="text" class="right-align" [(ngModel)]="createSaveName">
   <span matTextSuffix>.zip</span>
 </mat-form-field>
 
-<button mat-raised-button (click)="createSave()">Create</button>
+<button mat-raised-button (click)="createSave(createSaveName!)">Create</button> -->
+
+<button id="create-save-button" class="button" (click)="createSaveModalActive = true">
+  <span class="icon is-small">
+    <fa-icon class="fa-file-circle-plus" [icon]="createSaveIcon"></fa-icon>
+  </span>
+  <span>Create save</span>
+</button>
+
 
 <mat-form-field>
   <ngx-mat-file-input [(ngModel)]="savefileToUpload" [multiple]="false" [accept]="'.zip'">
   </ngx-mat-file-input>
 </mat-form-field>
-<button id="upload-dat-button" class="button"
+<button id="upload-save-button" class="button"
   (click)="uploadSavefile()"
   [disabled]="savefileToUpload === null"
   [ngClass]="{'is-loading': uploadSavefileButtonLoading}">
@@ -47,3 +55,27 @@
   </span>
   <span>Upload save</span>
 </button>
+
+<!-- modal for savefile create workflow -->
+<div class="modal" [ngClass]="{'is-active': createSaveModalActive}">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head">
+      <h3 class="title is-3">Create new save file</h3>
+    </header>
+    <section class="modal-card-body">
+      <mat-form-field>
+        <mat-label>Name</mat-label>
+        <input matInput type="text" class="right-align" [(ngModel)]="createSaveName">
+        <span matTextSuffix>.zip</span>
+      </mat-form-field>
+      <!-- TODO add section to configure map-gen-settings and map-settings -->
+    </section>
+    <footer class="modal-card-foot">
+      <div class="buttons">
+        <button class="button is-success" (click)="createSave(createSaveName!)" [disabled]="!createSaveName">Create</button>
+      </div>
+    </footer>
+  </div>
+  <button class="modal-close is-large" aria-label="close" (click)="createSaveModalActive = false"></button>
+</div>

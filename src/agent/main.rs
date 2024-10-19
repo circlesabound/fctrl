@@ -313,8 +313,14 @@ impl AgentController {
                         // *******************
                         // Savefile management
                         // *******************
-                        AgentRequest::SaveCreate(save_name) => {
-                            self.save_create(save_name, operation_id).await
+                        AgentRequest::SaveCreate(save_name, map_gen_settings, map_gen_seed) => {
+                            self.save_create(
+                                save_name,
+                                map_gen_settings,
+                                map_gen_seed,
+                                operation_id,
+                            )
+                            .await
                         }
 
                         AgentRequest::SaveDelete(save_name) => {
@@ -341,7 +347,8 @@ impl AgentController {
                         }
 
                         AgentRequest::ModListExtractFromSave(save_name) => {
-                            self.mod_list_extract_from_save(save_name, operation_id).await;
+                            self.mod_list_extract_from_save(save_name, operation_id)
+                                .await;
                         }
 
                         AgentRequest::ModListSet(mod_list) => {
@@ -525,7 +532,8 @@ impl AgentController {
             timestamp: fctrl::util::version::BUILD_TIMESTAMP.to_owned(),
             commit_hash: fctrl::util::version::GIT_SHA.unwrap_or("-").to_owned(),
         };
-        self.reply_success(AgentOutMessage::AgentBuildVersion(version), operation_id).await;
+        self.reply_success(AgentOutMessage::AgentBuildVersion(version), operation_id)
+            .await;
     }
 
     async fn version_install(
@@ -925,8 +933,7 @@ impl AgentController {
                 InternalServerState::Ready
                 | InternalServerState::PreparedToHostGame
                 | InternalServerState::CreatingGame => ServerStatus::PreGame,
-                InternalServerState::InGame
-                | InternalServerState::InGameSavingMap => {
+                InternalServerState::InGame | InternalServerState::InGameSavingMap => {
                     ServerStatus::InGame { player_count }
                 }
                 InternalServerState::DisconnectingScheduled
@@ -939,7 +946,13 @@ impl AgentController {
             .await;
     }
 
-    async fn save_create(&self, save_name: String, operation_id: OperationId) {
+    async fn save_create(
+        &self,
+        save_name: String,
+        map_gen_settings: Option<MapGenSettingsJson>,
+        map_settings: Option<MapSettingsJson>,
+        operation_id: OperationId,
+    ) {
         // assume there is at most one version installed
         if let Ok(version_mg) =
             tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await
@@ -974,6 +987,7 @@ impl AgentController {
             }
 
             let stream_out = Arc::clone(&self.global_tx);
+            info!("Attempting to create savefile with name: {}, map_gen_settings: {:?}, map_settings: {:?}", save_name, map_gen_settings, map_settings);
             let builder = ServerBuilder::using_installation(version)
                 .with_stdout_handler(move |s| {
                     let msg = AgentStreamingMessage {
@@ -984,33 +998,48 @@ impl AgentController {
                         error!("Failed to send streaming message: {:?}", e);
                     }
                 })
-                .creating_savefile(save_name.clone());
-            match self
-                .proc_manager
-                .start_and_wait_for_shortlived_instance(builder)
-                .await
-            {
+                .creating_savefile(&save_name, map_gen_settings, map_settings)
+                .await;
+            match builder {
                 Err(e) => {
+                    error!("Failed to prepare to create savefile: {:?}", e);
                     self.reply_failed(
-                        AgentOutMessage::Error(format!("Savefile creation failed: {:?}", e)),
+                        AgentOutMessage::Error(format!(
+                            "Failed to prepare to create savefile: {:?}",
+                            e
+                        )),
                         operation_id,
                     )
                     .await;
-                }
-                Ok(si) => {
-                    if si.exit_status.success() {
-                        self.reply_success(AgentOutMessage::Ok, operation_id).await;
-                    } else {
+                },
+                Ok(builder) => match self
+                    .proc_manager
+                    .start_and_wait_for_shortlived_instance(builder)
+                    .await
+                {
+                    Err(e) => {
                         self.reply_failed(
-                            AgentOutMessage::Error(format!(
-                                "Savefile creation failed: process exited with non-success code {}",
-                                si.exit_status.to_string()
-                            )),
+                            AgentOutMessage::Error(format!("Savefile creation failed: {:?}", e)),
                             operation_id,
                         )
                         .await;
                     }
-                }
+                    Ok(si) => {
+                        if si.exit_status.success() {
+                            info!("Successfully created savefile with name: {}", save_name);
+                            self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                        } else {
+                            self.reply_failed(
+                                AgentOutMessage::Error(format!(
+                                    "Savefile creation failed: process exited with non-success code {}",
+                                    si.exit_status.to_string()
+                                )),
+                                operation_id,
+                            )
+                            .await;
+                        }
+                    }
+                },
             }
         } else {
             self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id)
@@ -1022,13 +1051,32 @@ impl AgentController {
         match util::saves::exists_savefile(&save_name).await {
             Ok(true) => {
                 if let Err(e) = util::saves::delete_savefile(&save_name).await {
-                    self.reply_failed(AgentOutMessage::Error(format!("Failed to delete save: {:?}", e)), operation_id).await;
+                    self.reply_failed(
+                        AgentOutMessage::Error(format!("Failed to delete save: {:?}", e)),
+                        operation_id,
+                    )
+                    .await;
                 } else {
                     self.reply_success(AgentOutMessage::Ok, operation_id).await;
                 }
-            },
-            Ok(false) => self.reply_failed(AgentOutMessage::Error(format!("Savefile with name {} does not exist", save_name)), operation_id).await,
-            Err(e) => self.reply_failed(AgentOutMessage::Error(format!("Failed to list saves: {:?}", e)), operation_id).await,
+            }
+            Ok(false) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!(
+                        "Savefile with name {} does not exist",
+                        save_name
+                    )),
+                    operation_id,
+                )
+                .await
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to list saves: {:?}", e)),
+                    operation_id,
+                )
+                .await
+            }
         }
     }
 
@@ -1047,14 +1095,23 @@ impl AgentController {
                     self.reply(msg, &operation_id).await;
                     i += chunk_len;
                 }
-                self.reply_success(AgentOutMessage::SaveFile(SaveBytes::sentinel(i)), operation_id).await;
-            },
-            Ok(None) => self.reply_failed(
-                AgentOutMessage::SaveNotFound,
-                operation_id).await,
-            Err(e) => self.reply_failed(
-                AgentOutMessage::Error(format!("Failed to get save: {:?}", e)),
-                operation_id).await,
+                self.reply_success(
+                    AgentOutMessage::SaveFile(SaveBytes::sentinel(i)),
+                    operation_id,
+                )
+                .await;
+            }
+            Ok(None) => {
+                self.reply_failed(AgentOutMessage::SaveNotFound, operation_id)
+                    .await
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to get save: {:?}", e)),
+                    operation_id,
+                )
+                .await
+            }
         }
     }
 
@@ -1076,7 +1133,14 @@ impl AgentController {
 
     async fn save_set(&self, save_name: String, savebytes: SaveBytes, operation_id: OperationId) {
         if let Err(e) = util::saves::set_savefile(&save_name, savebytes).await {
-            self.reply_failed(AgentOutMessage::Error(format!("Failed to set savefile with name `{}`: {:?}", &save_name, e)), operation_id).await
+            self.reply_failed(
+                AgentOutMessage::Error(format!(
+                    "Failed to set savefile with name `{}`: {:?}",
+                    &save_name, e
+                )),
+                operation_id,
+            )
+            .await
         } else {
             self.reply_success(AgentOutMessage::Ok, operation_id).await
         }
@@ -1108,31 +1172,40 @@ impl AgentController {
 
     async fn mod_list_extract_from_save(&self, save_name: String, operation_id: OperationId) {
         match util::saves::exists_savefile(&save_name).await {
-            Ok(true) => {
-                match util::saves::read_header(&save_name).await {
-                    Ok(header) => {
-                        let base_mod_name = header.base_mod;
-                        let ret = header.mods.into_iter().filter(|shm| {
-                            shm.name != base_mod_name
-                        }).map(|shm| {
-                            ModObject {
-                                name: shm.name,
-                                version: shm.version.to_string(),
-                            }
-                        }).collect();
-                        self.reply_success(AgentOutMessage::ModsList(ret), operation_id).await;
-                    },
-                    Err(e) => self.reply_failed(
+            Ok(true) => match util::saves::read_header(&save_name).await {
+                Ok(header) => {
+                    let base_mod_name = header.base_mod;
+                    let ret = header
+                        .mods
+                        .into_iter()
+                        .filter(|shm| shm.name != base_mod_name)
+                        .map(|shm| ModObject {
+                            name: shm.name,
+                            version: shm.version.to_string(),
+                        })
+                        .collect();
+                    self.reply_success(AgentOutMessage::ModsList(ret), operation_id)
+                        .await;
+                }
+                Err(e) => {
+                    self.reply_failed(
                         AgentOutMessage::Error(format!("Failed to read savefile header: {:?}", e)),
-                        operation_id
-                    ).await,
+                        operation_id,
+                    )
+                    .await
                 }
             },
-            Ok(false) => self.reply_failed(AgentOutMessage::SaveNotFound, operation_id).await,
-            Err(e) => self.reply_failed(
-                AgentOutMessage::Error(format!("Failed to read savefile: {:?}", e)),
-                operation_id
-            ).await,
+            Ok(false) => {
+                self.reply_failed(AgentOutMessage::SaveNotFound, operation_id)
+                    .await
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to read savefile: {:?}", e)),
+                    operation_id,
+                )
+                .await
+            }
         }
     }
 
@@ -1431,8 +1504,11 @@ impl AgentController {
 
     async fn config_server_settings_get(&self, operation_id: OperationId) {
         if let Ok(Some(ss)) = ServerSettings::read().await {
-            self.reply_success(AgentOutMessage::ConfigServerSettings(ss.config), operation_id)
-                .await;
+            self.reply_success(
+                AgentOutMessage::ConfigServerSettings(ss.config),
+                operation_id,
+            )
+            .await;
             return;
         }
 
@@ -1462,7 +1538,11 @@ impl AgentController {
         }
     }
 
-    async fn config_server_settings_set(&self, config: ServerSettingsConfig, operation_id: OperationId) {
+    async fn config_server_settings_set(
+        &self,
+        config: ServerSettingsConfig,
+        operation_id: OperationId,
+    ) {
         match ServerSettings::set(config).await {
             Ok(_) => {
                 self.reply_success(AgentOutMessage::Ok, operation_id).await;

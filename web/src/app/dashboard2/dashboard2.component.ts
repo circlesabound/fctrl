@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { MgmtServerRestApiService } from '../mgmt-server-rest-api/services';
 import { OperationService } from '../operation.service';
 import { environment } from 'src/environments/environment';
-import { faCheck, faUpload } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faFileCirclePlus, faUpload } from '@fortawesome/free-solid-svg-icons';
 import { delay, switchMap, tap } from 'rxjs/operators';
 import { concat, of } from 'rxjs';
 
@@ -16,7 +16,6 @@ export class Dashboard2Component implements OnInit {
   status: string;
   playerCount: number;
   selectedSave: string;
-  createSaveName: string;
   installVersionString: string;
 
   uploadSavefileButtonLoading = false;
@@ -28,6 +27,10 @@ export class Dashboard2Component implements OnInit {
   saves: string[] = [];
 
   savefileToUpload: File | null;
+
+  createSaveIcon = faFileCirclePlus;
+  createSaveModalActive = false;
+  createSaveName: string | null;
 
   constructor(
     private apiClient: MgmtServerRestApiService,
@@ -94,10 +97,12 @@ export class Dashboard2Component implements OnInit {
     });
   }
 
-  createSave(): void {
+  createSave(savename: string): void {
     const payload = {
       body: {
-        savefile: this.createSaveName,
+        savefile: savename,
+        map_gen_settings: undefined, // TODO
+        map_settings: undefined, // TODO
       },
     };
     this.apiClient.serverControlCreatePost$Response(payload).subscribe(resp => {
@@ -115,6 +120,7 @@ export class Dashboard2Component implements OnInit {
           }
         );
       }
+      this.createSaveModalActive = false;
     });
   }
 

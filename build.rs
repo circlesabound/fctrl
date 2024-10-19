@@ -26,6 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let build = vergen_gitcl::BuildBuilder::default()
         .build_timestamp(true)
         .build()?;
+    // BUG this doesn't actually work but we inject the hash via docker anyway
     let git = vergen_gitcl::GitclBuilder::default()
         .sha(true)
         .build()?;

@@ -135,12 +135,17 @@ impl AgentApiClient {
         .await
     }
 
-    pub async fn save_create(&self, savefile_name: String) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
+    pub async fn save_create(
+        &self,
+        savefile_name: String,
+        map_gen_settings: Option<MapGenSettingsJson>,
+        map_settings: Option<MapSettingsJson>,
+    ) -> Result<(OperationId, impl Stream<Item = Event> + Unpin)> {
         if savefile_name.trim().is_empty() {
             return Err(Error::BadRequest("Empty savefile name".to_owned()));
         }
 
-        let request = AgentRequest::SaveCreate(savefile_name);
+        let request = AgentRequest::SaveCreate(savefile_name, map_gen_settings, map_settings);
         let (id, sub) = self.send_request_and_subscribe(request).await?;
 
         ack_or_timeout(sub, Duration::from_millis(500), id).await

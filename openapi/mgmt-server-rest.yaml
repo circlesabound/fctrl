@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: fctrl mgmt-server REST API
   description: REST API exposed by fctrl mgmt-server
-  version: 0.1.2
+  version: 0.1.3
 
 servers:
   - url: /api/v1
@@ -571,6 +571,10 @@ components:
         savefile:
           type: string
           description: Name of the savefile to create
+        map_gen_settings:
+          $ref: '#/components/schemas/MapGenSettings'
+        map_settings:
+          $ref: '#/components/schemas/MapAndDifficultySettings'
     ServerControlStartPostRequest:
       required:
         - savefile
@@ -752,6 +756,196 @@ components:
     ModSettingsObject:
       description: A mod-settings.dat file, converted into a JSON format
       type: object
+    MapAndDifficultySettings:
+      type: object
+      properties:
+        pollution:
+          $ref: '#/components/schemas/PollutionMapSettings'
+        enemy_evolution:
+          $ref: '#/components/schemas/EnemyEvolutionMapSettings'
+        enemy_expansion:
+          $ref: '#/components/schemas/EnemyExpansionMapSettings'
+        unit_group:
+          $ref: '#/components/schemas/UnitGroupMapSettings'
+        steering:
+          $ref: '#/components/schemas/SteeringMapSettings'
+        path_finder:
+          $ref: '#/components/schemas/PathFinderMapSettings'
+        max_failed_behavior_count:
+          type: integer
+        difficulty_settings:
+          $ref: '#/components/schemas/MapDifficultySettings'
+    PollutionMapSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        diffusion_ratio:
+          type: number
+          default: 0.02
+        min_to_diffuse:
+          type: number
+          default: 15
+        ageing:
+          type: number
+          default: 1
+        expected_max_per_chunk:
+          type: number
+          default: 150
+        min_to_show_per_chunk:
+          type: number
+          default: 50
+        min_pollution_to_damage_trees:
+          type: number
+          default: 60
+        pollution_with_max_forest_damage:
+          type: number
+          default: 150
+        pollution_per_tree_damage:
+          type: number
+          default: 50
+        pollution_restored_per_tree_damage:
+          type: number
+          default: 10
+        max_pollution_to_restore_trees:
+          type: number
+          default: 20
+        enemy_attack_pollution_consumption_modifier:
+          type: number
+          default: 1
+    EnemyEvolutionMapSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        time_factor:
+          type: number
+          format: double
+          default: 0.000004
+        destroy_factor:
+          type: number
+          format: double
+          default: 0.002
+        pollution_factor:
+          type: number
+          format: double
+          default: 0.0000009 # BUG preview shows exponent format?
+    EnemyExpansionMapSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        max_expansion_distance:
+          type: integer
+          default: 7
+        friendly_base_influence_radius:
+          type: integer
+          default: 2
+        enemy_building_influence_radius:
+          type: integer
+          default: 2
+        building_coefficient:
+          type: number
+          default: 0.1
+        other_base_coefficient:
+          type: number
+          default: 2.0
+        neighbouring_chunk_coefficient:
+          type: number
+          default: 0.5
+        neighbouring_base_chunk_coefficient:
+          type: number
+          default: 0.4
+        max_colliding_tiles_coefficient:
+          type: number
+          default: 0.9
+        settler_group_min_size:
+          type: integer
+          default: 5
+        settler_group_max_size:
+          type: integer
+          default: 20
+        min_expansion_cooldown:
+          type: integer
+          default: 14400
+        max_expansion_cooldown:
+          type: integer
+          default: 216000
+    UnitGroupMapSettings:
+      # TODO
+      type: object
+    SteeringMapSettings:
+      # TODO
+      type: object
+    PathFinderMapSettings:
+      # TODO
+      type: object
+    MapDifficultySettings:
+      type: object
+      properties:
+        recipe_difficulty:
+          type: integer
+          enum:
+            - 0 # normal
+            - 1 # expensive
+        technology_difficulty:
+          type: integer
+          enum:
+            - 0 # normal
+            - 1 # expensive
+        technology_price_multiplier:
+          type: number
+        research_queue_setting:
+          type: string
+          enum:
+            - "after-victory"
+            - "always"
+            - "never"
+    MapGenSettings:
+      type: object
+      properties:
+        terrain_segmentation:
+          type: number
+        water:
+          type: number
+        autoplace_controls:
+          # TODO
+          type: object
+        default_enable_all_autoplace_controls:
+          type: boolean
+        autoplace_settings:
+          # TODO
+          type: object
+        cliff_settings:
+          $ref: '#/components/schemas/CliffPlacementSettings'
+        seed:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        starting_area:
+          type: number
+        starting_points:
+          # TODO
+          type: array
+          items:
+            type: object
+        peaceful_mode:
+          type: boolean
+        property_expression_names:
+          # TODO
+          type: object
+    CliffPlacementSettings:
+      type: object
+      properties:
+        name:
+          type: string
+          default: "cliff"
+        
     RconCommandRequest:
       required:
         - command

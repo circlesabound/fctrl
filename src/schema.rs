@@ -80,7 +80,7 @@ pub enum AgentRequest {
     /// This will overwrite any existing save file of that name.
     ///
     /// **This is a long-running operation.**
-    SaveCreate(String),
+    SaveCreate(String, Option<MapGenSettingsJson>, Option<MapSettingsJson>),
     /// Delete the save file from the server with the requested name
     SaveDelete(String),
     /// Gets the save file zip from the server
@@ -224,6 +224,12 @@ pub enum ServerStatus {
 
 #[derive(Clone, Debug, Deserialize, derive_more::From, derive_more::Into, Serialize)]
 pub struct FactorioVersion(pub String);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapGenSettingsJson(pub String);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapSettingsJson(pub String);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Save {

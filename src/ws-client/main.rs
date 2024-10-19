@@ -160,7 +160,7 @@ fn get_message_from_input(input: String) -> Option<AgentRequestWithId> {
         }),
         "SaveCreate" => args.get(1).map(|name| AgentRequestWithId {
             operation_id,
-            message: AgentRequest::SaveCreate(name.to_string()),
+            message: AgentRequest::SaveCreate(name.to_string(), None, None),
         }),
         "ModListGet" => Some(AgentRequestWithId {
             operation_id,
