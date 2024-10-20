@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { faList, faTools } from '@fortawesome/free-solid-svg-icons';
+import { faDownload, faList, faTools } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-mods',
@@ -7,6 +7,7 @@ import { faList, faTools } from '@fortawesome/free-solid-svg-icons';
   styleUrls: ['./mods.component.sass']
 })
 export class ModsComponent {
+  subnavDlcIcon = faDownload;
   subnavModListIcon = faList;
   subnavModSettingsIcon = faTools;
 

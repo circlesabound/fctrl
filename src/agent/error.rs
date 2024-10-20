@@ -11,6 +11,7 @@ pub enum Error {
     ProcessSignalError(nix::Error),
 
     // Mods
+    MalformedModList,
     ModNotFound {
         mod_name: String,
         mod_version: String,

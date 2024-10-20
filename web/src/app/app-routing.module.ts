@@ -17,6 +17,7 @@ import { ChatComponent } from './logs/chat/chat.component';
 import { AuthGuard } from './auth/auth.guard';
 import { OauthRedirectComponent } from './auth/oauth-redirect/oauth-redirect.component';
 import { LoginComponent } from './auth/login/login.component';
+import { DlcListComponent } from './mods/dlc-list/dlc-list.component';
 
 const routes: Routes = [
   {
@@ -100,6 +101,13 @@ const routes: Routes = [
         path: '',
         redirectTo: 'list',
         pathMatch: 'full',
+      },
+      {
+        path: 'dlc',
+        component: DlcListComponent,
+        data: {
+          title: 'fctrl | DLC',
+        }
       },
       {
         path: 'list',

@@ -1,0 +1,79 @@
+<h1 class="title is-1">DLC / Official mods</h1>
+
+<div *ngIf="!ready">
+  <br>
+  <br>
+  <progress class="progress is-large is-info"></progress>
+  <br>
+  <br>
+</div>
+
+<div *ngIf="ready" class="is-clipped">
+  <table class="table is-fullwidth">
+    <thead>
+      <tr>
+        <th></th>
+        <th>DLC internal name</th>
+        <th>Title</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let dlcInfo of dlcInfoList">
+        <td>
+          <label class="checkbox">
+            <input [name]="dlcInfo.name" type="checkbox" [(ngModel)]="dlcInfo.enabled" />
+          </label>
+        </td>
+        <td>
+          <p>{{dlcInfo.name}}</p>
+        </td>
+        <td>
+          <p>{{dlcInfo.title}}</p>
+        </td>
+        <td>
+        </td>
+      </tr>
+    </tbody>
+    <tfoot>
+    </tfoot>
+  </table>
+
+  <button id="save-button" class="button is-success" (click)="pushDlcList()"
+    [ngClass]="{'is-loading': saveButtonLoading}">
+    <span class="icon is-small">
+      <fa-icon class="fa-fw" [icon]="saveShowTickIcon ? tickIcon : saveIcon"></fa-icon>
+    </span>
+    <span>Save</span>
+  </button>
+
+  <!-- <button id="sync-button" class="button" (click)="syncModalActive = true"
+    [ngClass]="{'is-loading': syncButtonLoading}">
+    <span class="icon is-small">
+      <fa-icon class="fa-fw" [icon]="syncShowTickIcon ? tickIcon : syncIcon"></fa-icon>
+    </span>
+    <span>Sync with save</span>
+  </button> -->
+
+  <!-- modal for sync workflow -->
+  <!-- <div class="modal" [ngClass]="{'is-active': syncModalActive}">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <h3 class="title is-3">Sync mods with save</h3>
+      </header>
+      <section class="modal-card-body">
+        <p>Syncing mods with an existing save will overwrite your entire mod list with the set of mods that were most recently used with the chosen save.</p>
+        <select [(ngModel)]="syncSelectedSavename">
+          <option class="dropdown-item" *ngFor="let savename of savenames ?? []" value="{{savename}}">{{savename}}</option>
+        </select>
+      </section>
+      <footer class="modal-card-foot">
+        <div class="buttons">
+          <button class="button is-success" (click)="syncModsWithSave(syncSelectedSavename!)" [disabled]="!syncSelectedSavename">Sync</button>
+        </div>
+      </footer>
+    </div>
+    <button class="modal-close is-large" aria-label="close" (click)="syncModalActive = false"></button>
+  </div> -->
+
+</div>

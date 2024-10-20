@@ -37,6 +37,7 @@ import { ApiRequestConfiguration, BearerAuthInterceptor } from './auth/bearer-au
 import { OauthRedirectComponent } from './auth/oauth-redirect/oauth-redirect.component';
 import { LoginComponent } from './auth/login/login.component';
 import { LogoutComponent } from './auth/logout/logout.component';
+import { DlcListComponent } from './mods/dlc-list/dlc-list.component';
 
 export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
   provide: HTTP_INTERCEPTORS,
@@ -51,6 +52,7 @@ export const BEARER_AUTH_INTERCEPTOR_PROVIDER: Provider = {
     ModsComponent,
     LogsComponent,
     PageNotFoundComponent,
+    DlcListComponent,
     ModListComponent,
     ModSettingsComponent,
     AdminListComponent,

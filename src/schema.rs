@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use strum_macros::{AsRefStr, EnumString};
+use strum_macros::{AsRefStr, Display, EnumString};
 
 // ******************************************
 // * mgmt-server REST API schemas           *
@@ -95,6 +95,10 @@ pub enum AgentRequest {
     // *********************************
     //
     //
+    /// Get a list of built-in mods that are enabled on the server
+    ModDlcsGet,
+    /// Applies the desired list of built-in mods on the server
+    ModDlcsSet(Vec<Dlc>),
     /// Get a list of mods installed on the server.
     ModListGet,
     /// Extract a list of mods from an existing savefile.
@@ -190,6 +194,7 @@ pub enum AgentOutMessage {
     ConfigRcon(RconConfig),
     ConfigSecrets(Option<SecretsObject>),
     ConfigServerSettings(ServerSettingsConfig),
+    DlcList(Vec<Dlc>),
     FactorioVersion(FactorioVersion),
     ModsList(Vec<ModObject>),
     ModSettings(Option<ModSettingsBytes>),
@@ -285,6 +290,22 @@ impl std::fmt::Debug for SaveBytes {
 pub struct ModSettingsBytes {
     #[serde(with = "base64")]
     pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, EnumString, Display)]
+pub enum Dlc {
+    #[serde(rename = "base")]
+    #[strum(serialize = "base")]
+    Base,
+    #[serde(rename = "elevated-rails")]
+    #[strum(serialize = "elevated-rails")]
+    ElevatedRails,
+    #[serde(rename = "quality")]
+    #[strum(serialize = "quality")]
+    Quality,
+    #[serde(rename = "space-age")]
+    #[strum(serialize = "space-age")]
+    SpaceAge,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

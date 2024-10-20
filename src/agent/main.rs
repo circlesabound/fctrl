@@ -1,10 +1,7 @@
 #![feature(trait_alias)]
 
 use std::{
-    convert::{TryFrom, TryInto},
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
-    time::Duration,
+    collections::HashSet, convert::{TryFrom, TryInto}, net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc, time::Duration
 };
 
 use crate::{
@@ -342,6 +339,14 @@ impl AgentController {
                         // **************
                         // Mod management
                         // **************
+                        AgentRequest::ModDlcsGet => {
+                            self.mod_dlcs_get(operation_id).await;
+                        }
+
+                        AgentRequest::ModDlcsSet(dlcs) => {
+                            self.mod_dlcs_set(dlcs.into_iter().collect(), operation_id).await;
+                        }
+
                         AgentRequest::ModListGet => {
                             self.mod_list_get(operation_id).await;
                         }
@@ -1143,6 +1148,79 @@ impl AgentController {
             .await
         } else {
             self.reply_success(AgentOutMessage::Ok, operation_id).await
+        }
+    }
+
+    async fn mod_dlcs_get(&self, operation_id: OperationId) {
+        match ModManager::read_or_apply_default().await {
+            Ok(m) => {
+                self.reply_success(AgentOutMessage::DlcList(m.dlcs.into_iter().collect()), operation_id)
+                    .await;
+            }
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to get DLC: {:?}", e)),
+                    operation_id,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn mod_dlcs_set(&self, dlcs: HashSet<Dlc>, operation_id: OperationId) {
+        // validate that base is included
+        if !dlcs.contains(&Dlc::Base) {
+            self.reply_failed(AgentOutMessage::Error("Failed to set DLC: list must include base".to_owned()), operation_id).await;
+            return;
+        }
+
+        if let Ok(vm) =
+            tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await
+        {
+            match vm.versions.values().next() {
+                None => {
+                    self.reply_failed(AgentOutMessage::NotInstalled, operation_id)
+                        .await;
+                }
+                Some(v) => {
+                    // validate if non-base DLC, then version > 1
+                    if dlcs.len() > 1 && v.version.starts_with("1") {
+                        self.reply_failed(
+                            AgentOutMessage::Error(format!("Failed to set DLC: list includes non-base DLC which installed game version {} does not support", v.version))
+                            , operation_id
+                        )
+                        .await;
+                    } else {
+                        match ModManager::read_or_apply_default().await {
+                            Ok(mut m) => {
+                                m.dlcs = dlcs;
+                                if let Err(e) = m.apply_metadata_only().await {
+                                    self.reply_failed(
+                                        AgentOutMessage::Error(format!(
+                                            "Unable to write mod list when setting DLC: {:?}",
+                                            e
+                                        )),
+                                        operation_id,
+                                    )
+                                    .await;
+                                } else {
+                                    self.reply_success(AgentOutMessage::Ok, operation_id).await;
+                                }
+                            },
+                            Err(e) => {
+                                self.reply_failed(
+                                    AgentOutMessage::Error(format!("Failed to initialise mod manager: {:?}", e)),
+                                    operation_id,
+                                )
+                                .await;
+                            },
+                        }
+                    }
+                }
+            }
+        } else {
+            self.reply_failed(AgentOutMessage::ConflictingOperation, operation_id)
+                .await;
         }
     }
 

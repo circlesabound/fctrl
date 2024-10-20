@@ -1,7 +1,5 @@
 use std::{
-    collections::HashSet,
-    convert::{TryFrom, TryInto},
-    path::{Path, PathBuf},
+    borrow::Borrow, collections::HashSet, convert::{TryFrom, TryInto}, path::{Path, PathBuf}, str::FromStr
 };
 
 use factorio_file_parser::ModSettings;
@@ -27,6 +25,7 @@ lazy_static! {
 }
 
 pub struct ModManager {
+    pub dlcs: HashSet<Dlc>,
     pub mods: Vec<Mod>,
     pub settings: Option<ModSettings>,
     pub path: PathBuf,
@@ -37,8 +36,21 @@ impl ModManager {
         if !MOD_DIR.is_dir() {
             Ok(None)
         } else {
-            // Don't bother with mod list, directly parse the mod zips
+            // Read DLC state from mod-list.json
+            let mod_list_json = fs::read_to_string(&*MOD_LIST_PATH).await?;
+            let mod_list: ModList = serde_json::from_str(&mod_list_json)?;
+            let dlcs = match ModManager::read_dlcs_from_mod_list(&mod_list) {
+                Ok(dlcs) => dlcs,
+                Err(e) => {
+                    error!("Error reading mod-list file: {:?}. Assuming base mod enabled with no other DLC", e);
+                    HashSet::from([Dlc::Base])
+                },
+            };
+
+            // For actual mods, don't bother with mod list, directly parse the mod zips
             // No support for "installed but disabled" mods
+            // TODO we're reading the mod-list.json now anyway, use that instead of parsing
+            // TODO also mod-list.json supports versioning now
             let mut mod_zip_names = vec![];
             let mut entries = fs::read_dir(&*MOD_DIR).await?;
             while let Some(entry) = entries.next_entry().await? {
@@ -77,6 +89,7 @@ impl ModManager {
             }
 
             Ok(Some(ModManager {
+                dlcs,
                 mods,
                 settings,
                 path: MOD_DIR.clone(),
@@ -91,6 +104,7 @@ impl ModManager {
                 info!("Generating mod dir and contents using defaults");
 
                 let ret = ModManager {
+                    dlcs: HashSet::from([Dlc::Base]),
                     mods: vec![],
                     settings: None,
                     path: MOD_DIR.clone(),
@@ -173,8 +187,8 @@ impl ModManager {
     pub async fn apply_metadata_only(&self) -> Result<()> {
         fs::create_dir_all(&*MOD_DIR).await?;
 
-        // ModList impl automatically adds the base mod to its internal structure
-        let mod_list_json = serde_json::to_string(&ModList::from(self.mods.clone()))?;
+        // ModList impl of From incorporates DLC into its list
+        let mod_list_json = serde_json::to_string(&ModList::from(self))?;
         fs::write(&*MOD_LIST_PATH, mod_list_json).await?;
 
         if let Some(settings) = self.settings.clone() {
@@ -255,6 +269,25 @@ impl ModManager {
             delete: mods_to_delete,
         }
     }
+
+    fn read_dlcs_from_mod_list(mod_list: impl Borrow<ModList>) -> Result<HashSet<Dlc>> {
+        let mut dlcs = HashSet::new();
+        for mod_list_elem in mod_list.borrow().mods.iter() {
+            if let Ok(dlc_name) = Dlc::from_str(&mod_list_elem.name) {
+                if mod_list_elem.enabled {
+                    dlcs.insert(dlc_name);
+                }
+            }
+        }
+
+        // sanity check
+        if !dlcs.contains(&Dlc::Base) {
+            error!("Error reading DLCs from mod-list.json - no base mod found");
+            Err(Error::MalformedModList)
+        } else {
+            Ok(dlcs)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -298,21 +331,24 @@ impl Default for ModList {
             mods: vec![ModListElem {
                 name: "base".to_owned(),
                 enabled: true,
+                version: None,
             }],
         }
     }
 }
 
-impl From<Vec<Mod>> for ModList {
-    fn from(v: Vec<Mod>) -> Self {
+impl<T: Borrow<ModManager>> From<T> for ModList {
+    fn from(m: T) -> Self {
         // Assume base is always enabled
-        let mut elems = vec![ModListElem {
-            name: "base".to_owned(),
+        let mut elems: Vec<_> = m.borrow().dlcs.iter().map(|d| ModListElem {
+            name: (*d).to_string(),
             enabled: true,
-        }];
-        elems.extend(v.into_iter().map(|m| ModListElem {
-            name: m.name,
+            version: None,
+        }).collect();
+        elems.extend(m.borrow().mods.iter().map(|m| ModListElem {
+            name: m.name.clone(),
             enabled: true,
+            version: Some(m.version.clone()),
         }));
         ModList { mods: elems }
     }
@@ -322,6 +358,8 @@ impl From<Vec<Mod>> for ModList {
 struct ModListElem {
     name: String,
     enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
 }
 
 #[cfg(test)]
@@ -331,6 +369,39 @@ mod tests {
     use std::collections::HashMap;
 
     use fctrl::util;
+    use serde_json::json;
+
+    #[test]
+    fn can_parse_valid_dlc() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        util::testing::logger_init();
+
+        let mod_list: ModList = serde_json::from_value(json!({
+            "mods": [
+                {
+                    "name": "base",
+                    "enabled": true
+                },
+                {
+                    "name": "space-age",
+                    "enabled": true
+                },
+                {
+                    "name": "elevated-rails",
+                    "enabled": true
+                },
+                {
+                    "name": "quality",
+                    "enabled": true
+                }
+            ]
+        }))?;
+        let dlcs = ModManager::read_dlcs_from_mod_list(mod_list)?;
+        assert!(dlcs.contains(&Dlc::Base));
+        assert!(dlcs.contains(&Dlc::SpaceAge));
+        assert!(dlcs.contains(&Dlc::ElevatedRails));
+        assert!(dlcs.contains(&Dlc::Quality));
+        Ok(())
+    }
 
     #[test]
     fn can_parse_valid_mod_filenames() -> std::result::Result<(), Box<dyn std::error::Error>> {

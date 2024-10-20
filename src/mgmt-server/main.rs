@@ -178,6 +178,8 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::put_secrets,
                 routes::server::get_server_settings,
                 routes::server::put_server_settings,
+                routes::server::get_dlcs,
+                routes::server::set_dlcs,
                 routes::server::get_mods_list,
                 routes::server::apply_mods_list,
                 routes::server::get_mod_settings,

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap, pin::Pin, str::FromStr, sync::{
+    collections::{HashMap, HashSet}, pin::Pin, str::FromStr, sync::{
         atomic::{AtomicBool, AtomicU8, Ordering},
         Arc,
     }, time::Duration
@@ -196,6 +196,28 @@ impl AgentApiClient {
 
         response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
             AgentOutMessage::SaveList(saves) => Ok(saves),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn mod_dlcs_get(&self) -> Result<HashSet<Dlc>> {
+        let request = AgentRequest::ModDlcsGet;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::DlcList(mods) => Ok(mods.into_iter().collect()),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
+    pub async fn mod_dlcs_set(&self, dlcs: HashSet<Dlc>) -> Result<()> {
+        let request = AgentRequest::ModDlcsSet(dlcs.into_iter().collect());
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::Ok => Ok(()),
             m => Err(default_message_handler(m)),
         })
         .await
@@ -463,6 +485,7 @@ fn default_message_handler(agent_message: AgentOutMessage) -> Error {
         | AgentOutMessage::ConfigSecrets(_)
         | AgentOutMessage::ConfigServerSettings(_)
         | AgentOutMessage::ConfigWhiteList(_)
+        | AgentOutMessage::DlcList(_)
         | AgentOutMessage::FactorioVersion(_)
         | AgentOutMessage::Message(_)
         | AgentOutMessage::ModsList(_)

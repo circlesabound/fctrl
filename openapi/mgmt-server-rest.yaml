@@ -323,6 +323,27 @@ paths:
       responses:
         '200':
           description: Ok
+  /server/mods/dlc:
+    get:
+      summary: Gets status of official DLC mods 
+      responses:
+        '200':
+          description: A JSON dictionary with entries indicating whether each official DLC is enabled or disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerModDlcList'
+    put:
+      summary: Pushes status of official DLC mods to enable on the server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerModDlcList'
+      responses:
+        '200':
+          description: Ok
   /server/mods/list:
     get:
       summary: Gets a list of mods installed on the Factorio server.
@@ -727,6 +748,17 @@ components:
           type: integer
         maximum_segment_size_peer_count:
           type: integer
+    ServerModDlcList:
+      type: array
+      items:
+        $ref: '#/components/schemas/DlcName'
+    DlcName:
+        type: string
+        enum:
+          - "base"
+          - "space-age"
+          - "elevated-rails"
+          - "quality"
     ServerModList:
       type: array
       items:

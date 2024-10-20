@@ -1,12 +1,10 @@
 use std::{
-    convert::{TryFrom, TryInto},
-    sync::Arc,
-    time::Duration,
+    collections::HashSet, convert::{TryFrom, TryInto}, sync::Arc, time::Duration
 };
 
 use factorio_file_parser::ModSettings;
 use fctrl::schema::{
-    mgmt_server_rest::*, FactorioVersion, MapGenSettingsJson, MapSettingsJson, ModSettingsBytes, RconConfig, SaveBytes, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
+    mgmt_server_rest::*, Dlc, FactorioVersion, MapGenSettingsJson, MapSettingsJson, ModSettingsBytes, RconConfig, SaveBytes, SecretsObject, ServerSettingsConfig, ServerStartSaveFile, ServerStatus
 };
 use rocket::{data::ToByteUnit, delete, serde::json::Json, Data};
 use rocket::{get, post, put};
@@ -322,6 +320,24 @@ pub async fn put_server_settings(
     body: Json<ServerSettingsConfig>,
 ) -> Result<()> {
     agent_client.config_server_settings_set(body.into_inner()).await
+}
+
+#[get("/server/mods/dlc")]
+pub async fn get_dlcs(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+) -> Result<Json<HashSet<Dlc>>> {
+    let dlcs = agent_client.mod_dlcs_get().await?;
+    Ok(Json(dlcs))
+}
+
+#[put("/server/mods/dlc", data = "<body>")]
+pub async fn set_dlcs(
+    _a: AuthorizedUser,
+    agent_client: &State<Arc<AgentApiClient>>,
+    body: Json<HashSet<Dlc>>,
+) -> Result<()> {
+    agent_client.mod_dlcs_set(body.into_inner()).await
 }
 
 #[get("/server/mods/list")]
