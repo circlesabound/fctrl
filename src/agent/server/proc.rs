@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use log::debug;
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt},
     sync::{Mutex, RwLock},
@@ -18,13 +19,44 @@ use crate::{
 use fctrl::schema::regex::*;
 
 pub struct ProcessManager {
+    sysinfo: Arc<RwLock<System>>,
     running_instance: Arc<Mutex<Option<StartedInstance>>>,
 }
 
 impl ProcessManager {
     pub fn new() -> Self {
+        let sysinfo_refresh_specifics = RefreshKind::new()
+            .with_cpu(CpuRefreshKind::new().with_cpu_usage())
+            .with_memory(MemoryRefreshKind::new().with_ram());
+        let sysinfo = Arc::new(RwLock::new(System::new_with_specifics(sysinfo_refresh_specifics)));
+        let sysinfo_arc = Arc::clone(&sysinfo);
+        tokio::spawn(async move {
+            loop {
+                // refresh system stats every 10 seconds
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                if let Ok(mut sysinfo) = tokio::time::timeout(Duration::from_millis(250), sysinfo_arc.write()).await {
+                    sysinfo.refresh_specifics(sysinfo_refresh_specifics);
+                } else {
+                    warn!("Unable to acquire write lock for sysinfo, skipping this cycle");
+                }
+            }
+        });
         ProcessManager {
+            sysinfo,
             running_instance: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub async fn system_resources(&self) -> Result<SystemResources> {
+        if let Ok(sysinfo) = tokio::time::timeout(Duration::from_millis(250), self.sysinfo.read()).await {
+            Ok(SystemResources {
+                cpu_total: sysinfo.global_cpu_usage(),
+                cpus: sysinfo.cpus().into_iter().map(|cpu| cpu.cpu_usage()).collect(),
+                mem_total_bytes: sysinfo.total_memory(),
+                mem_used_bytes: sysinfo.used_memory(),
+            })
+        } else {
+            Err(Error::Timeout)
         }
     }
 

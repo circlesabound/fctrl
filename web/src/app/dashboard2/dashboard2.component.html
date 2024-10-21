@@ -56,6 +56,10 @@
   <span>Upload save</span>
 </button>
 
+<p>CPU total: {{cpuTotal ?? "n/a"}}%</p>
+<p *ngFor="let cpu of cpus; let i = index">CPU{{i}}: {{cpu}}%</p>
+<p>Memory used: {{mem_used_prct ?? "n/a"}}%</p>
+
 <!-- modal for savefile create workflow -->
 <div class="modal" [ngClass]="{'is-active': createSaveModalActive}">
   <div class="modal-background"></div>

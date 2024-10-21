@@ -4,7 +4,7 @@ import { OperationService } from '../operation.service';
 import { environment } from 'src/environments/environment';
 import { faCheck, faFileCirclePlus, faUpload } from '@fortawesome/free-solid-svg-icons';
 import { delay, switchMap, tap } from 'rxjs/operators';
-import { concat, of } from 'rxjs';
+import { concat, interval, of } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard2',
@@ -32,6 +32,10 @@ export class Dashboard2Component implements OnInit {
   createSaveModalActive = false;
   createSaveName: string | null;
 
+  cpuTotal: number | null = null;
+  cpus: number[] = [];
+  mem_used_prct: number | null = null;
+
   constructor(
     private apiClient: MgmtServerRestApiService,
     private operationService: OperationService,
@@ -47,12 +51,14 @@ export class Dashboard2Component implements OnInit {
 
   ngOnInit(): void {
     this.internalUpdateAll();
+    interval(15000).subscribe(_ => this.internalUpdateSystemResources());
   }
 
   private internalUpdateAll(): void {
     this.internalUpdateVersion();
     this.internalUpdateSaves();
     this.internalUpdateGameStatus();
+    this.internalUpdateSystemResources();
   }
 
   private internalUpdateGameStatus(): void {
@@ -76,6 +82,14 @@ export class Dashboard2Component implements OnInit {
 
   private internalUpdateAvailableVersions(): void {
     // TODO implement for install version dropdown
+  }
+
+  private internalUpdateSystemResources(): void {
+    this.apiClient.systemMonitorGet().subscribe(s => {
+      this.cpuTotal = s.cpu_total;
+      this.cpus = s.cpus;
+      this.mem_used_prct = s.mem_used_bytes / s.mem_total_bytes * 100;
+    });
   }
 
   startServer(): void {

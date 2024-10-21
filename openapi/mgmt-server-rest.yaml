@@ -531,6 +531,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MetricsPaginationObject'
+  /system/monitor:
+    get:
+      summary: Get system resource utilisation stats
+      responses:
+        '200':
+          description: System resource utilisation stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemResources'
   /buildinfo:
     get:
       summary: Gets build information for all components
@@ -1046,6 +1056,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MetricsDataPoint'
+    SystemResources:
+      type: object
+      required:
+        - cpu_total
+        - cpus
+        - mem_total_bytes
+        - mem_used_bytes
+      properties:
+        cpu_total:
+          type: number
+        cpus:
+          type: array
+          items:
+            type: number
+        mem_total_bytes:
+          type: integer
+          minimum: 0
+          format: int64
+        mem_used_bytes:
+          type: integer
+          minimum: 0
+          format: int64
     BuildInfoObject:
       properties:
         agent:

@@ -345,10 +345,11 @@ impl EventHandler for Handler {
         if let Interaction::Command(command) = interaction {
             let response = match command.data.name.as_str() {
                 "server-save" => Some(commands::server_save(self.agent_client.as_ref()).await),
+                "system-resources" => Some(commands::system_resources(self.agent_client.as_ref()).await),
                 _ => {
                     warn!("unimplemented interaction command");
                     None
-                },
+                }
             };
             if let Some(response) = response {
                 if let Err(e) = command.create_response(&ctx.http, response).await {
@@ -361,6 +362,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Err(e) = self.guild_id.set_commands(&ctx.http, vec![
             CreateCommand::new("server-save").description("Trigger a server-side save"),
+            CreateCommand::new("system-resources").description("Get system resource usage statistics")
         ]).await {
             error!("Error creating slash commands: {:?}", e);
         }
@@ -396,8 +398,8 @@ impl EventHandler for Handler {
 }
 
 mod commands {
-    use log::error;
-    use serenity::all::{CreateInteractionResponse, CreateInteractionResponseMessage};
+    use log::{error, info};
+    use serenity::all::{CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage};
 
     use crate::clients::AgentApiClient;
 
@@ -409,6 +411,24 @@ mod commands {
         } else {
             let data = CreateInteractionResponseMessage::new().content("Ok");
             CreateInteractionResponse::Message(data)
+        }
+    }
+
+    pub async fn system_resources(agent_client: &AgentApiClient) -> CreateInteractionResponse {
+        match agent_client.system_resources().await {
+            Ok(system_resources) => {
+                info!("{:?}", system_resources);
+                let embed = CreateEmbed::new()
+                    .title("System resource statistics")
+                    .field("CPU total", format!("{:.2}%", system_resources.cpu_total), false)
+                    .fields(system_resources.cpus.iter().enumerate().map(|(i, cpu)| (format!("cpu{}", i), format!("{:.2}%", cpu), true)))
+                    .field("Memory used", format!("{:.2}%", (system_resources.mem_used_bytes as f64 / system_resources.mem_total_bytes as f64) * 100 as f64), false);
+                CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().embed(embed))
+            },
+            Err(e) => {
+                let data = CreateInteractionResponseMessage::new().content(format!("Failed to get system resource statistics: {:?}", e));
+                CreateInteractionResponse::Message(data)
+            },
         }
     }
 }

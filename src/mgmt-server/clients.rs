@@ -76,6 +76,17 @@ impl AgentApiClient {
         .await
     }
 
+    pub async fn system_resources(&self) -> Result<SystemResources> {
+        let request = AgentRequest::SystemResources;
+        let (_id, sub) = self.send_request_and_subscribe(request).await?;
+
+        response_or_timeout(sub, Duration::from_millis(500), |r| match r.content {
+            AgentOutMessage::SystemResources(s) => Ok(s),
+            m => Err(default_message_handler(m)),
+        })
+        .await
+    }
+
     pub async fn version_install(
         &self,
         version: FactorioVersion,
@@ -494,6 +505,7 @@ fn default_message_handler(agent_message: AgentOutMessage) -> Error {
         | AgentOutMessage::SaveFile(_)
         | AgentOutMessage::SaveList(_)
         | AgentOutMessage::ServerStatus(_)
+        | AgentOutMessage::SystemResources(_)
         | AgentOutMessage::Ok => Error::AgentCommunicationError,
         AgentOutMessage::Error(e) => Error::AgentInternalError(e),
         AgentOutMessage::ConflictingOperation => {

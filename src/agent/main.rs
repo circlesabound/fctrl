@@ -281,6 +281,13 @@ impl AgentController {
                             self.build_version(operation_id).await;
                         }
 
+                        // *****************
+                        // System monitoring
+                        // *****************
+                        AgentRequest::SystemResources => {
+                            self.system_resources(operation_id).await;
+                        }
+
                         // ***********************
                         // Installation management
                         // ***********************
@@ -539,6 +546,20 @@ impl AgentController {
         };
         self.reply_success(AgentOutMessage::AgentBuildVersion(version), operation_id)
             .await;
+    }
+
+    async fn system_resources(&self, operation_id: OperationId) {
+        match self.proc_manager.system_resources().await {
+            Ok(system_resources) => {
+                self.reply_success(AgentOutMessage::SystemResources(system_resources), operation_id).await;
+            },
+            Err(e) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to fetch system resource statistics: {:?}", e)),
+                    operation_id
+                ).await;
+            },
+        }
     }
 
     async fn version_install(

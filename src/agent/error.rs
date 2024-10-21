@@ -26,6 +26,7 @@ pub enum Error {
 
     // Generic
     Aggregate(Vec<Error>),
+    Timeout,
 
     // Generic wrappers around external error types
     FactorioDatFileSerde(factorio_file_parser::Error),

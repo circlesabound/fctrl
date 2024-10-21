@@ -17,6 +17,7 @@ pub mod metrics;
 pub mod options;
 pub mod proxy;
 pub mod server;
+pub mod system;
 
 pub struct LinkDownloadResponder {
     path: String,

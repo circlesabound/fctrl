@@ -187,6 +187,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 routes::server::get_mod_settings_dat,
                 routes::server::put_mod_settings_dat,
                 routes::server::send_rcon_command,
+                routes::system::monitor,
                 routes::logs::get,
                 routes::logs::stream,
                 routes::metrics::get,

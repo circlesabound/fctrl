@@ -44,6 +44,14 @@ pub enum AgentRequest {
     BuildVersion,
 
     // *********************************
+    // * System monitoring             *
+    // *********************************
+    //
+    //
+    /// Get system resource statistics
+    SystemResources,
+
+    // *********************************
     // * Installation management       *
     // *********************************
     //
@@ -205,6 +213,7 @@ pub enum AgentOutMessage {
     SaveList(Vec<Save>),
     SaveNotFound,
     ServerStatus(ServerStatus),
+    SystemResources(SystemResources),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -401,6 +410,14 @@ pub enum InternalServerState {
     Disconnecting,
     Disconnected,
     Closed,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SystemResources {
+    pub cpu_total: f32,
+    pub cpus: Vec<f32>,
+    pub mem_total_bytes: u64,
+    pub mem_used_bytes: u64,
 }
 
 /// module for serde to handle binary fields
