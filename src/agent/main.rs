@@ -1,7 +1,7 @@
 #![feature(trait_alias)]
 
 use std::{
-    collections::HashSet, convert::{TryFrom, TryInto}, net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc, time::Duration
+    collections::HashSet, convert::{TryFrom, TryInto}, net::{IpAddr, Ipv4Addr, SocketAddr}, str::FromStr, sync::Arc, time::Duration
 };
 
 use crate::{
@@ -1273,11 +1273,13 @@ impl AgentController {
         match util::saves::exists_savefile(&save_name).await {
             Ok(true) => match util::saves::read_header(&save_name).await {
                 Ok(header) => {
-                    let base_mod_name = header.base_mod;
                     let ret = header
                         .mods
                         .into_iter()
-                        .filter(|shm| shm.name != base_mod_name)
+                        .filter(|shm| {
+                            // filter out official dlcs
+                            !Dlc::from_str(&shm.name).is_ok()
+                        })
                         .map(|shm| ModObject {
                             name: shm.name,
                             version: shm.version.to_string(),
