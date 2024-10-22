@@ -847,7 +847,7 @@ impl AgentController {
 
         // Server settings is required to start
         // Pre-populate with the example file if not exist
-        let server_settings;
+        let mut server_settings;
         match ServerSettings::read_or_apply_default(version).await {
             Ok(ss) => server_settings = ss,
             Err(_e) => {
@@ -859,6 +859,57 @@ impl AgentController {
                 )
                 .await;
                 return;
+            }
+        }
+
+        // If game is public visibility, we need factorio.com credentials
+        if server_settings.config.visibility.public {
+            match Secrets::read().await {
+                Ok(Some(secrets)) => {
+                    if secrets.username.is_empty() || secrets.token.is_empty() {
+                        self.reply_failed(
+                            AgentOutMessage::Error(
+                                "Missing credentials required for server visible to public".to_owned(),
+                            ),
+                            operation_id,
+                        )
+                        .await;
+                        return;
+                    }
+
+                    // Write them into the config file, since there's no other way to pass them in
+                    server_settings.config.username = Some(secrets.username);
+                    server_settings.config.token = Some(secrets.token);
+                    if let Err(_) = ServerSettings::write(&server_settings).await {
+                        self.reply_failed(
+                            AgentOutMessage::Error(
+                                "Failed to write to server settings file".to_owned()
+                            ),
+                            operation_id,
+                        ).await;
+                        return;
+                    }
+                },
+                Ok(None) => {
+                    self.reply_failed(
+                        AgentOutMessage::Error(
+                            "Missing credentials required for server visible to public".to_owned(),
+                        ),
+                        operation_id,
+                    )
+                    .await;
+                    return;
+                },
+                Err(_) => {
+                    self.reply_failed(
+                        AgentOutMessage::Error(
+                            "Failed to read secrets".to_owned(),
+                        ),
+                        operation_id,
+                    )
+                    .await;
+                    return;
+                },
             }
         }
 
@@ -1604,7 +1655,10 @@ impl AgentController {
     }
 
     async fn config_server_settings_get(&self, operation_id: OperationId) {
-        if let Ok(Some(ss)) = ServerSettings::read().await {
+        if let Ok(Some(mut ss)) = ServerSettings::read().await {
+            // strip any credentials from the return
+            ss.config.username = None;
+            ss.config.token = None;
             self.reply_success(
                 AgentOutMessage::ConfigServerSettings(ss.config),
                 operation_id,
@@ -1613,10 +1667,15 @@ impl AgentController {
             return;
         }
 
+        // if there's no existing file, we need to ensure there's an installed Factorio version
+        // to generate a default from
         let vm = self.version_manager.read().await;
         if let Some((_, version)) = vm.versions.iter().next() {
             match ServerSettings::read_or_apply_default(version).await {
-                Ok(ss) => {
+                Ok(mut ss) => {
+                    // strip any credentials from the return
+                    ss.config.username = None;
+                    ss.config.token = None;
                     self.reply_success(
                         AgentOutMessage::ConfigServerSettings(ss.config),
                         operation_id,

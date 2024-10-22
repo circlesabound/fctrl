@@ -432,7 +432,10 @@ impl ServerSettings {
             Some(ls) => Ok(ls),
             None => {
                 info!("Generating server settings using defaults");
-                let config = ServerSettings::read_default_server_settings(installation).await?;
+                let mut config = ServerSettings::read_default_server_settings(installation).await?;
+                // clear the default empty secrets
+                config.username = None;
+                config.token = None;
                 let s = ServerSettings {
                     config,
                     path: SERVER_SETTINGS_PATH.clone(),

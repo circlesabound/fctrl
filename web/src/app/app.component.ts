@@ -5,7 +5,7 @@ import { faChartBar, faCogs, faTerminal, faWrench } from '@fortawesome/free-soli
 import { filter, map, mergeMap } from 'rxjs/operators';
 import { OperationService } from './operation.service';
 import { MgmtServerRestApiService } from './mgmt-server-rest-api/services';
-import { BuildInfoObject, BuildVersion } from './mgmt-server-rest-api/models';
+import { BuildVersion } from './mgmt-server-rest-api/models';
 
 @Component({
   selector: 'app-root',

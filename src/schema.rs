@@ -363,6 +363,9 @@ pub struct ServerSettingsConfig {
     pub autosave_only_on_server: bool,
     pub non_blocking_saving: bool,
 
+    pub username: Option<String>,
+    pub token: Option<String>,
+
     pub game_password: String,
     pub require_user_verification: bool,
     pub max_players: u32,
