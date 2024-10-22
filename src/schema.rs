@@ -363,7 +363,9 @@ pub struct ServerSettingsConfig {
     pub autosave_only_on_server: bool,
     pub non_blocking_saving: bool,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 
     pub game_password: String,
