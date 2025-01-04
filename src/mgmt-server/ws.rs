@@ -125,7 +125,7 @@ impl WebSocketServer {
                     let outgoing_tx_clone = outgoing_tx.clone();
                     pin_mut!(stream);
                     let forward_fut = stream.for_each(|e| {
-                        let msg = Message::Text(e.content);
+                        let msg = Message::Text(e.content.into());
                         let _ = outgoing_tx_clone.send(msg);
                         future::ready(())
                     });

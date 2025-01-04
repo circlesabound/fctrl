@@ -542,7 +542,7 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
     let keep_alive_task = tokio::spawn(async move {
         while consecutive_missed_pings_1.load(Ordering::Acquire) < 3 {
             tokio::time::sleep(Duration::from_secs(15)).await;
-            let ping = Message::Ping(b"ping".to_vec());
+            let ping = Message::Ping(b"ping".to_vec().into());
             if let Err(e) = ws_write_1.lock().await.send(ping).await {
                 error!("Failed to send ping: {:?}", e);
             } else {
@@ -558,7 +558,7 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
     let forward_outgoing_task = tokio::spawn(async move {
         pin_mut!(outgoing_stream);
         while let Some(outgoing_event) = outgoing_stream.next().await {
-            let msg = Message::Text(outgoing_event.content);
+            let msg = Message::Text(outgoing_event.content.into());
             if let Err(e) = ws_write_2.lock().await.send(msg).await {
                 error!("Websocket error sending request to agent: {:?}", e);
                 break;
@@ -574,7 +574,7 @@ pub async fn connect(ws_addr: url::Url, event_broker: Arc<EventBroker>) -> Resul
                 Ok(msg) => {
                     match msg {
                         Message::Text(s) => {
-                            if let Some(event) = tag_incoming_message(s) {
+                            if let Some(event) = tag_incoming_message(s.to_string()) {
                                 event_broker.publish(event).await;
                             }
                         }

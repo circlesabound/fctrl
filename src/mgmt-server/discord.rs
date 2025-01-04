@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Duration};
 use fctrl::schema::{InternalServerState, ServerStatus};
 use futures::{pin_mut, StreamExt};
 use log::{error, info, warn};
-use serenity::all::CreateCommand;
+use serenity::all::{Builder, CreateCommand, CreateWebhook, ExecuteWebhook};
 use serenity::gateway::ActivityData;
 use serenity::{
     client::{Cache, Context, EventHandler},
@@ -68,17 +68,48 @@ impl DiscordClient {
 
         if let Some(chat_link_channel_id) = chat_link_channel_id {
             let bot_token_clone = bot_token.clone();
+            // regular string type mpsc for non webhook messages
             let (chat_link_tx, mut rx) = mpsc::unbounded_channel();
+            // for webhook messages we need extra data for "nickname impersonation"
+            let (webhook_msg_tx, mut webhook_rx) = mpsc::unbounded_channel();
+
+            let http = Arc::new(Http::new(&bot_token_clone));
+            let channel = ChannelId::new(chat_link_channel_id);
+
+            // we use a webhook to allow custom display nickname of sent messages
+            // create if not exist
+            let existing_webhooks = channel.webhooks(&http).await?;
+            let webhook = if let Some(w) = existing_webhooks.into_iter().find(|w| w.name.as_ref().is_some_and(|n| n == "fctrl_chat_link_g2d")) {
+                w
+            } else {
+                let create_webhook = CreateWebhook::new("fctrl_chat_link_g2d");
+                create_webhook.execute(&http, channel).await?
+            };
+
+            // regular non webhook message handler
+            let http_clone = Arc::clone(&http);
             tokio::spawn(async move {
-                let http = Http::new(&bot_token_clone);
-                let channel = ChannelId::new(chat_link_channel_id);
                 while let Some(line) = rx.recv().await {
-                    if let Err(e) = channel.say(&http, line).await {
+                    if let Err(e) = channel.say(&http_clone, line).await {
                         error!("Couldn't send message to Discord: {:?}", e);
                     }
                 }
             });
-            DiscordClient::create_chat_link_g2d_subscriber(chat_link_tx.clone(), event_broker)
+
+            // webhook message handler
+            let http_clone = Arc::clone(&http);
+            tokio::spawn(async move {
+                while let Some((name, line)) = webhook_rx.recv().await {
+                    let content = ExecuteWebhook::new()
+                        .username(name)
+                        .content(line);
+                    if let Err(e) = webhook.execute(&http_clone, false, content).await {
+                        error!("Couldn't send message to Discord: {:?}", e);
+                    }
+                }
+            });
+
+            DiscordClient::create_chat_link_g2d_subscriber(chat_link_tx.clone(), webhook_msg_tx, event_broker)
                 .await;
         }
 
@@ -189,9 +220,10 @@ impl DiscordClient {
 
     async fn create_chat_link_g2d_subscriber(
         send_msg_tx: mpsc::UnboundedSender<String>,
+        webhook_msg_tx: mpsc::UnboundedSender<(String, String)>,
         event_broker: Arc<EventBroker>,
     ) {
-        let chat_tx = send_msg_tx.clone();
+        let chat_tx = webhook_msg_tx;
         let join_tx = send_msg_tx.clone();
         let leave_tx = send_msg_tx.clone();
         let statechange_tx = send_msg_tx;
@@ -202,10 +234,18 @@ impl DiscordClient {
         tokio::spawn(async move {
             pin_mut!(chat_sub);
             while let Some(event) = chat_sub.next().await {
-                let message = event.tags.get(&TopicName::new(CHAT_TOPIC_NAME)).unwrap();
-                if let Err(e) = chat_tx.send(message.clone()) {
-                    error!("Error sending line through mpsc channel: {:?}", e);
-                    break;
+                let line = event.tags.get(&TopicName::new(CHAT_TOPIC_NAME)).unwrap();
+                // assume names cannot have colon
+                match line.split_once(": ") {
+                    Some((nick, message)) => {
+                        if let Err(e) = chat_tx.send((nick.to_string(), message.to_string())) {
+                            error!("Error sending line through mpsc channel: {:?}", e);
+                            break;
+                        }
+                    },
+                    None => {
+                        warn!("Failed to parse nick and message out of incoming chat link g2d line: {}", line);
+                    }
                 }
             }
 
@@ -289,7 +329,6 @@ impl DiscordClient {
             );
         });
     }
-
 
 }
 

@@ -196,7 +196,7 @@ impl AgentController {
                                 debug!("Sending streaming message: {}", json);
                                 AgentController::_send_message(
                                     Arc::clone(&ws_tx_clone),
-                                    Message::Text(json),
+                                    Message::Text(json.into()),
                                 )
                                 .await;
                             }
@@ -477,7 +477,7 @@ impl AgentController {
             }
             Ok(json) => {
                 debug!("Sending ack: {}", json);
-                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
+                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json.into())).await;
             }
         }
     }
@@ -496,7 +496,7 @@ impl AgentController {
             }
             Ok(json) => {
                 debug!("Sending reply: {}", json);
-                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
+                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json.into())).await;
             }
         }
     }
@@ -515,7 +515,7 @@ impl AgentController {
             }
             Ok(json) => {
                 debug!("Sending reply_success: {}", json);
-                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
+                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json.into())).await;
             }
         }
     }
@@ -534,7 +534,7 @@ impl AgentController {
             }
             Ok(json) => {
                 debug!("Sending reply_failed: {}", json);
-                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json)).await;
+                AgentController::_send_message(Arc::clone(&self.ws_tx), Message::Text(json.into())).await;
             }
         }
     }

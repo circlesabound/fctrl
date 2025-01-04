@@ -71,7 +71,7 @@ where
             }
             Some(req) => {
                 if ws_write
-                    .send(Message::Text(serde_json::to_string(&req).unwrap()))
+                    .send(Message::Text(serde_json::to_string(&req).unwrap().into()))
                     .await
                     .is_err()
                 {

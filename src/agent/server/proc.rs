@@ -25,9 +25,9 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new() -> Self {
-        let sysinfo_refresh_specifics = RefreshKind::new()
-            .with_cpu(CpuRefreshKind::new().with_cpu_usage())
-            .with_memory(MemoryRefreshKind::new().with_ram());
+        let sysinfo_refresh_specifics = RefreshKind::nothing()
+            .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+            .with_memory(MemoryRefreshKind::nothing().with_ram());
         let sysinfo = Arc::new(RwLock::new(System::new_with_specifics(sysinfo_refresh_specifics)));
         let sysinfo_arc = Arc::clone(&sysinfo);
         tokio::spawn(async move {
