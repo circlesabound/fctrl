@@ -65,6 +65,11 @@ pub async fn list_savefiles() -> Result<Vec<Save>> {
 }
 
 pub async fn set_savefile(save_name: impl AsRef<str>, savebytes: SaveBytes) -> Result<()> {
+    // Create save dir if not exist
+    if !SAVEFILE_DIR.is_dir() {
+        fs::create_dir_all(SAVEFILE_DIR.as_path()).await?;
+    }
+
     let bytes_length = savebytes.bytes.len();
     if let Some(start_byte) = savebytes.multipart_start {
         // partial file write
