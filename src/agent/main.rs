@@ -1030,6 +1030,28 @@ impl AgentController {
         map_settings: Option<MapSettingsJson>,
         operation_id: OperationId,
     ) {
+        // Fail if save with same name already exists
+        match util::saves::exists_savefile(&save_name).await {
+            Ok(false) => {
+                // ok
+            },
+            Ok(true) => {
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Savefile with name {} already exists", save_name)),
+                    operation_id)
+                .await;
+                return
+            },
+            Err(e) => {
+                error!("Failed to check if savefile with name {} already exists: {:?}", save_name, e);
+                self.reply_failed(
+                    AgentOutMessage::Error(format!("Failed to check if savefile with name {} already exists: {:?}", save_name, e)),
+                    operation_id)
+                .await;
+                return;
+            },
+        }
+
         // assume there is at most one version installed
         if let Ok(version_mg) =
             tokio::time::timeout(Duration::from_millis(250), self.version_manager.read()).await

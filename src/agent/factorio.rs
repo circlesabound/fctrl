@@ -145,4 +145,20 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn can_install_version_2_0_28() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        fctrl::util::testing::logger_init();
+
+        let tmp_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir(&tmp_dir).await?;
+        let mut vm = VersionManager::new(&tmp_dir).await?;
+        vm.install("2.0.28".to_owned()).await?;
+
+        assert!(vm.versions.contains_key("2.0.28"));
+
+        let _ = fs::remove_dir_all(tmp_dir).await;
+
+        Ok(())
+    }
 }
